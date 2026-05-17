@@ -1,6 +1,22 @@
 import ArgumentParser
 import Foundation
 
+// Apple Notes SQLite store — no Automation TCC permission required.
+// ZTEXT body is gzip+protobuf; we use a Python one-liner to decompress.
+private func notesDBPath() -> String {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    return "\(home)/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite"
+}
+
+// Core Data timestamps are seconds since 2001-01-01 (not Unix epoch).
+private func cdateToISO(_ seconds: Double) -> String {
+    let unix = seconds + 978307200  // seconds between 1970 and 2001
+    let date = Date(timeIntervalSince1970: unix)
+    let fmt = ISO8601DateFormatter()
+    fmt.formatOptions = [.withFullDate]
+    return fmt.string(from: date)
+}
+
 struct NotesCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "notes",
@@ -11,45 +27,33 @@ struct NotesCommand: ParsableCommand {
     // MARK: - List
 
     struct List: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "List all notes (title + folder)")
-
-        @Option(name: .long, help: "Filter by folder name")
-        var folder: String?
+        static let configuration = CommandConfiguration(abstract: "List all notes (title + modified date)")
 
         @Flag(name: .long, help: "Output JSON")
         var json = false
 
         func run() throws {
-            let folderFilter = folder.map { "'\($0)'" } ?? "null"
-            let script = """
-            const Notes = Application('Notes');
-            const folder = \(folderFilter);
-            const all = Notes.notes();
-            const out = all.filter(n => {
-                try { return !folder || n.container().name() === folder; } catch { return false; }
-            }).map(n => {
-                try {
-                    return {id: n.id(), title: n.name(), folder: n.container().name(),
-                            modified: n.modificationDate().toISOString()};
-                } catch(e) { return {id: '', title: '', folder: '', modified: ''}; }
-            });
-            JSON.stringify(out);
-            """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script]).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
-                  let notes = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not read Notes — check Automation permissions in System Settings")
+            let db = notesDBPath()
+            let sql = "SELECT ZTITLE1, ZMODIFICATIONDATE1 FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL ORDER BY ZMODIFICATIONDATE1 DESC;"
+            let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", db, sql])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty else {
+                if json { print("[]") } else { print("0 notes") }
+                return
+            }
+            let rows: [[String: String]] = raw.components(separatedBy: "\n").compactMap { line in
+                let parts = line.components(separatedBy: "\t")
+                guard parts.count >= 1, !parts[0].isEmpty else { return nil }
+                let modified = parts.count >= 2 ? (Double(parts[1]).map { cdateToISO($0) } ?? "") : ""
+                return ["title": parts[0], "modified": modified]
             }
             if json {
-                printJSON(notes)
+                printJSON(rows)
             } else {
-                for n in notes {
-                    let title = n["title"] as? String ?? ""
-                    let fldr = n["folder"] as? String ?? ""
-                    let mod = (n["modified"] as? String ?? "").prefix(10)
-                    print("[\(fldr)] \(title)  (\(mod))")
+                for r in rows {
+                    print("\(r["title"] ?? "")  (\(r["modified"] ?? ""))")
                 }
-                print("\(notes.count) notes")
+                print("\(rows.count) notes")
             }
         }
     }
@@ -57,7 +61,7 @@ struct NotesCommand: ParsableCommand {
     // MARK: - Search
 
     struct Search: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Search notes by text")
+        static let configuration = CommandConfiguration(abstract: "Search notes by title")
 
         @Argument(help: "Search query")
         var query: String
@@ -66,39 +70,22 @@ struct NotesCommand: ParsableCommand {
         var json = false
 
         func run() throws {
-            let escaped = query.replacingOccurrences(of: "'", with: "\\'")
-            let script = """
-            const Notes = Application('Notes');
-            const q = '\(escaped)'.toLowerCase();
-            const out = Notes.notes().filter(n => {
-                try {
-                    return (n.name() || '').toLowerCase().includes(q) ||
-                           (n.plaintext() || '').toLowerCase().includes(q);
-                } catch { return false; }
-            }).map(n => {
-                try {
-                    return {id: n.id(), title: n.name(), folder: n.container().name(),
-                            snippet: (n.plaintext() || '').substring(0, 200)};
-                } catch(e) { return {id:'', title:'', folder:'', snippet:''}; }
-            });
-            JSON.stringify(out);
-            """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script]).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
-                  let notes = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("No results — check Automation permissions in System Settings")
+            let db = notesDBPath()
+            let q = query.lowercased().replacingOccurrences(of: "'", with: "''")
+            let sql = "SELECT ZTITLE1, ZMODIFICATIONDATE1 FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL AND LOWER(ZTITLE1) LIKE '%\(q)%' ORDER BY ZMODIFICATIONDATE1 DESC;"
+            let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", db, sql])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let rows: [[String: String]] = raw.isEmpty ? [] : raw.components(separatedBy: "\n").compactMap { line in
+                let parts = line.components(separatedBy: "\t")
+                guard parts.count >= 1, !parts[0].isEmpty else { return nil }
+                let modified = parts.count >= 2 ? (Double(parts[1]).map { cdateToISO($0) } ?? "") : ""
+                return ["title": parts[0], "modified": modified]
             }
             if json {
-                printJSON(notes)
+                printJSON(rows)
             } else {
-                for n in notes {
-                    let title = n["title"] as? String ?? ""
-                    let fldr = n["folder"] as? String ?? ""
-                    let snippet = n["snippet"] as? String ?? ""
-                    print("[\(fldr)] \(title)")
-                    if !snippet.isEmpty { print("  \(snippet.prefix(120))") }
-                }
-                print("\(notes.count) result(s) for '\(query)'")
+                for r in rows { print("\(r["title"] ?? "")  (\(r["modified"] ?? ""))") }
+                print("\(rows.count) result(s) for '\(query)'")
             }
         }
     }
@@ -115,22 +102,41 @@ struct NotesCommand: ParsableCommand {
         var json = false
 
         func run() throws {
-            let escaped = title.replacingOccurrences(of: "'", with: "\\'")
-            let script = """
-            const Notes = Application('Notes');
-            const q = '\(escaped)'.toLowerCase();
-            const match = Notes.notes().find(n => {
-                try { return (n.name() || '').toLowerCase().includes(q); } catch { return false; }
-            });
-            if (!match) { JSON.stringify(null); }
-            else {
-                JSON.stringify({id: match.id(), title: match.name(),
-                    folder: match.container().name(), body: match.plaintext() || '',
-                    modified: match.modificationDate().toISOString()});
-            }
-            """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script]).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard raw != "null", !raw.isEmpty, let data = raw.data(using: .utf8),
+            let db = notesDBPath().replacingOccurrences(of: "'", with: "\\'")
+            let q = title.lowercased().replacingOccurrences(of: "\"", with: "\\\"")
+            // Body is gzip-compressed protobuf in ZICNOTEDATA.ZDATA — use Python to decompress
+            let py = """
+import sqlite3, gzip, re, json, sys
+db = sqlite3.connect('\(db)', check_same_thread=False)
+row = db.execute('''
+    SELECT o.ZTITLE1, n.ZDATA, o.ZMODIFICATIONDATE1
+    FROM ZICCLOUDSYNCINGOBJECT o
+    JOIN ZICNOTEDATA n ON o.Z_PK = n.ZNOTE
+    WHERE o.ZTITLE1 IS NOT NULL AND LOWER(o.ZTITLE1) LIKE ?
+    ORDER BY o.ZMODIFICATIONDATE1 DESC LIMIT 1
+''', ('%\(q)%',)).fetchone()
+if not row:
+    print(json.dumps(None))
+    sys.exit(0)
+title, blob, mdate = row
+body = ''
+if blob:
+    try:
+        raw = gzip.decompress(bytes(blob))
+        body = re.sub(rb'[^\\x20-\\x7E\\n\\t]+', b' ', raw).decode('utf-8', errors='replace').strip()
+    except Exception:
+        pass
+modified = ''
+if mdate:
+    import datetime
+    ts = float(mdate) + 978307200
+    modified = datetime.datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d')
+print(json.dumps({'title': title, 'body': body, 'modified': modified}))
+"""
+            let raw = Process.capture(args: ["/usr/bin/python3", "-c", py])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard raw != "null", !raw.isEmpty,
+                  let data = raw.data(using: .utf8),
                   let note = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 throw ValidationError("Note matching '\(title)' not found")
             }
@@ -138,15 +144,14 @@ struct NotesCommand: ParsableCommand {
                 printJSON(note)
             } else {
                 print("Title:   \(note["title"] as? String ?? "")")
-                print("Folder:  \(note["folder"] as? String ?? "")")
-                print("Updated: \((note["modified"] as? String ?? "").prefix(10))")
+                print("Updated: \(note["modified"] as? String ?? "")")
                 print("---")
                 print(note["body"] as? String ?? "")
             }
         }
     }
 
-    // MARK: - Create
+    // MARK: - Create (still uses JXA — writing to Notes.sqlite directly is unsafe)
 
     struct Create: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Create a new note")
@@ -180,10 +185,11 @@ struct NotesCommand: ParsableCommand {
             const n = Notes.make({new: 'note', \(folderPart.isEmpty ? "" : "at: \(folderPart),") withProperties: {name: '\(escapedTitle)', body: '\(escapedBody)'}});
             JSON.stringify({id: n.id(), title: n.name(), folder: n.container().name()});
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let note = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw CLIError.saveFailure("Could not create note")
+                throw CLIError.saveFailure("Could not create note — check Automation permission for Notes in System Settings")
             }
             if json {
                 printJSON(note)

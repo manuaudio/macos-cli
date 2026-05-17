@@ -8,7 +8,7 @@ struct OcrCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "ocr",
         abstract: "Read text from the screen using Vision OCR",
-        subcommands: [Full.self, Region.self]
+        subcommands: [Full.self, Region.self, File.self]
     )
 
     struct Full: ParsableCommand {
@@ -57,6 +57,32 @@ struct OcrCommand: ParsableCommand {
             if json {
                 let data = try JSONSerialization.data(withJSONObject: lines)
                 print(String(data: data, encoding: .utf8) ?? "[]")
+            } else {
+                print(lines.joined(separator: "\n"))
+            }
+        }
+    }
+
+    struct File: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "file",
+            abstract: "OCR an image file (JPEG, PNG, HEIC, etc.)"
+        )
+        @Option(name: .long, help: "Path to image file") var path: String
+        @Flag(name: .long, help: "Output JSON array of text lines") var json = false
+
+        func run() throws {
+            let url = URL(fileURLWithPath: path)
+            guard let data = try? Data(contentsOf: url),
+                  let src = CGImageSourceCreateWithData(data as CFData, nil),
+                  let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
+                fputs("Error: Could not load image at \(path)\n", stderr)
+                throw ExitCode.failure
+            }
+            let lines = recognizeText(in: img)
+            if json {
+                let encoded = try JSONSerialization.data(withJSONObject: lines)
+                print(String(data: encoded, encoding: .utf8) ?? "[]")
             } else {
                 print(lines.joined(separator: "\n"))
             }

@@ -69,17 +69,15 @@ struct MessagesCommand: ParsableCommand {
             const Messages = Application('Messages');
             const chats = Messages.chats().slice(0, \(limit)).map(c => {
                 try {
-                    const parts = c.participants().map(p => {
-                        try { return p.name() || p.handle(); } catch { return ''; }
-                    }).filter(Boolean);
-                    const msgs = c.messages();
-                    const last = msgs.length > 0 ? msgs[msgs.length - 1] : null;
-                    return {
-                        id: c.id(),
-                        participants: parts,
-                        lastMessage: last ? (last.content() || '').substring(0, 100) : '',
-                        lastDate: last && last.dateSent() ? last.dateSent().toISOString().split('T')[0] : ''
-                    };
+                    var name = '';
+                    try { name = c.name() || ''; } catch(e) {}
+                    var parts = [];
+                    try {
+                        parts = c.participants().map(p => {
+                            try { return p.name() || p.handle() || ''; } catch(e) { return ''; }
+                        }).filter(Boolean);
+                    } catch(e) {}
+                    return { id: c.id(), name: name, participants: parts };
                 } catch(e) { return null; }
             }).filter(Boolean);
             JSON.stringify(chats);
@@ -94,11 +92,10 @@ struct MessagesCommand: ParsableCommand {
                 printJSON(chats)
             } else {
                 for c in chats {
+                    let name  = c["name"]  as? String ?? ""
                     let parts = (c["participants"] as? [String] ?? []).joined(separator: ", ")
-                    let last  = c["lastMessage"] as? String ?? ""
-                    let date  = c["lastDate"]    as? String ?? ""
-                    print("[\(date)] \(parts)")
-                    if !last.isEmpty { print("  \(last.prefix(80))") }
+                    let label = name.isEmpty ? parts : name
+                    print(label.isEmpty ? "(unknown)" : label)
                 }
                 print("\(chats.count) conversation(s)")
             }

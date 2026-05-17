@@ -41,9 +41,10 @@ struct StorageCommand: ParsableCommand {
                         .volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey
                     ]) {
                         let total = Double(vals.volumeTotalCapacity ?? 0) / 1_073_741_824
-                        let free = Double(vals.volumeAvailableCapacity ?? 0) / 1_073_741_824
-                        print(String(format: "%-30s %.1f GB free / %.1f GB total",
-                              (vals.volumeName ?? url.lastPathComponent) as NSString, free, total))
+                        let free  = Double(vals.volumeAvailableCapacity ?? 0) / 1_073_741_824
+                        let name  = (vals.volumeName ?? url.lastPathComponent)
+                                    .padding(toLength: 28, withPad: " ", startingAt: 0)
+                        print("\(name)  \(String(format: "%.1f", free)) GB free / \(String(format: "%.1f", total)) GB total")
                     }
                 }
             }

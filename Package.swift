@@ -15,7 +15,13 @@ let package = Package(
             ],
             path: "Sources/apple-cli",
             swiftSettings: [
-                .unsafeFlags(["-framework", "EventKit", "-framework", "Contacts"])
+                .unsafeFlags([
+                    "-framework", "EventKit",
+                    "-framework", "Contacts",
+                    "-framework", "CoreGraphics",
+                    "-framework", "AppKit",
+                    "-framework", "ApplicationServices",
+                ])
             ]
         ),
     ]

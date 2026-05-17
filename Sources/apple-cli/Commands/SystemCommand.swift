@@ -179,8 +179,8 @@ struct AudioCommand: ParsableCommand {
 struct WifiCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "wifi",
-        abstract: "Wi-Fi status and network info",
-        subcommands: [StatusCmd.self, NetworksCmd.self]
+        abstract: "Wi-Fi status, network scan, join and leave",
+        subcommands: [StatusCmd.self, NetworksCmd.self, JoinCmd.self, LeaveCmd.self]
     )
 
     struct StatusCmd: ParsableCommand {
@@ -249,6 +249,34 @@ struct WifiCommand: ParsableCommand {
             } else {
                 print(result)
             }
+        }
+    }
+
+    struct JoinCmd: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "join", abstract: "Join a Wi-Fi network")
+
+        @Option(name: .long, help: "Network SSID") var ssid: String
+        @Option(name: .long, help: "Password (omit for open networks)") var password: String?
+
+        func run() throws {
+            var args = ["/usr/sbin/networksetup", "-setairportnetwork", "en0", ssid]
+            if let pw = password { args.append(pw) }
+            let code = Process.run(args: args)
+            guard code == 0 else {
+                throw ValidationError("Could not join '\(ssid)' (exit \(code)) — check SSID and password")
+            }
+            print("Joined: \(ssid)")
+        }
+    }
+
+    struct LeaveCmd: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "leave", abstract: "Disconnect from current Wi-Fi network")
+
+        func run() throws {
+            _ = Process.run(args: ["/usr/sbin/networksetup", "-setairportpower", "en0", "off"])
+            usleep(500_000)
+            _ = Process.run(args: ["/usr/sbin/networksetup", "-setairportpower", "en0", "on"])
+            print("Disconnected from Wi-Fi")
         }
     }
 }

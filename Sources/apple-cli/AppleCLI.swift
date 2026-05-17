@@ -6,7 +6,7 @@ struct AppleCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "apple",
         abstract: "macOS native data access CLI — Reminders, Calendar, Contacts, Notes, System, Apps, Screen, Storage, Info",
-        version: "0.7.0",
+        version: "0.8.0",
         subcommands: [
             // Personal data (EventKit + Contacts.framework + Notes via SQLite)
             RemindersCommand.self,
@@ -21,16 +21,20 @@ struct AppleCLI: ParsableCommand {
             NotifyCommand.self,
             SpeechCommand.self,
             InfoCommand.self,
-            // UI automation (Accessibility permission required for mouse/keyboard/ax)
+            // UI automation (Accessibility + Screen Recording required)
             MouseCommand.self,
             KeyboardCommand.self,
             AxCommand.self,
             ScreenshotCommand.self,
+            OcrCommand.self,
+            WindowCommand.self,
             // App integrations (Automation permission required)
             SafariCommand.self,
             MailCommand.self,
             MessagesCommand.self,
             PhotosCommand.self,
+            MusicCommand.self,
+            FinderCommand.self,
             SetupCommand.self,
         ]
     )

@@ -21,6 +21,7 @@ let package = Package(
                     "-framework", "CoreGraphics",
                     "-framework", "AppKit",
                     "-framework", "ApplicationServices",
+                    "-framework", "Vision",
                 ])
             ]
         ),

@@ -70,6 +70,12 @@ struct SetupCommand: ParsableCommand {
         let msgOK = jxaOK("Application('Messages').chats().length")
         check("Messages (conversations, send)",     &failures) { msgOK }
 
+        let musicOK = jxaOK("Application('Music').playerState().toString()")
+        check("Music (status, play, pause, skip)",  &failures) { musicOK }
+
+        let finderOK = jxaOK("Application('Finder').selection().length.toString()")
+        check("Finder (selected, reveal, cwd)",     &failures) { finderOK }
+
         let contactsStatus = CNContactStore.authorizationStatus(for: .contacts)
         let contactsOK = contactsStatus == .authorized
         check("Contacts (search, lookup)", &failures) { contactsOK }
@@ -92,7 +98,7 @@ struct SetupCommand: ParsableCommand {
         }
         check("Reminders (list, create, complete)", &failures) { remOK }
 
-        let hasAutoFailures = [safariOK, mailOK, photosOK, msgOK, contactsOK, calOK, remOK].contains(false)
+        let hasAutoFailures = [safariOK, mailOK, photosOK, msgOK, musicOK, finderOK, contactsOK, calOK, remOK].contains(false)
         if hasAutoFailures {
             print("")
             print("  ⚠️   For any ❌ above:")

@@ -413,4 +413,21 @@ extension Process {
         proc.waitUntilExit()
         return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
     }
+
+    // Returns nil on timeout
+    static func capture(args: [String], timeout seconds: Double) -> String? {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: args[0])
+        proc.arguments = Array(args.dropFirst())
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = FileHandle.nullDevice
+        guard (try? proc.run()) != nil else { return nil }
+        let deadline = Date().addingTimeInterval(seconds)
+        while proc.isRunning {
+            if Date() > deadline { proc.terminate(); return nil }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+    }
 }

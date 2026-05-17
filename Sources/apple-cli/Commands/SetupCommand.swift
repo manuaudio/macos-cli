@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import ApplicationServices
+import CoreGraphics
 import EventKit
 import Contacts
 
@@ -20,18 +21,29 @@ struct SetupCommand: ParsableCommand {
 
         // ── 1. No-permission capabilities ─────────────────────────────────────
         header("Core (no permission required)")
-        check("Battery / system info",    &failures) { batteryOK() }
-        check("Screenshot (full screen)", &failures) { screenshotOK() }
+        check("Battery / system info",     &failures) { batteryOK() }
         check("Apple Notes (SQLite read)", &failures) { notesOK() }
-        check("Text-to-speech",           &failures) { speechOK() }
-        check("Storage / disk info",      &failures) { true }
+        check("Text-to-speech",            &failures) { speechOK() }
+        check("Storage / disk info",       &failures) { true }
         print("")
 
-        // ── 2. Accessibility ──────────────────────────────────────────────────
+        // ── 2. Screen Recording ───────────────────────────────────────────────
+        header("Screen Recording — screenshot with app window content")
+        let screenRecordingGranted = CGPreflightScreenCaptureAccess()
+        check("Screenshot captures app windows", &failures) { screenRecordingGranted }
+        if !screenRecordingGranted {
+            print("  ⚠️   Grant Screen Recording access:")
+            print("       System Settings → Privacy & Security → Screen Recording")
+            print("       Add Terminal (or tmux/iTerm) and toggle ON")
+            offerOpen("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+        }
+        print("")
+
+        // ── 3. Accessibility ──────────────────────────────────────────────────
         header("Accessibility — mouse, keyboard, AX element control")
         let axGranted = AXIsProcessTrusted()
-        check("Mouse move / click / drag",  &failures) { axGranted }
-        check("Keyboard shortcuts",          &failures) { axGranted }
+        check("Mouse move / click / drag",   &failures) { axGranted }
+        check("Keyboard shortcuts",           &failures) { axGranted }
         check("AX tree (find/click by name)", &failures) { axGranted }
         if !axGranted {
             print("  ⚠️   Grant Accessibility access:")
@@ -41,8 +53,8 @@ struct SetupCommand: ParsableCommand {
         }
         print("")
 
-        // ── 3. Automation — each app ──────────────────────────────────────────
-        header("Automation — app control via JXA (5s timeout per app)")
+        // ── 4. Automation — each app ──────────────────────────────────────────
+        header("Automation — app control via JXA (10s timeout per app)")
         print("  (First run may show a permission dialog — click Allow)")
         print("  Checking takes up to 10s per app...\n")
 
@@ -143,14 +155,6 @@ struct SetupCommand: ParsableCommand {
 
     private func batteryOK() -> Bool {
         (Process.capture(args: ["/usr/bin/pmset", "-g", "batt"], timeout: 5) ?? "").contains("%")
-    }
-
-    private func screenshotOK() -> Bool {
-        let path = "/tmp/apple_setup_\(Int.random(in: 10000...99999)).png"
-        _ = Process.run(args: ["/usr/sbin/screencapture", "-x", path])
-        let ok = FileManager.default.fileExists(atPath: path)
-        try? FileManager.default.removeItem(atPath: path)
-        return ok
     }
 
     private func notesOK() -> Bool {

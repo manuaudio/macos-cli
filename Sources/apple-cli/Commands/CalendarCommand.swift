@@ -6,7 +6,7 @@ struct CalendarCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "calendar",
         abstract: "Manage Apple Calendar events",
-        subcommands: [Events.self, Create.self, Calendars.self]
+        subcommands: [Events.self, Create.self, Delete.self, Calendars.self]
     )
 
     // MARK: - Events
@@ -106,9 +106,11 @@ struct CalendarCommand: ParsableCommand {
 
             let df = DateFormatter()
             df.dateFormat = "yyyy-MM-dd HH:mm"
+
             guard let startDate = df.date(from: start) else {
                 throw ValidationError("Invalid start date format — use YYYY-MM-DD HH:MM")
             }
+
             let endDate: Date
             if let endStr = end, let d = df.date(from: endStr) {
                 endDate = d
@@ -155,6 +157,76 @@ struct CalendarCommand: ParsableCommand {
             } else {
                 print("Created: \(event.title ?? "") on \(event.calendar?.title ?? "?")")
             }
+        }
+    }
+
+    // MARK: - Delete
+    struct Delete: ParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Delete calendar events by title and date")
+
+        @Option(name: .long, help: "Event title")
+        var title: String
+
+        @Option(name: .long, help: "Date YYYY-MM-DD — searches ±1 day window to catch all-day storage variants")
+        var date: String
+
+        @Option(name: .long, help: "Calendar name filter")
+        var calendar: String?
+
+        @Flag(name: .long, help: "Match title as substring (default: exact)")
+        var contains = false
+
+        @Flag(name: .long, help: "Delete all matching events (default: first match only)")
+        var all = false
+
+        func run() throws {
+            let store = try EventKitStore.authorized(for: .event)
+
+            let dateDf = DateFormatter()
+            dateDf.dateFormat = "yyyy-MM-dd"
+
+            guard let baseDate = dateDf.date(from: date) else {
+                throw ValidationError("Invalid date format — use YYYY-MM-DD")
+            }
+
+            // Search local midnight of given date to local midnight of next day.
+            // All-day events created on this machine store as next-day midnight UTC
+            // (= 17:00 PT of the intended date), which falls within this window.
+            let searchStart = Calendar.current.startOfDay(for: baseDate)
+            let searchEnd = Calendar(identifier: .gregorian).date(byAdding: .day, value: 1, to: searchStart)!
+
+            let allCalendars = store.calendars(for: .event)
+            let targetCals: [EKCalendar]
+            if let calName = calendar {
+                targetCals = allCalendars.filter { $0.title == calName }
+                if targetCals.isEmpty { throw ValidationError("Calendar '\(calName)' not found") }
+            } else {
+                targetCals = Array(allCalendars)
+            }
+
+            let pred = store.predicateForEvents(withStart: searchStart, end: searchEnd, calendars: targetCals)
+            let events = store.events(matching: pred)
+            let matches = events.filter { event in
+                let t = event.title ?? ""
+                return contains ? t.localizedCaseInsensitiveContains(title) : t == title
+            }
+
+            if matches.isEmpty {
+                print("0 deleted")
+                return
+            }
+
+            let toDelete = all ? matches : [matches[0]]
+            var deleted = 0
+            for event in toDelete {
+                do {
+                    try store.remove(event, span: .thisEvent, commit: true)
+                    deleted += 1
+                } catch {
+                    fputs("error: \(error.localizedDescription)\n", stderr)
+                }
+            }
+            print("deleted \(deleted)")
         }
     }
 

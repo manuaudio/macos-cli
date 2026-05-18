@@ -121,21 +121,38 @@ struct AudioCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            // Use SwitchAudioSource if available, else system_profiler fallback
             let spOutput = Process.capture(args: ["/usr/sbin/system_profiler",
                 "SPAudioDataType", "-json"])
-            if let data = spOutput.data(using: .utf8),
-               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let audioData = parsed["SPAudioDataType"] as? [[String: Any]] {
-                if json {
-                    printJSON(audioData)
-                } else {
-                    for device in audioData {
-                        if let name = device["_name"] as? String { print(name) }
-                    }
-                }
-            } else {
+            guard let data = spOutput.data(using: .utf8),
+                  let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let audioData = parsed["SPAudioDataType"] as? [[String: Any]] else {
                 throw ValidationError("Could not retrieve audio devices")
+            }
+            // Normalize raw system_profiler keys into clean output
+            var devices: [[String: Any]] = []
+            for group in audioData {
+                guard let items = group["_items"] as? [[String: Any]] else { continue }
+                for item in items {
+                    var d: [String: Any] = [:]
+                    d["name"] = item["_name"] as? String ?? ""
+                    d["manufacturer"] = item["coreaudio_device_manufacturer"] as? String ?? ""
+                    d["type"] = item["coreaudio_device_transport"] as? String ?? ""
+                    d["input_channels"] = item["coreaudio_device_input"] as? Int ?? 0
+                    d["output_channels"] = item["coreaudio_device_output"] as? Int ?? 0
+                    d["default_input"] = item["coreaudio_default_audio_input_device"] != nil
+                    d["default_output"] = item["coreaudio_default_audio_output_device"] != nil
+                    devices.append(d)
+                }
+            }
+            if json {
+                printJSON(devices)
+            } else {
+                for d in devices {
+                    let name = d["name"] as? String ?? ""
+                    let inp = (d["default_input"] as? Bool == true) ? " [default in]" : ""
+                    let out = (d["default_output"] as? Bool == true) ? " [default out]" : ""
+                    print("\(name)\(inp)\(out)")
+                }
             }
         }
     }

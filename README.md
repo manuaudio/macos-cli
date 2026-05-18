@@ -274,7 +274,7 @@ Read text from the screen or an image file using Apple's Vision framework. Runs 
 ```bash
 # OCR the entire screen
 apple ocr full
-apple ocr full --json                # {"text": "..."}
+apple ocr full --json                # ["line one", "line two", ...]
 
 # OCR a screen region (x y width height, in points)
 apple ocr region --x 100 --y 200 --width 600 --height 300
@@ -381,7 +381,7 @@ apple system audio mute              # toggle mute
 apple system audio devices --json
 apple system audio now-playing --json
 
-apple system wifi --json             # SSID, signal strength
+apple system wifi status --json      # SSID, channel, security
 apple system clipboard               # read clipboard to stdout
 apple system display --json
 ```
@@ -511,7 +511,7 @@ echo "$COUNT events on that day"
 
 ```bash
 apple ocr file --path ~/Desktop/receipt.png --json \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['text'])"
+  | python3 -c "import sys,json; print('\n'.join(json.load(sys.stdin)))"
 ```
 
 ### Example: click a UI element without knowing its coordinates

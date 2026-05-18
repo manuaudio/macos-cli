@@ -15,6 +15,7 @@ struct NotifyCommand: ParsableCommand {
         @Option(name: .long, help: "Notification body") var body: String = ""
         @Option(name: .long, help: "Subtitle") var subtitle: String?
         @Option(name: .long, help: "Sound name (default, Hero, Ping, Purr, Sosumi, etc.)") var sound: String = "default"
+        @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
             // Use osascript — most reliable for CLI notifications
@@ -27,7 +28,13 @@ struct NotifyCommand: ParsableCommand {
             if result != 0 {
                 throw ValidationError("Notification failed — check Notifications permission in System Preferences")
             }
-            print("Notification sent: \(title)")
+            if json {
+                var out: [String: Any] = ["sent": true, "title": title, "body": body]
+                if let sub = subtitle { out["subtitle"] = sub }
+                printJSON(out)
+            } else {
+                print("Notification sent: \(title)")
+            }
         }
     }
 }

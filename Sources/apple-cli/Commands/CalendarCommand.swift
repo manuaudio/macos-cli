@@ -105,15 +105,23 @@ struct CalendarCommand: ParsableCommand {
             let store = try EventKitStore.authorized(for: .event)
 
             let df = DateFormatter()
-            df.dateFormat = "yyyy-MM-dd HH:mm"
+            df.locale = Locale(identifier: "en_US_POSIX")
 
-            guard let startDate = df.date(from: start) else {
-                throw ValidationError("Invalid start date format — use YYYY-MM-DD HH:MM")
+            func parseDate(_ s: String) -> Date? {
+                df.dateFormat = "yyyy-MM-dd HH:mm"; if let d = df.date(from: s) { return d }
+                df.dateFormat = "yyyy-MM-dd";       if let d = df.date(from: s) { return d }
+                return nil
+            }
+
+            guard let startDate = parseDate(start) else {
+                throw ValidationError("Invalid start date format — use YYYY-MM-DD or YYYY-MM-DD HH:MM")
             }
 
             let endDate: Date
-            if let endStr = end, let d = df.date(from: endStr) {
+            if let endStr = end, let d = parseDate(endStr) {
                 endDate = d
+            } else if allDay {
+                endDate = Calendar.current.date(byAdding: .day, value: 1, to: startDate)!
             } else {
                 endDate = Calendar.current.date(byAdding: .hour, value: 1, to: startDate)!
             }
@@ -153,6 +161,7 @@ struct CalendarCommand: ParsableCommand {
                     "calendar": event.calendar?.title ?? "",
                     "start": ISO8601DateFormatter().string(from: event.startDate),
                     "end": ISO8601DateFormatter().string(from: event.endDate),
+                    "all_day": event.isAllDay,
                 ])
             } else {
                 print("Created: \(event.title ?? "") on \(event.calendar?.title ?? "?")")

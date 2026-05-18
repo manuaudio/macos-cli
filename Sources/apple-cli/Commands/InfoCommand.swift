@@ -56,23 +56,36 @@ struct InfoCommand: ParsableCommand {
         func run() throws {
             let result = Process.capture(args: ["/sbin/ifconfig", "-a"])
             if json {
-                // Parse ifconfig output into structured JSON
-                var interfaces: [[String: String]] = []
-                var current: [String: String] = [:]
+                // Parse ifconfig output — consistent shape: name always present, ipv4/mac null when absent
+                var interfaces: [[String: Any?]] = []
+                var current: (name: String, ipv4: String?, mac: String?)? = nil
                 for line in result.components(separatedBy: "\n") {
                     if let m = line.range(of: #"^(\w+\d*): "#, options: .regularExpression) {
-                        if !current.isEmpty { interfaces.append(current) }
-                        current = ["name": String(line[m]).trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ": ", with: "")]
+                        if let c = current, c.ipv4 != nil || c.mac != nil {
+                            interfaces.append(["name": c.name, "ipv4": c.ipv4, "mac": c.mac])
+                        }
+                        let name = String(line[m]).trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ": ", with: "")
+                        current = (name, nil, nil)
                     } else if line.contains("inet ") && !line.contains("inet6") {
                         let parts = line.trimmingCharacters(in: .whitespaces).components(separatedBy: " ")
-                        if parts.count > 1 { current["ipv4"] = parts[1] }
+                        if parts.count > 1, var c = current { c.ipv4 = parts[1]; current = c }
                     } else if line.contains("ether ") {
                         let parts = line.trimmingCharacters(in: .whitespaces).components(separatedBy: " ")
-                        if parts.count > 1 { current["mac"] = parts[1] }
+                        if parts.count > 1, var c = current { c.mac = parts[1]; current = c }
                     }
                 }
-                if !current.isEmpty { interfaces.append(current) }
-                printJSON(interfaces.filter { $0["ipv4"] != nil || $0["mac"] != nil })
+                if let c = current, c.ipv4 != nil || c.mac != nil {
+                    interfaces.append(["name": c.name, "ipv4": c.ipv4, "mac": c.mac])
+                }
+                // Serialize with explicit nulls for consistent shape
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let cleaned = interfaces.map { iface -> [String: String?] in
+                    ["name": iface["name"] as? String, "ipv4": iface["ipv4"] as? String ?? nil, "mac": iface["mac"] as? String ?? nil]
+                }
+                if let data = try? encoder.encode(cleaned), let str = String(data: data, encoding: .utf8) {
+                    print(str)
+                }
             } else {
                 print(result)
             }
@@ -113,7 +126,28 @@ struct InfoCommand: ParsableCommand {
 
             func run() throws {
                 let result = Process.capture(args: ["/usr/bin/pmset", "-g"])
-                if json { printJSON(["raw": result]) } else { print(result) }
+                if json {
+                    // Parse pmset -g key-value output into structured JSON
+                    var parsed: [String: Any] = [:]
+                    for line in result.components(separatedBy: "\n") {
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        guard !trimmed.isEmpty, !trimmed.hasPrefix("Active Profiles"), !trimmed.hasPrefix("Currently") else { continue }
+                        let parts = trimmed.components(separatedBy: " ").filter { !$0.isEmpty }
+                        guard parts.count >= 2 else { continue }
+                        let key = parts[0]
+                        let val = parts[1]
+                        if let intVal = Int(val) {
+                            parsed[key] = intVal
+                        } else if val == "1" || val == "0" {
+                            parsed[key] = val == "1"
+                        } else {
+                            parsed[key] = val
+                        }
+                    }
+                    printJSON(parsed)
+                } else {
+                    print(result)
+                }
             }
         }
     }

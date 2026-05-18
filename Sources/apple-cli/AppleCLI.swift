@@ -6,7 +6,7 @@ struct AppleCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "apple",
         abstract: "macOS native data access CLI — Reminders, Calendar, Contacts, Notes, System, Apps, Screen, Storage, Info",
-        version: "0.5.0",
+        version: "0.5.1",
         subcommands: [
             // Personal data (EventKit + Contacts.framework + Notes via SQLite)
             RemindersCommand.self,

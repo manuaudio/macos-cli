@@ -131,7 +131,7 @@ struct AxCommand: ParsableCommand {
     struct Read: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Dump the UI tree of an app (top 2 levels)")
 
-        @Option(name: .long, help: "App name (default: frontmost)") var app: String?
+        @Argument(help: "App name (default: frontmost app)") var app: String?
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {

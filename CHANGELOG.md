@@ -4,6 +4,23 @@ Honest version history. Each entry documents what works, what was broken, and wh
 
 ---
 
+## [0.5.1] — 2026-05-18
+
+### Fixed — remaining known issues from 0.5.0
+- **`reminders done`** — no `--json` flag. Now returns `{"id", "title", "completed": true, "completion_date"}`.
+- **`calendar create --json`** — missing `all_day` field in response. Now always present.
+- **`calendar create --all-day`** — date-only strings (`YYYY-MM-DD`) were rejected; only `YYYY-MM-DD HH:MM` was accepted. Now both formats work; `--all-day` with a date-only string defaults end to start+1 day.
+- **`notify send`** — no `--json` flag. Now returns `{"sent": true, "title", "body"}`.
+- **`info power settings --json`** — returned `{"raw": "..."}` (unparsed pmset blob). Now parses pmset output into structured keys (`displaysleep`, `sleep`, `lowpowermode`, etc.) with correct types (int for numbers, bool for 0/1 flags).
+- **`info network --json`** — inconsistent field shape per interface (missing fields instead of nulls). Now always emits `name`, `ipv4`, `mac` with explicit `null` when absent.
+- **`ax read`** — required `--app <name>` flag but help text implied positional. Now accepts `apple ax read Finder` (positional) or `--app Finder` (option). Frontmost app when omitted.
+- **`system display brightness`** — silently exited 0 when `brightness` CLI was missing. Now exits non-zero with a clear install instruction.
+
+### Known flakiness (not a code bug)
+- `apple setup` Mail check occasionally shows ❌ due to JXA permission state in macOS not refreshing immediately after permission grant. `apple mail accounts` works correctly when called directly. Run `apple setup` again if Mail shows red after granting Automation permission.
+
+---
+
 ## [0.5.0] — 2026-05-18
 
 ### Fixed — critical hangs

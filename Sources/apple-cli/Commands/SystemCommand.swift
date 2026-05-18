@@ -375,7 +375,8 @@ struct DisplayCommand: ParsableCommand {
                     let result = Process.capture(args: ["/usr/local/bin/brightness", "-l"])
                     if json { printJSON(["output": result]) } else { print(result) }
                 } else {
-                    fputs("brightness CLI not found. Install: brew install brightness\n", stderr)
+                    fputs("Error: 'brightness' CLI not found. Install: brew install brightness\n", stderr)
+                    throw ExitCode.failure
                 }
             }
         }

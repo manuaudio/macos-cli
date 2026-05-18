@@ -158,6 +158,9 @@ struct RemindersCommand: ParsableCommand {
         @Argument(help: "Reminder calendar item identifier")
         var id: String
 
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
         func run() throws {
             let store = try EventKitStore.authorized(for: .reminder)
             let pred = store.predicateForReminders(in: nil)
@@ -178,7 +181,16 @@ struct RemindersCommand: ParsableCommand {
             } catch {
                 throw CLIError.saveFailure(error.localizedDescription)
             }
-            print("Done: \(reminder.title ?? id)")
+            if json {
+                printJSON([
+                    "id": reminder.calendarItemIdentifier,
+                    "title": reminder.title ?? "",
+                    "completed": true,
+                    "completion_date": ISO8601DateFormatter().string(from: reminder.completionDate ?? Date()),
+                ])
+            } else {
+                print("Done: \(reminder.title ?? id)")
+            }
         }
     }
 

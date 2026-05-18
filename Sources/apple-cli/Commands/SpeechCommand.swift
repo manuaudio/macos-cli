@@ -45,7 +45,7 @@ struct SpeechCommand: ParsableCommand {
                     return [
                         "name": parts.count > 0 ? parts[0].trimmingCharacters(in: .whitespaces) : "",
                         "locale": parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : "",
-                        "sample": parts.count > 2 ? parts[2].trimmingCharacters(in: .whitespaces) : "",
+                        "sample": parts.count > 2 ? parts[2].trimmingCharacters(in: CharacterSet(charactersIn: "# ").union(.whitespaces)) : "",
                     ]
                 }
                 printJSON(voices)

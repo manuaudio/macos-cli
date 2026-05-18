@@ -100,6 +100,7 @@ struct AudioCommand: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "mute", abstract: "Get or set mute state")
 
         @Argument(help: "on or off (omit to get)") var state: String?
+        @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
             if let state = state {
@@ -107,11 +108,13 @@ struct AudioCommand: ParsableCommand {
                 let muted = state == "on"
                 Process.run(args: ["/usr/bin/osascript", "-e",
                     "set volume output muted \(muted ? "true" : "false")"])
-                print("Mute: \(state)")
+                if json { printJSON(["muted": muted]) } else { print("Mute: \(state)") }
             } else {
                 let result = Process.capture(args: ["/usr/bin/osascript", "-e",
                     "output muted of (get volume settings)"])
-                print("Mute: \(result.trimmingCharacters(in: .whitespacesAndNewlines))")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let isMuted = result == "true"
+                if json { printJSON(["muted": isMuted]) } else { print("Mute: \(result)") }
             }
         }
     }
@@ -221,14 +224,15 @@ struct WifiCommand: ParsableCommand {
                 let macAddr = iface["spairport_airport_hardware_address"] as? String ?? ""
 
                 if json {
-                    printJSON([
+                    var out: [String: Any] = [
                         "interface": ifaceName,
                         "ssid": networkName,
                         "channel": channel,
                         "security": security,
-                        "mac": macAddr,
                         "connected": networkName != "unknown",
-                    ])
+                    ]
+                    if !macAddr.isEmpty { out["mac"] = macAddr }
+                    printJSON(out)
                 } else {
                     print("Interface: \(ifaceName)")
                     print("Network: \(networkName)")

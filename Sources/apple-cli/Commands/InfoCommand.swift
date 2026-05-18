@@ -133,7 +133,10 @@ struct InfoCommand: ParsableCommand {
             if let dir = onlyin { args += ["-onlyin", dir] }
             if let a = attr { args += [a] } else { args += [query] }
 
-            let result = Process.capture(args: args)
+            guard let result = Process.capture(args: args, timeout: 15) else {
+                fputs("Error: Spotlight search timed out — try adding --onlyin <dir> to scope the search\n", stderr)
+                throw ExitCode.failure
+            }
             let lines = result.components(separatedBy: "\n").filter { !$0.isEmpty }
             let limited = Array(lines.prefix(limit))
 

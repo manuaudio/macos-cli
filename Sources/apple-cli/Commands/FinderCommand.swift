@@ -100,6 +100,7 @@ struct FinderCommand: ParsableCommand {
             commandName: "cwd",
             abstract: "Get the current folder shown in the front Finder window"
         )
+        @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
             let script = """
@@ -116,7 +117,14 @@ struct FinderCommand: ParsableCommand {
                 fputs("Error: Could not read Finder window\n", stderr)
                 throw ExitCode.failure
             }
-            print(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+            let path = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if json {
+                let escaped = path.replacingOccurrences(of: "\\", with: "\\\\")
+                                  .replacingOccurrences(of: "\"", with: "\\\"")
+                print("{\"path\":\"\(escaped)\"}")
+            } else {
+                print(path)
+            }
         }
     }
 }

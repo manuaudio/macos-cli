@@ -1,132 +1,92 @@
-# 🍎 apple-cli
+# apple-cli
 
-> A native macOS command-line tool that gives your terminal — and your AI agent — first-class access to Apple data. Reminders, Calendar, Contacts, system state, notifications, screenshots, and more. One binary, zero AppleScript.
+A native macOS command-line tool that gives your terminal and your AI agent first-class access to Apple APIs. Reminders, Calendar, Contacts, Messages, Mail, Photos, Music, Safari, screenshots, OCR, mouse/keyboard automation, and more. One binary. Zero AppleScript.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](#requirements)
 [![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange?logo=swift)](https://swift.org)
-[![Version](https://img.shields.io/badge/version-0.3.0-blue)](#install)
-
-Native macOS frameworks (EventKit, Contacts, UserNotifications) have no CLI surface. Getting your calendar events in a script means AppleScript — which is slow, breaks on Sonoma+, and returns data that's painful to parse. `apple-cli` wraps those frameworks in a clean, consistent `--json` interface designed for both humans and LLMs.
-
-```bash
-$ apple reminders create --title "Follow up with Ryan" --due 2026-05-20 --json
-{"id":"x-apple-reminder://AB12...","title":"Follow up with Ryan","list":"Reminders","due":"2026-05-20","notes":""}
-
-$ apple calendar events --from 2026-05-20 --to 2026-05-21 --json
-[{"title":"Soundcheck","start":"2026-05-20T14:00:00-07:00","end":"2026-05-20T17:00:00-07:00","calendar":"Work","location":"842 S Broadway"}]
-
-$ apple system battery --json
-{"level":87,"charging":false,"plugged_in":true,"time_remaining_minutes":312}
-```
+[![Version](https://img.shields.io/badge/version-0.9.0-blue)](#install)
 
 ---
 
-## ✨ What's included
-
-**📋 Productivity**
-
-| Command | What it does |
-|---|---|
-| `reminders` | Create, list, complete reminders across all your lists |
-| `calendar` | Read upcoming events, create new ones with automatic alerts |
-| `contacts` | Search by name, phone, or email — returns full contact records |
-
-**💻 System**
-
-| Command | What it does |
-|---|---|
-| `system` | Battery, audio controls, Wi-Fi, clipboard, display info |
-| `apps` | List installed apps, launch, quit, get app info |
-| `screen` | Screen info, capture screenshots, lock the screen |
-| `storage` | Disk volumes and usage at any path |
-| `info` | System info, network interfaces, power settings, Spotlight, Keychain |
-
-**🔔 Interaction**
-
-| Command | What it does |
-|---|---|
-| `notify` | Post a Notification Center banner — no permissions required |
-| `speech` | Text-to-speech synthesis, list available voices |
-
----
-
-## 📦 Install
-
-### From source
-
-Requires **Xcode Command Line Tools** (comes with macOS) and **Swift 5.9+**:
+## Install
 
 ```bash
-git clone https://github.com/manuaudio/apple-cli
-cd apple-cli
-make install
+curl -sSL https://raw.githubusercontent.com/manuaudio/apple-cli/main/install.sh | bash
 ```
 
-That's it. The `apple` binary is installed to `/usr/local/bin/apple`.
+Builds from source, installs to `/usr/local/bin/apple`, and runs a permission check. Takes ~30 seconds.
 
-### Manual build
+**Requirements:** macOS 13 (Ventura) or later · Swift 5.9+ (included with Xcode Command Line Tools)
 
-```bash
-swift build -c release
-install .build/release/apple-cli /usr/local/bin/apple
-```
+If you don't have Xcode CLT yet: `xcode-select --install`, then re-run the curl command.
 
 ### Verify
 
 ```bash
-apple --version   # apple-cli 0.3.0
-apple --help      # lists all commands
+apple --version   # apple-cli 0.9.0
+apple setup       # check all permissions — green checkmark per capability
 ```
 
 ---
 
-## 🔐 Permissions
+## What's included
 
-macOS will prompt you the first time each protected command runs. You can also grant access in advance:
-
-**System Settings → Privacy & Security**
-
-| Permission | Required for |
+| Category | Commands |
 |---|---|
-| **Reminders** | `apple reminders` |
-| **Calendars** | `apple calendar` |
-| **Contacts** | `apple contacts` |
+| **Productivity** | `reminders` `calendar` `contacts` `notes` |
+| **Communication** | `messages` `mail` |
+| **Media** | `photos` `music` |
+| **Browser** | `safari` |
+| **Automation** | `mouse` `keyboard` `ax` (accessibility tree) |
+| **Screen** | `screenshot` `ocr` `window` |
+| **System** | `system` `apps` `storage` `info` `notify` `speech` `finder` |
+| **Setup** | `setup` |
 
-Everything else (`system`, `apps`, `screen`, `storage`, `notify`, `speech`, `info`) requires no special permissions.
+Every read command supports `--json` for clean, parseable output. Designed for both humans and LLM agents.
 
 ---
 
-## 🚀 Quick start
-
-A few things you can do right away:
+## Quick start
 
 ```bash
-# See what's on your calendar this week
+# What's on your calendar today
 apple calendar events --json
 
-# Create a reminder with a due date
-apple reminders create --title "Call insurance broker" --due 2026-05-23
+# Create a reminder
+apple reminders create --title "Follow up with Ryan" --due 2026-05-20
 
-# Find a contact's phone number
+# Find a contact
 apple contacts search "Ryan" --json
 
-# Check your battery
+# Take a screenshot
+apple screenshot full --output ~/Desktop/shot.png
+
+# OCR the entire screen
+apple ocr full --json
+
+# Read the current Safari tab
+apple safari read
+
+# Check battery
 apple system battery
 
-# Send yourself a notification
+# Send a notification
 apple notify send --title "Build finished" --body "All tests passed"
 
-# Take a screenshot
-apple screen capture --output ~/Desktop/shot.png
+# What music is playing
+apple music status
 
-# Lock your screen
-apple screen lock
+# Type text into the frontmost app
+apple keyboard type "Hello from the terminal"
+
+# Click a UI element by name (accessibility)
+apple ax click "OK"
 ```
 
 ---
 
-## 📖 Command reference
+## Command reference
 
 ### `reminders` — Apple Reminders
 
@@ -135,7 +95,7 @@ apple screen lock
 apple reminders create --title "Email Ryan about deposit"
 apple reminders create --title "Review stems" --due 2026-05-20 --list "Work" --notes "priority: high" --json
 
-# List (incomplete reminders from a list)
+# List incomplete reminders
 apple reminders list
 apple reminders list --list "Work" --json
 
@@ -148,13 +108,7 @@ apple reminders lists --json
 
 **`create --json` returns:**
 ```json
-{
-  "id": "x-apple-reminder://AB12CD34-...",
-  "title": "Review stems",
-  "list": "Work",
-  "due": "2026-05-20",
-  "notes": "priority: high"
-}
+{"id": "x-apple-reminder://AB12...", "title": "Review stems", "list": "Work", "due": "2026-05-20", "notes": "priority: high"}
 ```
 
 ---
@@ -162,8 +116,10 @@ apple reminders lists --json
 ### `calendar` — Apple Calendar
 
 ```bash
-# Upcoming events (today + 7 days)
-apple calendar events
+# Upcoming events (today + 7 days by default)
+apple calendar events --json
+
+# Custom date range
 apple calendar events --from 2026-05-20 --to 2026-05-23 --json
 
 # Filter by calendar
@@ -180,11 +136,14 @@ apple calendar create \
 # All-day event
 apple calendar create --title "Travel day" --start "2026-05-20" --all-day
 
+# Delete an event (use the id from events --json)
+apple calendar delete --id "8E486F91-...:34CE5C3E-..."
+
 # List all calendars
 apple calendar calendars --json
 ```
 
-> Every event created by `apple calendar create` automatically gets a **1-day** and **1-hour** alert — no extra flags needed.
+> Every event created by `apple calendar create` automatically gets a 1-day and 1-hour alert.
 
 ---
 
@@ -192,7 +151,7 @@ apple calendar calendars --json
 
 ```bash
 # Search by name, email, or phone
-apple contacts search "Ryan"
+apple contacts search "Ryan" --json
 apple contacts search "ryan@example.com" --json --limit 5
 
 # Get full record by ID
@@ -201,12 +160,212 @@ apple contacts get "AB12CD34-..." --json
 
 **`search --json` returns:**
 ```json
-[{
-  "id": "AB12CD34-...",
-  "name": "Ryan Billingsley",
-  "phones": [{"number": "+13105550100", "label": "mobile"}],
-  "emails": [{"email": "ryan@example.com", "label": "work"}]
-}]
+[{"id": "AB12...", "name": "Ryan B.", "phones": [{"number": "+13105550100", "label": "mobile"}], "emails": [{"email": "ryan@example.com", "label": "work"}]}]
+```
+
+---
+
+### `notes` — Apple Notes
+
+```bash
+apple notes list --json              # all notes (title + id)
+apple notes search "meeting" --json
+apple notes read "AB12CD34-..."      # read by id
+apple notes create --title "My note" --body "Content here"
+```
+
+---
+
+### `messages` — Apple Messages
+
+```bash
+# Send an iMessage or SMS
+apple messages send --to "+13105550100" --body "On my way"
+apple messages send --to "ryan@example.com" --body "Check your email"
+
+# List recent conversations
+apple messages conversations --json
+apple messages conversations --limit 20 --json
+```
+
+---
+
+### `mail` — Apple Mail
+
+```bash
+# Create a draft (opens in Mail, does not send)
+apple mail draft --to "ryan@example.com" --subject "Invoice" --body "See attached."
+apple mail draft --to "a@b.com" --subject "Hello" --body "Hi" --json
+
+# Search messages
+apple mail search "invoice" --json
+apple mail search "Ryan" --limit 20 --json
+
+# List accounts
+apple mail accounts --json
+```
+
+---
+
+### `photos` — Apple Photos
+
+```bash
+apple photos albums --json           # list all albums with photo count
+apple photos search "sunset" --json
+apple photos recent --limit 10 --json
+```
+
+---
+
+### `music` — Apple Music
+
+```bash
+apple music status                   # current track + playback state
+apple music status --json
+
+apple music play
+apple music pause
+apple music next
+apple music prev
+
+apple music volume                   # get current volume (0–100)
+apple music volume 50                # set volume to 50
+
+apple music search "Daft Punk"       # search library and play first result
+```
+
+**`status --json` returns:**
+```json
+{"state": "playing", "track": "Get Lucky", "artist": "Daft Punk", "album": "Random Access Memories", "duration": 248, "position": 43, "volume": 72}
+```
+
+---
+
+### `safari` — Safari control
+
+```bash
+apple safari tabs --json             # list all open tabs (title + URL)
+apple safari open "https://example.com"
+apple safari read                    # get text content of current tab
+apple safari execute "document.title"  # run JavaScript in current tab
+```
+
+---
+
+### `screenshot` — Screen capture
+
+```bash
+# Full screen
+apple screenshot full --output ~/Desktop/shot.png
+
+# Specific app window (requires Screen Recording permission)
+apple screenshot window --app "Terminal" --output /tmp/term.png
+
+# Region (points from top-left)
+apple screenshot region --x 0 --y 0 --width 800 --height 600 --output /tmp/region.png
+```
+
+---
+
+### `ocr` — Vision OCR
+
+Read text from the screen or an image file using Apple's Vision framework. Runs fully on-device, no network call.
+
+```bash
+# OCR the entire screen
+apple ocr full
+apple ocr full --json                # {"text": "..."}
+
+# OCR a screen region (x y width height, in points)
+apple ocr region --x 100 --y 200 --width 600 --height 300
+
+# OCR an image file (JPEG, PNG, HEIC, etc.)
+apple ocr file --path ~/Desktop/receipt.png
+apple ocr file --path /tmp/screenshot.png --json
+```
+
+---
+
+### `mouse` — Cursor control
+
+```bash
+apple mouse position --json          # {"x": 500, "y": 300}
+
+apple mouse move --x 500 --y 300
+apple mouse click --x 500 --y 300
+apple mouse click --x 500 --y 300 --right   # right-click
+apple mouse drag --from-x 100 --from-y 100 --to-x 500 --to-y 500
+apple mouse scroll --x 500 --y 300 --delta-y -3
+```
+
+---
+
+### `keyboard` — Keyboard input
+
+```bash
+# Type text into the frontmost app
+apple keyboard type "Hello, world"
+apple keyboard type "Hello" --delay 50    # 50ms between keystrokes
+
+# Send a key or shortcut
+apple keyboard key "return"
+apple keyboard key "cmd+c"
+apple keyboard key "cmd+shift+4"
+apple keyboard key "escape"
+```
+
+Common key names: `return` `escape` `tab` `space` `delete` `up` `down` `left` `right` `f1`–`f12`
+
+---
+
+### `ax` — Accessibility tree
+
+Interact with any app's UI elements by name — no screen coordinates needed.
+
+```bash
+# Find UI elements matching a name
+apple ax find "OK" --app "Safari" --json
+
+# Click a UI element by name
+apple ax click "OK"
+apple ax click "Reminders" --app "Finder"
+
+# Dump the UI tree of an app (top 2 levels)
+apple ax read "Safari" --json
+apple ax read "Finder"
+```
+
+**`find --json` returns:**
+```json
+[{"role": "AXButton", "name": "OK", "x": 845, "y": 512}]
+```
+
+---
+
+### `window` — Window management
+
+```bash
+apple window list --json             # all visible windows with position + size
+
+apple window move --app "Safari" --x 0 --y 0
+apple window resize --app "Safari" --width 1200 --height 800
+apple window focus --app "Terminal"
+apple window minimize --app "Safari"
+```
+
+---
+
+### `finder` — Finder integration
+
+```bash
+apple finder selected                # paths of selected files in Finder
+apple finder selected --json         # as JSON array
+
+apple finder cwd                     # current folder in front Finder window
+apple finder cwd --json              # {"path": "/Users/you/Desktop"}
+
+apple finder reveal ~/Desktop/file.txt   # reveal in Finder
+apple finder open ~/Desktop/folder       # open in Finder
 ```
 
 ---
@@ -214,31 +373,26 @@ apple contacts get "AB12CD34-..." --json
 ### `system` — System state
 
 ```bash
-apple system battery             # level, charging status, time remaining
 apple system battery --json
+# {"level": 87, "charging": false, "plugged_in": true}
 
-apple system audio volume        # current volume
-apple system audio mute          # toggle mute
+apple system audio volume            # get current volume
+apple system audio mute              # toggle mute
 apple system audio devices --json
 apple system audio now-playing --json
 
-apple system wifi                # current SSID + signal
-apple system clipboard           # paste clipboard to stdout
-apple system display             # display info
-```
-
-**`battery --json` returns:**
-```json
-{"level": 87, "charging": false, "plugged_in": true, "time_remaining_minutes": 312}
+apple system wifi --json             # SSID, signal strength
+apple system clipboard               # read clipboard to stdout
+apple system display --json
 ```
 
 ---
 
-### `apps` — Applications
+### `apps` — Application management
 
 ```bash
-apple apps list                  # installed apps
-apple apps list --all --json     # all apps with full paths
+apple apps list --json               # installed apps
+apple apps list --all --json         # all apps with full paths
 
 apple apps launch "Safari"
 apple apps quit "Safari"
@@ -249,25 +403,11 @@ apple apps info "Final Cut Pro" --json
 
 ---
 
-### `screen` — Screen
+### `storage` — Disk info
 
 ```bash
-apple screen info --json                     # resolution, scale, display count
-apple screen capture                         # capture to clipboard
-apple screen capture --output ~/Desktop/shot.png
-apple screen capture --window "Terminal"     # capture specific window
-apple screen lock                            # lock screen immediately
-```
-
----
-
-### `storage` — Disk
-
-```bash
-apple storage volumes              # list mounted volumes
-apple storage volumes --json
-
-apple storage usage                # usage at /
+apple storage volumes --json         # mounted volumes with usage
+apple storage usage                  # disk usage at /
 apple storage usage ~/Developer --json
 ```
 
@@ -281,8 +421,6 @@ apple notify send --title "Reminder" --body "Follow up with team" --subtitle "Wo
 apple notify send --title "Done" --sound "Glass"
 ```
 
-> The `send` subcommand is required. `apple notify --title "..."` will return an error.
-
 ---
 
 ### `speech` — Text-to-speech
@@ -292,7 +430,7 @@ apple speech say "Meeting in 10 minutes"
 apple speech say "Hello" --voice "Samantha" --rate 180
 apple speech say "This is a recording" --output ~/Desktop/note.aiff
 
-apple speech voices --json        # list all available voices
+apple speech voices --json           # list all available voices
 ```
 
 ---
@@ -300,18 +438,45 @@ apple speech voices --json        # list all available voices
 ### `info` — System diagnostics
 
 ```bash
-apple info system --json          # macOS version, hardware model
-apple info network --json         # interfaces and IP addresses
-apple info power                  # sleep and power settings
-apple info spotlight              # Spotlight index status
-apple info keychain               # Keychain summary
+apple info system --json             # macOS version, hardware model
+apple info network --json            # interfaces and IP addresses
+apple info power                     # sleep and power settings
+apple info spotlight                 # Spotlight index status
+apple info keychain                  # Keychain summary
 ```
 
 ---
 
-## 🤖 Using with AI agents
+### `setup` — Permission checker
 
-Every read command returns clean `--json` output and exits `0` on success, non-zero on failure — exactly what LLM tool use needs.
+```bash
+apple setup
+```
+
+Checks every capability and prints a green checkmark or red X. Run after install or after granting new permissions.
+
+---
+
+## Permissions
+
+macOS will prompt on first use for each protected API. Grant in advance at **System Settings → Privacy & Security**:
+
+| Permission | Required for |
+|---|---|
+| Reminders | `apple reminders` |
+| Calendars | `apple calendar` |
+| Contacts | `apple contacts` |
+| Screen Recording | `apple screenshot window` |
+| Accessibility | `apple mouse` `apple keyboard` `apple ax` |
+| Automation | `apple messages` `apple mail` `apple photos` `apple music` `apple safari` `apple finder` |
+
+No permissions required: `system` `apps` `storage` `notify` `speech` `info` `notes` `ocr full/file` `screenshot full/region`
+
+---
+
+## Using with AI agents
+
+Every read command exits `0` on success, non-zero on failure, and emits clean `--json` output. Built for LLM tool use.
 
 ### Example: Claude tool definition
 
@@ -323,8 +488,8 @@ Every read command returns clean `--json` output and exits `0` on success, non-z
     "type": "object",
     "properties": {
       "title": {"type": "string"},
-      "due":   {"type": "string", "description": "YYYY-MM-DD"},
-      "list":  {"type": "string"},
+      "due": {"type": "string", "description": "YYYY-MM-DD"},
+      "list": {"type": "string"},
       "notes": {"type": "string"}
     },
     "required": ["title"]
@@ -334,28 +499,30 @@ Every read command returns clean `--json` output and exits `0` on success, non-z
 
 Maps to: `apple reminders create --title <title> [--due <due>] [--list <list>] [--notes <notes>] --json`
 
-### Example: check for calendar conflicts before scheduling
+### Example: check calendar before scheduling
 
 ```bash
-CONFLICTS=$(apple calendar events --from 2026-05-20 --to 2026-05-20 --json \
+COUNT=$(apple calendar events --from 2026-05-20 --to 2026-05-20 --json \
   | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
-echo "$CONFLICTS events already on that day"
+echo "$COUNT events on that day"
 ```
 
-### Example: look up a contact before composing an email
+### Example: OCR a receipt and extract the text
 
 ```bash
-apple contacts search "Ryan" --limit 1 --json \
-  | python3 -c "
-import sys, json
-c = json.load(sys.stdin)[0]
-print(c['name'], '—', c['emails'][0]['email'] if c['emails'] else 'no email')
-"
+apple ocr file --path ~/Desktop/receipt.png --json \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['text'])"
+```
+
+### Example: click a UI element without knowing its coordinates
+
+```bash
+apple ax click "Sign In" --app "Safari"
 ```
 
 ---
 
-## 🛠 Build from source
+## Build from source
 
 ```bash
 git clone https://github.com/manuaudio/apple-cli
@@ -363,31 +530,22 @@ cd apple-cli
 
 swift build              # debug build
 swift build -c release   # release build
-make install             # build release + install to /usr/local/bin
-
-swift test               # run tests
+make install             # release build + install to /usr/local/bin
 ```
 
-**Requirements:**
-- macOS 13 (Ventura) or later
-- Swift 5.9+ / Xcode 15+
-
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Pull requests are welcome. A few things to keep in mind:
+Pull requests welcome.
 
 1. Add a test in `Tests/` for any new behavior
-2. `swift test` must pass before submitting
-3. `--json` output shapes are part of the public API — don't change field names without a version bump
-4. The binary installs as `apple`, not `apple-cli` — this is intentional
-
-For new top-level commands, open an issue first to align on the interface.
+2. `--json` output shapes are part of the public API — don't change field names without a version bump
+3. New top-level commands: open an issue first to align on the interface
 
 ---
 
-## 📄 License
+## License
 
 MIT — see [LICENSE](LICENSE).
 

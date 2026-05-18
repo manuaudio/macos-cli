@@ -5,7 +5,7 @@ A native macOS command-line tool that gives your terminal and your AI agent firs
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](#requirements)
 [![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange?logo=swift)](https://swift.org)
-[![Version](https://img.shields.io/badge/version-0.5.1-blue)](#install)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue)](#install)
 
 ---
 
@@ -24,7 +24,7 @@ If you don't have Xcode CLT yet: `xcode-select --install`, then re-run the curl 
 ### Verify
 
 ```bash
-apple --version   # apple-cli 0.5.1
+apple --version   # apple-cli 0.6.0
 apple setup       # check all permissions — green checkmark per capability
 ```
 
@@ -38,9 +38,10 @@ apple setup       # check all permissions — green checkmark per capability
 | **Communication** | `messages` `mail` |
 | **Media** | `photos` `music` |
 | **Browser** | `safari` |
-| **Automation** | `mouse` `keyboard` `ax` (accessibility tree) |
+| **Automation** | `mouse` `keyboard` `ax` (accessibility tree) `shortcuts` |
 | **Screen** | `screenshot` `ocr` `window` |
-| **System** | `system` `apps` `storage` `info` `notify` `speech` `finder` |
+| **System** | `system` `apps` `storage` `info` `notify` `speech` `finder` `process` `disk` `focus` `location` |
+| **Files** | `pdf` |
 | **Setup** | `setup` |
 
 Every read command supports `--json` for clean, parseable output. Designed for both humans and LLM agents.
@@ -447,6 +448,155 @@ apple info keychain                  # Keychain summary
 
 ---
 
+### `shortcuts` — Apple Shortcuts
+
+```bash
+# List all shortcuts
+apple shortcuts list
+apple shortcuts list --json          # ["Shortcut 1", "Shortcut 2", ...]
+
+# Run a shortcut by name
+apple shortcuts run "Morning Focus"
+apple shortcuts run "Resize Image" --input "~/Desktop/photo.jpg" --json
+```
+
+**`run --json` returns:**
+```json
+{"name": "Morning Focus", "output": ""}
+```
+
+---
+
+### `pdf` — PDF text extraction
+
+Extract text from PDFs on-device via Apple's PDFKit — no network, no cloud.
+
+```bash
+# Extract all text
+apple pdf text --path ~/Desktop/contract.pdf
+
+# Single page
+apple pdf text --path ~/Desktop/contract.pdf --page 3
+
+# JSON output (array of {page, text} objects)
+apple pdf text --path ~/Desktop/contract.pdf --json
+
+# File metadata
+apple pdf info --path ~/Desktop/contract.pdf --json
+```
+
+**`info --json` returns:**
+```json
+{"page_count": 12, "title": "Q1 Invoice", "author": "Ryan B.", "created": "2026-01-15T00:00:00Z", "encrypted": false}
+```
+
+---
+
+### `focus` — Focus mode and Do Not Disturb
+
+```bash
+# Current state
+apple focus status --json            # {"dnd_active": false}
+
+# List all configured Focus modes
+apple focus modes --json
+
+# Toggle legacy DND (see limitations in CHANGELOG)
+apple focus on
+apple focus off
+```
+
+> For named Focus modes (Work, Personal, Sleep), create an Apple Shortcut and invoke it with `shortcuts run`.
+
+---
+
+### `process` — Process management
+
+```bash
+# List top processes by CPU (default)
+apple process list --json
+apple process list --sort mem --limit 10 --json
+
+# Find by name (substring match)
+apple process find "Safari" --json
+
+# Kill a process
+apple process kill --pid 1234
+apple process kill --name "Safari"           # first match
+apple process kill --name "Safari" --all     # all matches
+apple process kill --name "MyApp" --signal KILL
+```
+
+**`list --json` returns:**
+```json
+[{"pid": 1234, "cpu": 2.3, "mem": 1.5, "name": "/Applications/Safari.app/Contents/MacOS/Safari"}]
+```
+
+---
+
+### `disk` — Volume management
+
+```bash
+# List all disks and volumes
+apple disk list --json
+
+# Detailed info
+apple disk info /dev/disk2 --json
+apple disk info /Volumes/BackupDrive --json
+
+# Eject (safe removal)
+apple disk eject /Volumes/BackupDrive
+apple disk eject /dev/disk2
+
+# Unmount without ejecting
+apple disk unmount /Volumes/BackupDrive
+apple disk unmount /Volumes/BackupDrive --force
+
+# Mount
+apple disk mount /dev/disk2s1
+apple disk mount ~/Desktop/image.dmg
+```
+
+---
+
+### `location` — GPS coordinates
+
+```bash
+apple location get                   # 34.052235, -118.243683 (±15m)
+apple location get --json
+apple location get --timeout 30      # longer timeout for low-signal environments
+```
+
+**`get --json` returns:**
+```json
+{"latitude": 34.052235, "longitude": -118.243683, "accuracy_meters": 14.8, "timestamp": "2026-05-18T13:00:00Z"}
+```
+
+Requires Location Services permission. macOS will show "Command Line Tool" in System Settings → Privacy → Location Services.
+
+---
+
+### `contacts` — Apple Contacts (write operations added in 0.6)
+
+```bash
+# Create a contact
+apple contacts create --first-name "Ryan" --last-name "B." \
+  --phone "+13105550100" --phone-label "mobile" \
+  --email "ryan@example.com" --email-label "work" \
+  --json
+
+# Update an existing contact
+apple contacts update "AB12CD34-..." \
+  --add-phone "+13105559999" \
+  --add-phone-label "work" \
+  --json
+
+# Delete a contact
+apple contacts delete "AB12CD34-..." --json
+```
+
+---
+
 ### `setup` — Permission checker
 
 ```bash
@@ -470,7 +620,11 @@ macOS will prompt on first use for each protected API. Grant in advance at **Sys
 | Accessibility | `apple mouse` `apple keyboard` `apple ax` |
 | Automation | `apple messages` `apple mail` `apple photos` `apple music` `apple safari` `apple finder` |
 
-No permissions required: `system` `apps` `storage` `notify` `speech` `info` `notes` `ocr full/file` `screenshot full/region`
+No permissions required: `system` `apps` `storage` `notify` `speech` `info` `notes` `ocr full/file` `screenshot full/region` `pdf` `process` `disk` `focus` `shortcuts`
+
+| Permission | Required for |
+|---|---|
+| Location Services | `apple location get` |
 
 ---
 

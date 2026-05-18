@@ -22,6 +22,8 @@ let package = Package(
                     "-framework", "AppKit",
                     "-framework", "ApplicationServices",
                     "-framework", "Vision",
+                    "-framework", "PDFKit",
+                    "-framework", "CoreLocation",
                 ])
             ]
         ),

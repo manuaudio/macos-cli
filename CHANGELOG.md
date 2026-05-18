@@ -4,6 +4,51 @@ Honest version history. Each entry documents what works, what was broken, and wh
 
 ---
 
+## [0.6.0] — 2026-05-18
+
+### Added — 6 new commands (30 total)
+
+- **`shortcuts`** — list and run Apple Shortcuts from the CLI
+  - `shortcuts list` — lists all shortcuts (name only, 0 shortcuts if none configured)
+  - `shortcuts run <name>` — runs a named shortcut with optional stdin input and 30s timeout
+  - `--json` on run returns `{"name", "output"}`
+
+- **`pdf`** — extract text and metadata from PDF files via PDFKit (on-device, no network)
+  - `pdf text --path <file>` — extract all text; `--page N` for a single page
+  - `pdf info --path <file>` — page count, author, title, creator, created/modified dates, encryption status
+
+- **`focus`** — read macOS Focus mode and Do Not Disturb state
+  - `focus status` — returns `{"dnd_active": bool, "mode": string, "assertion_count": int}`
+  - `focus modes` — lists all configured Focus modes with identifiers
+  - `focus on` / `focus off` — enables/disables legacy DND via `com.apple.notificationcenterui` defaults
+  - **Known limitation:** `focus on/off` uses the legacy defaults approach which does not toggle named Focus modes on Ventura. Status reads are accurate (Assertions.json). For named Focus modes, create an Apple Shortcut and call it via `shortcuts run`.
+
+- **`process`** — list and kill running processes
+  - `process list [--sort cpu|mem|name|pid] [--limit N]` — top N processes by chosen sort key
+  - `process find <name>` — substring match across all running processes
+  - `process kill --pid N` or `--name <name>` — sends TERM (or `--signal KILL/HUP/etc.`) to matching process(es); `--all` for multiple matches
+
+- **`disk`** — mount, unmount, eject, and inspect volumes
+  - `disk list` — all disks and partitions with device, name, size, mount point
+  - `disk info <path>` — detailed info for a device path or mount point
+  - `disk eject <path>` — eject a volume (safe removal)
+  - `disk unmount <path>` — unmount without ejecting; `--force` for busy volumes
+  - `disk mount <path>` — mount a device or `.dmg`/`.iso` file
+
+- **`location`** — GPS coordinates via CoreLocation
+  - `location get` — returns `{"latitude", "longitude", "accuracy_meters", "timestamp"}`
+  - Requires Location Services permission; 15s timeout by default
+  - **Known limitation:** requires interactive permission grant on first use; CLI apps show "Command Line Tool" in Location Services
+
+- **`contacts create`** — create a new contact with name, phones, emails, org, note
+- **`contacts update <id>`** — add phone/email or update name/org/note on existing contact
+- **`contacts delete <id>`** — delete a contact by identifier
+
+### No regressions
+All 24 previously-existing commands verified working in this release. Bug fixes from 0.5.1 unchanged.
+
+---
+
 ## [0.5.1] — 2026-05-18
 
 ### Fixed — remaining known issues from 0.5.0

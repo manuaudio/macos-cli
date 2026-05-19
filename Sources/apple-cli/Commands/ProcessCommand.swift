@@ -16,10 +16,10 @@ struct ProcessCommand: ParsableCommand {
             case cpu, mem, name, pid
         }
 
-        @Option(name: .long, help: "Sort by: cpu, mem, name, pid (default: cpu)")
+        @Option(name: .long, help: "Sort by: cpu, mem, name, pid")
         var sort: SortKey = .cpu
 
-        @Option(name: .long, help: "Limit output to N processes (default: 30)")
+        @Option(name: .long, help: "Limit output to N processes")
         var limit: Int = 30
 
         @Flag(name: .long, help: "Output JSON")
@@ -87,7 +87,7 @@ struct ProcessCommand: ParsableCommand {
         @Option(name: .long, help: "Process name to kill (kills first match)")
         var name: String?
 
-        @Option(name: .long, help: "Signal to send (default: TERM)")
+        @Option(name: .long, help: "Signal to send (TERM, KILL, HUP, etc.)")
         var signal: String = "TERM"
 
         @Flag(name: .long, help: "Kill all matching processes (when using --name)")

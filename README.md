@@ -24,7 +24,7 @@ If you don't have Xcode CLT yet: `xcode-select --install`, then re-run the curl 
 ### Verify
 
 ```bash
-apple --version   # apple-cli 0.5.2
+apple --version   # 0.5.2
 apple setup       # check all permissions — green checkmark per capability
 ```
 
@@ -39,7 +39,7 @@ apple setup       # check all permissions — green checkmark per capability
 | **Media** | `photos` `music` |
 | **Browser** | `safari` |
 | **Automation** | `mouse` `keyboard` `ax` (accessibility tree) `shortcuts` |
-| **Screen** | `screenshot` `ocr` `window` |
+| **Screen** | `screenshot` `screen` `ocr` `window` |
 | **System** | `system` `apps` `storage` `info` `notify` `speech` `finder` `process` `disk` `focus` `location` |
 | **Files** | `pdf` |
 | **Setup** | `setup` |
@@ -137,8 +137,8 @@ apple calendar create \
 # All-day event
 apple calendar create --title "Travel day" --start "2026-05-20" --all-day
 
-# Delete an event (use the id from events --json)
-apple calendar delete --id "8E486F91-...:34CE5C3E-..."
+# Delete an event by title and date
+apple calendar delete --title "Soundcheck — Orpheum" --date 2026-05-20
 
 # List all calendars
 apple calendar calendars --json
@@ -169,9 +169,9 @@ apple contacts get "AB12CD34-..." --json
 ### `notes` — Apple Notes
 
 ```bash
-apple notes list --json              # all notes (title + id)
+apple notes list --json              # all notes (title + modified date)
 apple notes search "meeting" --json
-apple notes read "AB12CD34-..."      # read by id
+apple notes read "My note"           # read by title
 apple notes create --title "My note" --body "Content here"
 ```
 
@@ -576,7 +576,7 @@ Requires Location Services permission. macOS will show "Command Line Tool" in Sy
 
 ---
 
-### `contacts` — Apple Contacts (write operations added in 0.6)
+### `contacts` — Apple Contacts (write operations)
 
 ```bash
 # Create a contact

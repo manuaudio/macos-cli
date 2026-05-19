@@ -17,11 +17,10 @@ Honest version history. Each entry documents what works, what was broken, and wh
   - `pdf text --path <file>` — extract all text; `--page N` for a single page
   - `pdf info --path <file>` — page count, author, title, creator, created/modified dates, encryption status
 
-- **`focus`** — read macOS Focus mode and Do Not Disturb state
-  - `focus status` — returns `{"dnd_active": bool, "mode": string, "assertion_count": int}`
+- **`focus`** — read and set macOS Focus / Do Not Disturb state
+  - `focus status` — returns `{"dnd_active": bool, "modes": [...], "assertion_count": int}`
   - `focus modes` — lists all configured Focus modes with identifiers
-  - `focus on` / `focus off` — enables/disables legacy DND via `com.apple.notificationcenterui` defaults
-  - **Known limitation:** `focus on/off` uses the legacy defaults approach which does not toggle named Focus modes on Ventura. Status reads are accurate (Assertions.json). For named Focus modes, create an Apple Shortcut and call it via `shortcuts run`.
+  - `focus on [--mode <identifier>]` / `focus off` — read/write Assertions.json directly + SIGHUP donotdisturbd; no legacy defaults hack
 
 - **`process`** — list and kill running processes
   - `process list [--sort cpu|mem|name|pid] [--limit N]` — top N processes by chosen sort key

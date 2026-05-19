@@ -39,7 +39,7 @@ struct ProcessCommand: ParsableCommand {
             if json {
                 printJSON(top.map { $0.dict })
             } else {
-                print(String(format: "%-8s %-6s %-6s %s", "PID", "CPU%", "MEM%", "NAME"))
+                print(String(format: "%-8@ %-6@ %-6@ %@", "PID", "CPU%", "MEM%", "NAME"))
                 for p in top {
                     print(String(format: "%-8d %-6.1f %-6.1f %@", p.pid, p.cpu, p.mem, p.name))
                 }
@@ -69,7 +69,7 @@ struct ProcessCommand: ParsableCommand {
                     print("No processes matching '\(name)'")
                     return
                 }
-                print(String(format: "%-8s %-6s %-6s %s", "PID", "CPU%", "MEM%", "NAME"))
+                print(String(format: "%-8@ %-6@ %-6@ %@", "PID", "CPU%", "MEM%", "NAME"))
                 for p in matches {
                     print(String(format: "%-8d %-6.1f %-6.1f %@", p.pid, p.cpu, p.mem, p.name))
                 }

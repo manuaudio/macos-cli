@@ -4,7 +4,7 @@ Honest version history. Each entry documents what works, what was broken, and wh
 
 ---
 
-## [0.6.0] — 2026-05-18
+## [0.5.2] — 2026-05-18
 
 ### Added — 6 new commands (30 total)
 

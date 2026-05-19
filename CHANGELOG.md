@@ -1,3 +1,23 @@
+## [0.6.0] — 2026-05-19
+
+### Renamed
+
+- Project renamed from `apple-cli` to `macOS CLI`. Binary: `apple` → `macos`. Repo: manuaudio/apple-cli → manuaudio/macos-cli.
+
+### Added — 6 new commands + 3 extensions
+
+- `bluetooth` — list paired devices, connect, disconnect (IOBluetooth.framework)
+- `trash` — move to trash, empty, list contents
+- `spotlight` — search files via mdfind
+- `file` — headless file ops: list, copy, move, delete, stat, read
+- `login-items` — list/add/remove startup items via System Events
+- `dock` — list/add/remove/restart Dock pins
+- `system vpn` — VPN status/connect/disconnect via scutil
+- `notify list/clear` — read and clear Notification Center
+- `display wallpaper` — get/set desktop wallpaper
+
+---
+
 # Changelog
 
 Honest version history. Each entry documents what works, what was broken, and what was fixed.

@@ -1,21 +1,21 @@
-# apple-cli
+# macOS CLI
 
 A native macOS command-line tool that gives your terminal and your AI agent first-class access to Apple APIs. Reminders, Calendar, Contacts, Messages, Mail, Photos, Music, Safari, screenshots, OCR, mouse/keyboard automation, and more. One binary. Zero AppleScript.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](#requirements)
 [![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange?logo=swift)](https://swift.org)
-[![Version](https://img.shields.io/badge/version-0.5.3-blue)](#install)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue)](#install)
 
 ---
 
 ## Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/manuaudio/apple-cli/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
 ```
 
-Builds from source, installs to `/usr/local/bin/apple`, and runs a permission check. Takes ~30 seconds.
+Builds from source, installs to `/usr/local/bin/macos`, and runs a permission check. Takes ~30 seconds.
 
 **Requirements:** macOS 13 (Ventura) or later · Swift 5.9+ (included with Xcode Command Line Tools)
 
@@ -144,7 +144,7 @@ apple calendar delete --title "Soundcheck — Orpheum" --date 2026-05-20
 apple calendar calendars --json
 ```
 
-> Every event created by `apple calendar create` automatically gets a 1-day and 1-hour alert.
+> Every event created by `macos calendar create` automatically gets a 1-day and 1-hour alert.
 
 ---
 
@@ -613,18 +613,18 @@ macOS will prompt on first use for each protected API. Grant in advance at **Sys
 
 | Permission | Required for |
 |---|---|
-| Reminders | `apple reminders` |
-| Calendars | `apple calendar` |
-| Contacts | `apple contacts` |
-| Screen Recording | `apple screenshot window` |
-| Accessibility | `apple mouse` `apple keyboard` `apple ax` |
-| Automation | `apple messages` `apple mail` `apple photos` `apple music` `apple safari` `apple finder` |
+| Reminders | `macos reminders` |
+| Calendars | `macos calendar` |
+| Contacts | `macos contacts` |
+| Screen Recording | `macos screenshot window` |
+| Accessibility | `macos mouse` `macos keyboard` `macos ax` |
+| Automation | `macos messages` `macos mail` `macos photos` `macos music` `macos safari` `macos finder` |
 
 No permissions required: `system` `apps` `storage` `notify` `speech` `info` `notes` `ocr full/file` `screenshot full/region` `pdf` `process` `disk` `focus` `shortcuts`
 
 | Permission | Required for |
 |---|---|
-| Location Services | `apple location get` |
+| Location Services | `macos location get` |
 
 ---
 
@@ -651,7 +651,7 @@ Every read command exits `0` on success, non-zero on failure, and emits clean `-
 }
 ```
 
-Maps to: `apple reminders create --title <title> [--due <due>] [--list <list>] [--notes <notes>] --json`
+Maps to: `macos reminders create --title <title> [--due <due>] [--list <list>] [--notes <notes>] --json`
 
 ### Example: check calendar before scheduling
 
@@ -679,8 +679,8 @@ apple ax click "Sign In" --app "Safari"
 ## Build from source
 
 ```bash
-git clone https://github.com/manuaudio/apple-cli
-cd apple-cli
+git clone https://github.com/manuaudio/macos-cli
+cd macos-cli
 
 swift build              # debug build
 swift build -c release   # release build

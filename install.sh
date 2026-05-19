@@ -1,17 +1,17 @@
 #!/bin/bash
-# apple-cli installer
-# Usage: curl -sSL https://raw.githubusercontent.com/manuaudio/apple-cli/main/install.sh | bash
-# Or:    git clone https://github.com/manuaudio/apple-cli && cd apple-cli && ./install.sh
+# macOS CLI installer
+# Usage: curl -sSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
+# Or:    git clone https://github.com/manuaudio/macos-cli && cd macos-cli && ./install.sh
 
 set -e
 
-REPO_URL="https://github.com/manuaudio/apple-cli.git"
+REPO_URL="https://github.com/manuaudio/macos-cli.git"
 INSTALL_DIR="/usr/local/bin"
-BINARY_NAME="apple"
-CLONE_DIR="/tmp/apple-cli-install"
+BINARY_NAME="macos"
+CLONE_DIR="/tmp/macos-cli-install"
 
 echo ""
-echo "apple-cli installer"
+echo "macOS CLI installer"
 echo "==================="
 echo ""
 
@@ -33,12 +33,10 @@ fi
 
 # ── Clone or use existing repo ───────────────────────────────────────────────
 if [ -f "Package.swift" ] && [ -d "Sources" ]; then
-    # Running from inside the repo
     REPO_DIR="$(pwd)"
     echo "✅  Using local repo: $REPO_DIR"
 else
-    # Clone fresh
-    echo "📦  Cloning apple-cli..."
+    echo "📦  Cloning macos-cli..."
     rm -rf "$CLONE_DIR"
     git clone --depth 1 "$REPO_URL" "$CLONE_DIR" 2>&1 | tail -1
     REPO_DIR="$CLONE_DIR"
@@ -49,8 +47,7 @@ echo "🔨  Building (this takes ~30s)..."
 cd "$REPO_DIR"
 swift build -c release --quiet 2>/dev/null || swift build -c release 2>&1 | grep -E "error:|Build complete"
 
-# Find the binary (arch-dependent path)
-BUILT_BINARY=$(find .build -name "apple-cli" -type f ! -name "*.d" 2>/dev/null | grep release | head -1)
+BUILT_BINARY=$(find .build -name "macos-cli" -type f ! -name "*.d" 2>/dev/null | grep release | head -1)
 if [ -z "$BUILT_BINARY" ]; then
     echo "❌  Build failed — binary not found"
     exit 1

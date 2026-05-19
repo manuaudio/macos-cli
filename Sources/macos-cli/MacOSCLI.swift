@@ -2,11 +2,11 @@ import ArgumentParser
 import Foundation
 
 @main
-struct AppleCLI: ParsableCommand {
+struct MacOSCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "apple",
-        abstract: "macOS native data access CLI — Reminders, Calendar, Contacts, Notes, System, Apps, Screen, Storage, Info, VoiceMemos",
-        version: "0.5.6",
+        commandName: "macos",
+        abstract: "macOS CLI — full agentic control of macOS via the terminal",
+        version: "0.6.0",
         subcommands: [
             // Personal data (EventKit + Contacts.framework + Notes via SQLite)
             RemindersCommand.self,
@@ -45,6 +45,13 @@ struct AppleCLI: ParsableCommand {
             LocationCommand.self,
             // 0.5.5
             VoiceMemosCommand.self,
+            // 0.6.0 — new agentic commands
+            BluetoothCommand.self,
+            TrashCommand.self,
+            SpotlightCommand.self,
+            FileCommand.self,
+            LoginItemsCommand.self,
+            DockCommand.self,
         ]
     )
 }

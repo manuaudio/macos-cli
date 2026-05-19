@@ -20,12 +20,19 @@ struct DockCommand: ParsableCommand {
                 return
             }
 
-            let paths = output.components(separatedBy: "\n")
-                .filter { $0.contains("_CFURLString = ") }
+            let paths: [String] = output.components(separatedBy: "\n")
+                .filter { $0.contains("_CFURLString\"") && $0.contains(" = ") }
                 .compactMap { line -> String? in
-                    let parts = line.components(separatedBy: "= ")
-                    guard parts.count >= 2 else { return nil }
-                    return parts[1].trimmingCharacters(in: .init(charactersIn: "\" ;"))
+                    // line format: `"_CFURLString" = "file:///...";` or `_CFURLString = "/path/...";`
+                    guard let eqRange = line.range(of: " = ") else { return nil }
+                    let raw = String(line[eqRange.upperBound...])
+                        .trimmingCharacters(in: .init(charactersIn: "\" ;"))
+                    if raw.hasPrefix("file://") {
+                        let decoded = raw.replacingOccurrences(of: "file://", with: "")
+                            .removingPercentEncoding ?? raw
+                        return decoded.hasSuffix("/") ? String(decoded.dropLast()) : decoded
+                    }
+                    return raw
                 }
 
             if json {
@@ -94,10 +101,18 @@ struct DockCommand: ParsableCommand {
             var matchIndex = -1
             for line in lines {
                 if line.contains("{") { currentIndex += 1 }
-                if line.contains("_CFURLString = ") {
-                    let path = line.components(separatedBy: "= ").last?
-                        .trimmingCharacters(in: .init(charactersIn: "\" ;")) ?? ""
-                    let appName = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+                if line.contains("_CFURLString\"") && line.contains(" = ") {
+                    guard let eqRange = line.range(of: " = ") else { continue }
+                    let raw = String(line[eqRange.upperBound...])
+                        .trimmingCharacters(in: .init(charactersIn: "\" ;"))
+                    let posix: String
+                    if raw.hasPrefix("file://") {
+                        let decoded = raw.replacingOccurrences(of: "file://", with: "").removingPercentEncoding ?? raw
+                        posix = decoded.hasSuffix("/") ? String(decoded.dropLast()) : decoded
+                    } else {
+                        posix = raw
+                    }
+                    let appName = URL(fileURLWithPath: posix).deletingPathExtension().lastPathComponent
                     if appName.lowercased() == name.lowercased() {
                         matchIndex = currentIndex
                         break

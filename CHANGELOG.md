@@ -1,20 +1,23 @@
-## [0.6.0] — 2026-05-19
+## [0.5.7] — 2026-05-19
 
 ### Renamed
 
 - Project renamed from `apple-cli` to `macOS CLI`. Binary: `apple` → `macos`. Repo: manuaudio/apple-cli → manuaudio/macos-cli.
 
-### Added — 6 new commands + 3 extensions
+### Added — 6 new commands + 2 extensions
 
 - `bluetooth` — list paired devices, connect, disconnect (IOBluetooth.framework)
-- `trash` — move to trash, empty, list contents
-- `spotlight` — search files via mdfind
-- `file` — headless file ops: list, copy, move, delete, stat, read
-- `login-items` — list/add/remove startup items via System Events
-- `dock` — list/add/remove/restart Dock pins
+- `trash` — move file/dir to trash, empty trash, list trash contents
+- `spotlight` — search files via mdfind; filter by kind (app/image/pdf/audio/video/document/folder), limit results, scope to directory
+- `file` — headless file ops: list directory, copy, move, delete, stat, read text files
+- `login-items` — list/add/remove login items via System Events
+- `dock` — list/add/remove pinned apps, restart Dock
 - `system vpn` — VPN status/connect/disconnect via scutil
-- `notify list/clear` — read and clear Notification Center
-- `display wallpaper` — get/set desktop wallpaper
+- `system display wallpaper` — get current wallpaper per display, set wallpaper on all displays
+
+### Note on notify list/clear
+
+`UNUserNotificationCenter` requires a bundle identifier — it crashes from a non-bundled CLI binary. `notify send` works fine (osascript). `list` and `clear` were removed as they cannot work from a CLI tool without a bundle.
 
 ---
 

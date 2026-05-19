@@ -551,16 +551,21 @@ struct VPNCommand: ParsableCommand {
             guard let output = Process.capture(args: ["/usr/sbin/scutil", "--nc", "list"], timeout: 10) else {
                 throw ValidationError("VPN status query timed out.")
             }
-            let lines = output.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            let uuidRegex = try? NSRegularExpression(pattern: "[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}")
+            let lines = output.components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             let items: [[String: Any]] = lines.compactMap { line -> [String: Any]? in
-                let connected = line.contains("(Connected)")
-                let uuidPattern = try? NSRegularExpression(pattern: "[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}")
                 let nsLine = line as NSString
-                let uuidRange = uuidPattern?.firstMatch(in: line, range: NSRange(location: 0, length: nsLine.length))
-                let uuid = uuidRange.map { nsLine.substring(with: $0.range) } ?? ""
-                let nameMatch = line.range(of: "\"[^\"]+\"$", options: .regularExpression)
-                let name = nameMatch.map { String(line[$0]).trimmingCharacters(in: .init(charactersIn: "\"")) } ?? line
-                let protoMatch = line.range(of: "\\[[^\\]]+\\]", options: .regularExpression)
+                let nsRange = NSRange(location: 0, length: nsLine.length)
+                // skip header lines that have no UUID
+                guard let uuidMatch = uuidRegex?.firstMatch(in: line, range: nsRange) else { return nil }
+                let uuid = nsLine.substring(with: uuidMatch.range)
+                let connected = line.contains("(Connected)")
+                // name is the last quoted string on the line
+                let nameMatch = line.range(of: "\"([^\"]+)\"", options: .regularExpression)
+                let name = nameMatch.map { String(line[$0]).trimmingCharacters(in: .init(charactersIn: "\"")) } ?? uuid
+                // protocol is the last bracketed token
+                let protoMatch = line.range(of: "\\[([^\\]]+)\\][^\\[]*$", options: .regularExpression)
                 let proto = protoMatch.map { String(line[$0]).trimmingCharacters(in: .init(charactersIn: "[]")) } ?? ""
                 return ["name": name, "uuid": uuid, "protocol": proto, "connected": connected]
             }

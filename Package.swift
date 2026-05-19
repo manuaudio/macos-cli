@@ -2,18 +2,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "apple-cli",
+    name: "macos-cli",
     platforms: [.macOS(.v13)],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
     ],
     targets: [
         .executableTarget(
-            name: "apple-cli",
+            name: "macos-cli",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
-            path: "Sources/apple-cli",
+            path: "Sources/macos-cli",
             swiftSettings: [
                 .unsafeFlags([
                     "-framework", "EventKit",
@@ -24,6 +24,7 @@ let package = Package(
                     "-framework", "Vision",
                     "-framework", "PDFKit",
                     "-framework", "CoreLocation",
+                    "-framework", "IOBluetooth",
                 ])
             ]
         ),

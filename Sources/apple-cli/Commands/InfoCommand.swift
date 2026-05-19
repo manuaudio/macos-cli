@@ -25,7 +25,7 @@ struct InfoCommand: ParsableCommand {
             let host = os.hostName
 
             // CPU model via sysctl
-            let cpuModel = Process.capture(args: ["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"])
+            let cpuModel = Process.capture(args: ["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"], timeout: 5, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
             if json {
@@ -54,7 +54,7 @@ struct InfoCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let result = Process.capture(args: ["/sbin/ifconfig", "-a"])
+            let result = Process.capture(args: ["/sbin/ifconfig", "-a"], timeout: 5, fallback: "")
             if json {
                 // Parse ifconfig output — consistent shape: name always present, ipv4/mac null when absent
                 var interfaces: [[String: Any?]] = []
@@ -125,7 +125,7 @@ struct InfoCommand: ParsableCommand {
             @Flag(name: .long, help: "Output JSON") var json = false
 
             func run() throws {
-                let result = Process.capture(args: ["/usr/bin/pmset", "-g"])
+                let result = Process.capture(args: ["/usr/bin/pmset", "-g"], timeout: 5, fallback: "")
                 if json {
                     // Parse pmset -g key-value output into structured JSON
                     var parsed: [String: Any] = [:]
@@ -200,11 +200,11 @@ struct InfoCommand: ParsableCommand {
             func run() throws {
                 // Delete existing first (security add-generic-password fails if exists)
                 _ = Process.capture(args: ["/usr/bin/security", "delete-generic-password",
-                    "-s", service, "-a", account, "/Users/you/Library/Keychains/login.keychain-db"])
+                    "-s", service, "-a", account, "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"], timeout: 5, fallback: "")
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/usr/bin/security")
                 proc.arguments = ["add-generic-password", "-s", service, "-a", account,
-                    "-w", value, "/Users/you/Library/Keychains/login.keychain-db"]
+                    "-w", value, "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"]
                 proc.standardOutput = FileHandle.nullDevice
                 try proc.run()
                 proc.waitUntilExit()
@@ -223,7 +223,7 @@ struct InfoCommand: ParsableCommand {
             func run() throws {
                 let result = Process.capture(args: ["/usr/bin/security", "find-generic-password",
                     "-s", service, "-a", account, "-w",
-                    "/Users/you/Library/Keychains/login.keychain-db"])
+                    "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"], timeout: 5, fallback: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if result.isEmpty { throw ValidationError("Secret not found: \(service)/\(account)") }
                 print(result)
@@ -238,7 +238,7 @@ struct InfoCommand: ParsableCommand {
             func run() throws {
                 let result = Process.run(args: ["/usr/bin/security", "delete-generic-password",
                     "-s", service, "-a", account,
-                    "/Users/you/Library/Keychains/login.keychain-db"])
+                    "\(NSHomeDirectory())/Library/Keychains/login.keychain-db"])
                 if result != 0 { throw ValidationError("Secret not found: \(service)/\(account)") }
                 print("Deleted: \(service)/\(account)")
             }

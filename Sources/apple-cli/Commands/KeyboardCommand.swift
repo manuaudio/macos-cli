@@ -39,7 +39,7 @@ struct KeyboardCommand: ParsableCommand {
             } else {
                 script = "Application('System Events').keystroke(\"\(escaped)\")"
             }
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             if result.lowercased().contains("error") {
                 throw ValidationError("Type failed — grant Accessibility permission to Terminal in System Settings → Privacy → Accessibility\n\(result)")
             }
@@ -92,7 +92,7 @@ struct KeyboardCommand: ParsableCommand {
                 throw ValidationError("Unknown key: '\(key)'. Use single chars or: return, tab, space, escape, delete, arrow keys, f1-f12")
             }
 
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             if result.lowercased().contains("error") {
                 throw ValidationError("Key failed — grant Accessibility permission to Terminal in System Settings\n\(result)")
             }

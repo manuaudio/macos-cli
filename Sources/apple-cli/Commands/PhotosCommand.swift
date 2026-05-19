@@ -25,7 +25,7 @@ struct PhotosCommand: ParsableCommand {
             }).filter(Boolean);
             JSON.stringify(out);
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let albums = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {

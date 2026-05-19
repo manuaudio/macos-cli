@@ -44,7 +44,7 @@ struct MailCommand: ParsableCommand {
             \(open ? "Mail.activate();" : "")
             JSON.stringify({to: '\(escapedTo)', subject: '\(escapedSubject)'});
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if raw.lowercased().contains("error") || raw.isEmpty {
                 throw ValidationError("Could not create draft — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
@@ -134,7 +134,7 @@ struct MailCommand: ParsableCommand {
             }).filter(Boolean);
             JSON.stringify(out);
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let accounts = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {

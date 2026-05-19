@@ -37,7 +37,7 @@ struct SpeechCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let result = Process.capture(args: ["/usr/bin/say", "-v", "?"])
+            let result = Process.capture(args: ["/usr/bin/say", "-v", "?"], timeout: 5, fallback: "")
             let lines = result.components(separatedBy: "\n").filter { !$0.isEmpty }
             if json {
                 // `say -v ?` format: "VoiceName   en_US    # Sample text"

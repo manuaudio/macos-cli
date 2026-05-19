@@ -89,7 +89,7 @@ struct AudioCommand: ParsableCommand {
                 if !json { print("Volume set to \(level)%") }
             } else {
                 let result = Process.capture(args: ["/usr/bin/osascript", "-e",
-                    "output volume of (get volume settings)"])
+                    "output volume of (get volume settings)"], timeout: 10, fallback: "")
                 let vol = result.trimmingCharacters(in: .whitespacesAndNewlines)
                 if json { printJSON(["volume": Int(vol) ?? -1]) } else { print("Volume: \(vol)%") }
             }
@@ -111,7 +111,7 @@ struct AudioCommand: ParsableCommand {
                 if json { printJSON(["muted": muted]) } else { print("Mute: \(state)") }
             } else {
                 let result = Process.capture(args: ["/usr/bin/osascript", "-e",
-                    "output muted of (get volume settings)"])
+                    "output muted of (get volume settings)"], timeout: 10, fallback: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 let isMuted = result == "true"
                 if json { printJSON(["muted": isMuted]) } else { print("Mute: \(result)") }
@@ -125,7 +125,7 @@ struct AudioCommand: ParsableCommand {
 
         func run() throws {
             let spOutput = Process.capture(args: ["/usr/sbin/system_profiler",
-                "SPAudioDataType", "-json"])
+                "SPAudioDataType", "-json"], timeout: 30, fallback: "")
             guard let data = spOutput.data(using: .utf8),
                   let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let audioData = parsed["SPAudioDataType"] as? [[String: Any]] else {
@@ -173,7 +173,7 @@ struct AudioCommand: ParsableCommand {
             end tell
             return "nothing"
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-e", script])
+            let result = Process.capture(args: ["/usr/bin/osascript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if result == "nothing" || result.isEmpty {
                 if json { printJSON(["playing": false]) } else { print("Nothing playing") }
@@ -209,7 +209,7 @@ struct WifiCommand: ParsableCommand {
 
         func run() throws {
             // Use system_profiler for Wi-Fi info (works without entitlements)
-            let result = Process.capture(args: ["/usr/sbin/system_profiler", "SPAirPortDataType", "-json"])
+            let result = Process.capture(args: ["/usr/sbin/system_profiler", "SPAirPortDataType", "-json"], timeout: 30, fallback: "")
             if let data = result.data(using: .utf8),
                let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let airportData = parsed["SPAirPortDataType"] as? [[String: Any]],
@@ -252,7 +252,7 @@ struct WifiCommand: ParsableCommand {
         func run() throws {
             // airport scan (requires /System/Library/PrivateFrameworks/Apple80211.framework)
             let airportPath = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
-            let result = Process.capture(args: [airportPath, "-s"])
+            let result = Process.capture(args: [airportPath, "-s"], timeout: 10, fallback: "")
             if json {
                 let lines = result.components(separatedBy: "\n").dropFirst().filter { !$0.isEmpty }
                 let networks = lines.map { line -> [String: String] in
@@ -316,7 +316,7 @@ struct ClipboardCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let result = Process.capture(args: ["/usr/bin/pbpaste"])
+            let result = Process.capture(args: ["/usr/bin/pbpaste"], timeout: 3, fallback: "")
             if json { printJSON(["text": result]) } else { print(result) }
         }
     }
@@ -359,7 +359,7 @@ struct DisplayCommand: ParsableCommand {
                 // Use brightness CLI if available, else osascript
                 let script = "tell application \"System Events\" to key code 144"  // F15 as fallback
                 _ = Process.capture(args: ["/usr/bin/osascript", "-e",
-                    "tell application \"System Preferences\" to quit"])  // close if open
+                    "tell application \"System Preferences\" to quit"], timeout: 10, fallback: "")  // close if open
                 // Use private IOKit call via command line brightness tool
                 if FileManager.default.fileExists(atPath: "/usr/local/bin/brightness") {
                     Process.run(args: ["/usr/local/bin/brightness", String(level)])
@@ -372,7 +372,7 @@ struct DisplayCommand: ParsableCommand {
                 if !json { print("Brightness: \(Int(level * 100))%") }
             } else {
                 if FileManager.default.fileExists(atPath: "/usr/local/bin/brightness") {
-                    let result = Process.capture(args: ["/usr/local/bin/brightness", "-l"])
+                    let result = Process.capture(args: ["/usr/local/bin/brightness", "-l"], timeout: 5, fallback: "")
                     if json { printJSON(["output": result]) } else { print(result) }
                 } else {
                     fputs("Error: 'brightness' CLI not found. Install: brew install brightness\n", stderr)
@@ -401,7 +401,7 @@ struct DisplayCommand: ParsableCommand {
                 if !json { print("Dark mode: \(state)") }
             } else {
                 let result = Process.capture(args: ["/usr/bin/osascript", "-e",
-                    "tell application \"System Events\" to tell appearance preferences to return dark mode"])
+                    "tell application \"System Events\" to tell appearance preferences to return dark mode"], timeout: 10, fallback: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if json { printJSON(["dark_mode": result == "true"]) } else { print("Dark mode: \(result)") }
             }
@@ -434,6 +434,10 @@ extension Process {
         try? proc.run()
         proc.waitUntilExit()
         return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    }
+
+    static func capture(args: [String], timeout seconds: Double, fallback: String = "") -> String {
+        return capture(args: args, timeout: seconds) ?? fallback
     }
 
     // Returns nil on timeout. Drains pipe asynchronously to prevent deadlock

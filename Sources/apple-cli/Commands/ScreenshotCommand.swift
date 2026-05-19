@@ -72,7 +72,7 @@ print(result.stdout.strip())
             // Use screencapture interactive window selection for the named app
             // Focus the app first, then capture its frontmost window
             let focusScript = "Application('\(app.replacingOccurrences(of: "'", with: "\\'"))').activate()"
-            _ = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", focusScript])
+            _ = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", focusScript], timeout: 10, fallback: "")
             usleep(300_000)  // wait for focus
 
             // screencapture -l requires window ID; use -w (interactive) or fall back to full
@@ -98,7 +98,7 @@ try:
         print('')
 except Exception as e:
     print('')
-"""])
+"""], timeout: 10, fallback: "")
 
             let wid = quartz.trimmingCharacters(in: .whitespacesAndNewlines)
             var args = ["/usr/sbin/screencapture", "-x"]

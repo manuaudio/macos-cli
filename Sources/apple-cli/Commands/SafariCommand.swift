@@ -32,7 +32,7 @@ struct SafariCommand: ParsableCommand {
             });
             JSON.stringify(out);
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let tabs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
@@ -73,7 +73,7 @@ struct SafariCommand: ParsableCommand {
             Safari.openLocation('\(escaped)');
             'ok';
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             if result.lowercased().contains("error") {
                 throw ValidationError("Could not open URL — check Automation permission for Safari\n\(result.prefix(200))")
             }
@@ -102,7 +102,7 @@ struct SafariCommand: ParsableCommand {
             const body = Safari.doJavaScript('document.body ? document.body.innerText.substring(0, 5000) : ""', {in: t});
             JSON.stringify({title, url, body});
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let page = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -138,7 +138,7 @@ struct SafariCommand: ParsableCommand {
             const t = w.currentTab();
             String(Safari.doJavaScript('\(escaped)', {in: t}));
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if result.lowercased().contains("error") {
                 throw ValidationError("JS execution failed\n\(result.prefix(200))")

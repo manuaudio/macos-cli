@@ -43,7 +43,7 @@ struct DiskCommand: ParsableCommand {
                 }
                 printJSON(result)
             } else {
-                let raw = Process.capture(args: ["/usr/sbin/diskutil", "list"])
+                let raw = Process.capture(args: ["/usr/sbin/diskutil", "list"], timeout: 15, fallback: "")
                 print(raw)
             }
         }
@@ -86,7 +86,7 @@ struct DiskCommand: ParsableCommand {
                 }
                 printJSON(out)
             } else {
-                let raw = Process.capture(args: ["/usr/sbin/diskutil", "info", path])
+                let raw = Process.capture(args: ["/usr/sbin/diskutil", "info", path], timeout: 15, fallback: "")
                 print(raw)
             }
         }

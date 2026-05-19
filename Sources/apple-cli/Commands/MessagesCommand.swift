@@ -44,7 +44,7 @@ struct MessagesCommand: ParsableCommand {
                 'sent-buddy';
             }
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if result == "not-found" {
                 throw ValidationError("Recipient '\(to)' not found in Messages contacts")
@@ -82,7 +82,7 @@ struct MessagesCommand: ParsableCommand {
             }).filter(Boolean);
             JSON.stringify(chats);
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let chats = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {

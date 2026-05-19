@@ -258,7 +258,7 @@ enum FocusDB {
     }
 
     private static func signalDoNotDisturbD() {
-        let raw = Process.capture(args: ["/bin/ps", "-axo", "pid=,comm="])
+        let raw = Process.capture(args: ["/bin/ps", "-axo", "pid=,comm="], timeout: 5, fallback: "")
         for line in raw.components(separatedBy: "\n") {
             let parts = line.trimmingCharacters(in: .whitespaces)
                 .components(separatedBy: .whitespaces).filter { !$0.isEmpty }

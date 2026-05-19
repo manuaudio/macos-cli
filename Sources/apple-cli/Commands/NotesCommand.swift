@@ -35,7 +35,7 @@ struct NotesCommand: ParsableCommand {
         func run() throws {
             let db = notesDBPath()
             let sql = "SELECT ZTITLE1, ZMODIFICATIONDATE1 FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL ORDER BY ZMODIFICATIONDATE1 DESC;"
-            let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", db, sql])
+            let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", db, sql], timeout: 5, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty else {
                 if json { print("[]") } else { print("0 notes") }
@@ -73,7 +73,7 @@ struct NotesCommand: ParsableCommand {
             let db = notesDBPath()
             let q = query.lowercased().replacingOccurrences(of: "'", with: "''")
             let sql = "SELECT ZTITLE1, ZMODIFICATIONDATE1 FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL AND LOWER(ZTITLE1) LIKE '%\(q)%' ORDER BY ZMODIFICATIONDATE1 DESC;"
-            let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", db, sql])
+            let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", db, sql], timeout: 5, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let rows: [[String: String]] = raw.isEmpty ? [] : raw.components(separatedBy: "\n").compactMap { line in
                 let parts = line.components(separatedBy: "\t")
@@ -133,7 +133,7 @@ if mdate:
     modified = datetime.datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d')
 print(json.dumps({'title': title, 'body': body, 'modified': modified}))
 """
-            let raw = Process.capture(args: ["/usr/bin/python3", "-c", py])
+            let raw = Process.capture(args: ["/usr/bin/python3", "-c", py], timeout: 5, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard raw != "null", !raw.isEmpty,
                   let data = raw.data(using: .utf8),

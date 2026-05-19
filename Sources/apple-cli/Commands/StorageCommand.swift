@@ -59,7 +59,7 @@ struct StorageCommand: ParsableCommand {
 
         func run() throws {
             let target = path ?? FileManager.default.homeDirectoryForCurrentUser.path
-            let result = Process.capture(args: ["/usr/bin/du", "-sh", target])
+            let result = Process.capture(args: ["/usr/bin/du", "-sh", target], timeout: 30, fallback: "")
             let parts = result.trimmingCharacters(in: .whitespacesAndNewlines)
                 .components(separatedBy: "\t")
             let size = parts.count > 0 ? parts[0] : "?"

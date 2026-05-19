@@ -1,5 +1,7 @@
 import ArgumentParser
 import Foundation
+import ApplicationServices
+import AppKit
 
 // Accessibility tree (AX) control via osascript System Events.
 // Requires Accessibility permission: System Settings → Privacy → Accessibility → Terminal
@@ -7,8 +9,8 @@ import Foundation
 struct AxCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "ax",
-        abstract: "Accessibility tree — find and click UI elements by name",
-        subcommands: [Find.self, Click.self, Read.self]
+        abstract: "Accessibility tree — find/click elements by name, or list interactive hints",
+        subcommands: [Find.self, Click.self, Read.self, Hints.self]
     )
 
     // MARK: - Find
@@ -50,7 +52,7 @@ struct AxCommand: ParsableCommand {
                 JSON.stringify(found.slice(0, 20));
             }
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let elements = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
@@ -114,7 +116,7 @@ struct AxCommand: ParsableCommand {
             });
             clicked ? 'clicked' : 'not found';
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if result == "clicked" {
                 print("Clicked '\(name)'")
@@ -159,7 +161,7 @@ struct AxCommand: ParsableCommand {
                 JSON.stringify({app: proc.name(), windows: wins});
             }
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard raw != "null", !raw.isEmpty, let data = raw.data(using: .utf8),
                   let tree = try? JSONSerialization.jsonObject(with: data) else {
@@ -189,6 +191,128 @@ struct AxCommand: ParsableCommand {
                     print("App: \(d["app"] as? String ?? "")")
                     (d["windows"] as? [Any] ?? []).forEach { printNode($0) }
                 }
+            }
+        }
+    }
+
+    // MARK: - Hints
+
+    struct Hints: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "List all interactive UI elements with hint numbers (for agent use)"
+        )
+
+        @Option(name: .long, help: "App name (default: frontmost)") var app: String?
+        @Flag(name: .long, help: "Output JSON") var json = false
+        @Option(name: .long, help: "Click the element with this hint number") var click: Int?
+
+        func run() throws {
+            let appName = app ?? ""
+            let elements = try collectHints(appName: appName)
+
+            if let n = click {
+                guard n >= 1 && n <= elements.count else {
+                    throw ValidationError("Hint \(n) out of range (1–\(elements.count))")
+                }
+                let el = elements[n - 1]
+                var err: AXError = .success
+                err = AXUIElementPerformAction(el.ref, kAXPressAction as CFString)
+                if err != .success {
+                    err = AXUIElementPerformAction(el.ref, kAXConfirmAction as CFString)
+                }
+                if err != .success {
+                    throw ValidationError("Could not activate hint \(n) (AXError \(err.rawValue))")
+                }
+                print("Clicked hint \(n): \(el.title)")
+                return
+            }
+
+            if json {
+                let arr = elements.enumerated().map { (i, e) -> [String: Any] in
+                    var d: [String: Any] = ["hint": i + 1, "role": e.role, "title": e.title]
+                    if !e.value.isEmpty { d["value"] = e.value }
+                    return d
+                }
+                printJSON(arr)
+            } else {
+                for (i, e) in elements.enumerated() {
+                    let detail = [e.role, e.title.isEmpty ? nil : "'\(e.title)'", e.value.isEmpty ? nil : "= \(e.value.prefix(40))"]
+                        .compactMap { $0 }.joined(separator: " ")
+                    print("[\(i + 1)] \(detail)")
+                }
+                print("\(elements.count) interactive element(s)")
+            }
+        }
+
+        private struct HintElement {
+            let ref: AXUIElement
+            let role: String
+            let title: String
+            let value: String
+        }
+
+        private static let interactiveRoles: Set<String> = [
+            "AXButton", "AXTextField", "AXTextArea", "AXCheckBox", "AXLink",
+            "AXMenuItem", "AXRadioButton", "AXComboBox", "AXPopUpButton",
+            "AXSlider", "AXIncrementor", "AXDecrementor", "AXTab"
+        ]
+
+        private func collectHints(appName: String) throws -> [HintElement] {
+            let systemWide = AXUIElementCreateSystemWide()
+
+            let target: AXUIElement
+            if appName.isEmpty {
+                var focused: CFTypeRef?
+                AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &focused)
+                guard let app = focused else {
+                    throw ValidationError("No focused application — pass --app <name>")
+                }
+                target = app as! AXUIElement
+            } else {
+                let ws = NSWorkspace.shared
+                guard let runningApp = ws.runningApplications.first(where: {
+                    $0.localizedName?.lowercased() == appName.lowercased()
+                }) else {
+                    throw ValidationError("App '\(appName)' not running")
+                }
+                target = AXUIElementCreateApplication(runningApp.processIdentifier)
+            }
+
+            var results: [HintElement] = []
+            walk(element: target, results: &results, depth: 0)
+            return results
+        }
+
+        private func walk(element: AXUIElement, results: inout [HintElement], depth: Int) {
+            guard depth < 12 else { return }
+
+            var roleVal: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleVal)
+            let role = (roleVal as? String) ?? ""
+
+            if Self.interactiveRoles.contains(role) {
+                var titleVal: CFTypeRef?
+                AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleVal)
+                let title = (titleVal as? String) ?? ""
+
+                var valueVal: CFTypeRef?
+                AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueVal)
+                let value = (valueVal as? String) ?? ""
+
+                var enabled: CFTypeRef?
+                AXUIElementCopyAttributeValue(element, kAXEnabledAttribute as CFString, &enabled)
+                let isEnabled = (enabled as? Bool) ?? true
+
+                if isEnabled && results.count < 200 {
+                    results.append(HintElement(ref: element, role: role, title: title, value: value))
+                }
+            }
+
+            var childrenVal: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenVal)
+            guard let children = childrenVal as? [AXUIElement] else { return }
+            for child in children.prefix(100) {
+                walk(element: child, results: &results, depth: depth + 1)
             }
         }
     }

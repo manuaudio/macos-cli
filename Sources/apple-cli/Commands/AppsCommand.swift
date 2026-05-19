@@ -58,7 +58,7 @@ struct AppsCommand: ParsableCommand {
                 }
             }
             // Try by name
-            let result = Process.capture(args: ["/usr/bin/open", "-a", app])
+            let result = Process.capture(args: ["/usr/bin/open", "-a", app], timeout: 5, fallback: "")
             if result.contains("error") || result.contains("Error") {
                 throw ValidationError("App '\(app)' not found")
             }

@@ -146,7 +146,9 @@ private struct ProcInfo {
 }
 
 private func readProcesses() throws -> [ProcInfo] {
-    let output = Process.capture(args: ["/bin/ps", "-axo", "pid=,pcpu=,pmem=,comm="])
+    guard let output = Process.capture(args: ["/bin/ps", "-axo", "pid=,pcpu=,pmem=,comm="], timeout: 10) else {
+        throw ValidationError("ps timed out — system may be under load, try again")
+    }
     let lines = output.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     return lines.compactMap { line -> ProcInfo? in
         let parts = line.trimmingCharacters(in: .whitespaces)

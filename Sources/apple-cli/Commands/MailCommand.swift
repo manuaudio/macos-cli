@@ -95,9 +95,9 @@ struct MailCommand: ParsableCommand {
             });
             JSON.stringify(results.slice(0, \(limit)));
             """
-            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 20),
+            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 45),
                   !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ValidationError("Mail search timed out or returned no data — large mailboxes may take longer. Try a more specific query.")
+                throw ValidationError("Mail search timed out — large mailboxes may take longer. Try a more specific query.")
             }
             let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = raw.data(using: .utf8),

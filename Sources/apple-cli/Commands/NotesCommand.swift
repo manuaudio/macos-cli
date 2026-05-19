@@ -185,11 +185,13 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
             const n = Notes.make({new: 'note', \(folderPart.isEmpty ? "" : "at: \(folderPart),") withProperties: {name: '\(escapedTitle)', body: '\(escapedBody)'}});
             JSON.stringify({id: n.id(), title: n.name(), folder: n.container().name()});
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10) else {
+                throw ValidationError("Could not create note — osascript timed out. Ensure Notes has Automation permission in System Settings.")
+            }
+            let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let note = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw CLIError.saveFailure("Could not create note — check Automation permission for Notes in System Settings")
+                throw ValidationError("Could not create note — check Automation permission for Notes in System Settings")
             }
             if json {
                 printJSON(note)

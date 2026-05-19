@@ -40,13 +40,23 @@ struct SpeechCommand: ParsableCommand {
             let result = Process.capture(args: ["/usr/bin/say", "-v", "?"])
             let lines = result.components(separatedBy: "\n").filter { !$0.isEmpty }
             if json {
+                // `say -v ?` format: "VoiceName   en_US    # Sample text"
+                // Locale is always a 5-char IETF tag (xx_XX). Use regex to extract reliably.
+                let localeRe = try? NSRegularExpression(pattern: #"\b([a-z]{2}_[A-Z]{2})\b"#)
                 let voices = lines.map { line -> [String: String] in
-                    let parts = line.components(separatedBy: "  ").filter { !$0.isEmpty }
-                    return [
-                        "name": parts.count > 0 ? parts[0].trimmingCharacters(in: .whitespaces) : "",
-                        "locale": parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : "",
-                        "sample": parts.count > 2 ? parts[2].trimmingCharacters(in: CharacterSet(charactersIn: "# ").union(.whitespaces)) : "",
-                    ]
+                    var name = line
+                    var locale = ""
+                    var sample = ""
+                    if let m = localeRe?.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+                       let locRange = Range(m.range(at: 1), in: line) {
+                        locale = String(line[locRange])
+                        // Name is everything before the locale match
+                        name = line[..<locRange.lowerBound].trimmingCharacters(in: .whitespaces)
+                        // Sample is everything after locale, strip leading "# " and whitespace
+                        let after = String(line[locRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+                        sample = after.hasPrefix("#") ? after.dropFirst().trimmingCharacters(in: .whitespaces) : after
+                    }
+                    return ["name": name, "locale": locale, "sample": sample]
                 }
                 printJSON(voices)
             } else {

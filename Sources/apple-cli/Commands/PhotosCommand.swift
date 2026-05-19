@@ -76,7 +76,7 @@ struct PhotosCommand: ParsableCommand {
             });
             JSON.stringify(results.slice(0, \(limit)));
             """
-            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 20),
+            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 45),
                   !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw ValidationError("Photos search timed out — large libraries may take longer. Try a more specific query.")
             }
@@ -124,9 +124,12 @@ struct PhotosCommand: ParsableCommand {
             }).filter(Boolean);
             JSON.stringify(out);
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
+            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30),
+                  !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ValidationError("Photos timed out — check Automation permission for Photos in System Settings")
+            }
+            let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let data = raw.data(using: .utf8),
                   let photos = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 throw ValidationError("Could not read Photos — check Automation permission\n\(raw.prefix(200))")
             }

@@ -5,7 +5,7 @@ A native macOS command-line tool that gives your terminal and your AI agent firs
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](#requirements)
 [![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange?logo=swift)](https://swift.org)
-[![Version](https://img.shields.io/badge/version-0.5.2-blue)](#install)
+[![Version](https://img.shields.io/badge/version-0.5.3-blue)](#install)
 
 ---
 
@@ -24,7 +24,7 @@ If you don't have Xcode CLT yet: `xcode-select --install`, then re-run the curl 
 ### Verify
 
 ```bash
-apple --version   # 0.5.2
+apple --version   # 0.5.3
 apple setup       # check all permissions — green checkmark per capability
 ```
 

@@ -436,7 +436,8 @@ extension Process {
         return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
     }
 
-    // Returns nil on timeout
+    // Returns nil on timeout. Drains pipe asynchronously to prevent deadlock
+    // when output exceeds the 64 KB pipe buffer (e.g. `ps -ax` on busy systems).
     static func capture(args: [String], timeout seconds: Double) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: args[0])
@@ -444,12 +445,32 @@ extension Process {
         let pipe = Pipe()
         proc.standardOutput = pipe
         proc.standardError = FileHandle.nullDevice
-        guard (try? proc.run()) != nil else { return nil }
+
+        var collected = Data()
+        let lock = NSLock()
+        pipe.fileHandleForReading.readabilityHandler = { fh in
+            let chunk = fh.availableData
+            guard !chunk.isEmpty else { return }
+            lock.lock(); collected.append(chunk); lock.unlock()
+        }
+
+        guard (try? proc.run()) != nil else {
+            pipe.fileHandleForReading.readabilityHandler = nil
+            return nil
+        }
         let deadline = Date().addingTimeInterval(seconds)
         while proc.isRunning {
-            if Date() > deadline { proc.terminate(); return nil }
+            if Date() > deadline {
+                proc.terminate()
+                pipe.fileHandleForReading.readabilityHandler = nil
+                return nil
+            }
             Thread.sleep(forTimeInterval: 0.05)
         }
-        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+        pipe.fileHandleForReading.readabilityHandler = nil
+        // Drain any bytes buffered after process exit
+        let tail = pipe.fileHandleForReading.readDataToEndOfFile()
+        if !tail.isEmpty { lock.lock(); collected.append(tail); lock.unlock() }
+        return String(data: collected, encoding: .utf8)
     }
 }

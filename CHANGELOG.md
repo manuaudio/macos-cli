@@ -4,6 +4,25 @@ Honest version history. Each entry documents what works, what was broken, and wh
 
 ---
 
+## [0.5.3] — 2026-05-19
+
+### Fixed — agent usability audit
+
+- **`Process.capture(timeout:)`** — fixed pipe deadlock: commands with large output (e.g. `process list` with 700+ process lines) would fill the 64 KB pipe buffer and hang indefinitely. Pipe is now drained asynchronously in a background handler, unblocking the process and the timeout loop.
+- **`apple process list/find`** — added 10s timeout to the `ps -axo` call; was never timing out before (no timeout), causing indefinite hang if ps deadlocked.
+- **`apple notes create`** — added 10s timeout to osascript; previously hung forever if Notes Automation permission wasn't granted. Now exits 64 with a clear permission error.
+- **`apple calendar delete`** — added `--json` flag; previously returned plain text `"deleted N"` with no JSON output, breaking agents that check exit + parse JSON.
+- **`apple music search`** — added `--json` flag; previously had no JSON output mode. Also replaced `music.sources.whose({kind: "library"})` JXA API (fails with -1708 on some Music versions) with `music.tracks()` filter approach. Fixed `jxa()` helper to return nil on empty osascript output instead of passing empty string through.
+- **`apple photos recent`** — added 30s timeout to osascript call; previously no timeout, could hang indefinitely on large libraries.
+- **`apple photos search`** — increased timeout 20s → 45s for large photo libraries.
+- **`apple mail search`** — increased timeout 20s → 45s for large mailboxes.
+- **`apple speech voices --json`** — locale field was unreliable (wrong values for some voices due to fragile double-space split). Now uses regex `[a-z]{2}_[A-Z]{2}` to extract locale reliably.
+
+### Agent readiness after this patch
+All 30 commands tested. Confirmed: valid JSON on stdout, non-zero exit on error, no hangs. Agents can safely call all commands with a 30–60s timeout wrapper.
+
+---
+
 ## [0.5.2] — 2026-05-18
 
 ### Added — 6 new commands (30 total)

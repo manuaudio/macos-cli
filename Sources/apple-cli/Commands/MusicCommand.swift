@@ -111,22 +111,34 @@ struct MusicCommand: ParsableCommand {
     struct Search: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "search", abstract: "Search library and play first result")
         @Argument(help: "Search query") var query: String
+        @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            let q = query.replacingOccurrences(of: "'", with: "\\'").lowercased()
             let script = """
-            var music = Application("Music");
-            var lib = music.sources.whose({kind: "library"})[0];
-            var results = music.search({for: '\(query.replacingOccurrences(of: "'", with: "\\'"))', only: "songs", in: lib});
-            if (results.length === 0) { "not found" }
-            else {
-              var t = results[0];
-              music.play(t);
-              JSON.stringify({track: t.name(), artist: t.artist()});
-            }
+            (function() {
+              var music = Application("Music");
+              var q = '\(q)';
+              var tracks = music.tracks();
+              var matches = tracks.filter(function(t) {
+                try { return t.name().toLowerCase().includes(q) || t.artist().toLowerCase().includes(q); }
+                catch(e) { return false; }
+              });
+              if (matches.length === 0) { return "not found"; }
+              music.play(matches[0]);
+              return JSON.stringify({track: matches[0].name(), artist: matches[0].artist()});
+            })()
             """
             guard let raw = jxa(script) else { throw ExitCode.failure }
             if raw.contains("not found") {
-                print("No results for '\(query)'")
+                if json { printJSON(["results": [] as [Any]]) } else { print("No results for '\(query)'") }
+            } else if json {
+                print(raw)  // already JSON from JSON.stringify
+            } else if let data = raw.data(using: .utf8),
+                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let track = obj["track"] as? String ?? query
+                let artist = obj["artist"] as? String ?? ""
+                print("Playing: \(track) — \(artist)")
             } else {
                 print("Playing: \(raw)")
             }
@@ -140,6 +152,8 @@ private func jxa(_ expr: String) -> String? {
         timeout: 8
     ) else { return nil }
     let r = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !r.lowercased().contains("not allowed"), !r.lowercased().contains("error") else { return nil }
+    guard !r.isEmpty,
+          !r.lowercased().contains("not allowed"),
+          !r.lowercased().contains("error") else { return nil }
     return r
 }

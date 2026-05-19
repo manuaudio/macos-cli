@@ -188,6 +188,9 @@ struct CalendarCommand: ParsableCommand {
         @Flag(name: .long, help: "Delete all matching events (default: first match only)")
         var all = false
 
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
         func run() throws {
             let store = try EventKitStore.authorized(for: .event)
 
@@ -235,7 +238,11 @@ struct CalendarCommand: ParsableCommand {
                     fputs("error: \(error.localizedDescription)\n", stderr)
                 }
             }
-            print("deleted \(deleted)")
+            if json {
+                printJSON(["deleted": deleted])
+            } else {
+                print("deleted \(deleted)")
+            }
         }
     }
 

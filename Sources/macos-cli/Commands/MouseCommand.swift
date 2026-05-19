@@ -5,7 +5,7 @@ import AppKit
 import ApplicationServices
 
 // Mouse control via CoreGraphics CGEvent.
-// Requires Accessibility permission: System Settings → Privacy → Accessibility → Terminal (or apple-cli)
+// Requires Accessibility permission: System Settings → Privacy → Accessibility → Terminal (or macos-cli)
 
 struct MouseCommand: ParsableCommand {
     static let configuration = CommandConfiguration(

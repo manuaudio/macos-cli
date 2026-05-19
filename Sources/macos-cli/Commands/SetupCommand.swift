@@ -13,7 +13,7 @@ struct SetupCommand: ParsableCommand {
 
     func run() throws {
         print("")
-        print("apple-cli setup")
+        print("macOS CLI setup")
         print("===============")
         print("Checking capabilities...\n")
 
@@ -131,7 +131,7 @@ struct SetupCommand: ParsableCommand {
         if !ok { failures.append(label) }
     }
 
-    // Test actual apple-cli subcommand (self-call)
+    // Test actual macOS CLI subcommand (self-call)
     private func cliOK(_ args: [String]) -> Bool {
         let selfPath = CommandLine.arguments[0]
         guard let raw = Process.capture(args: [selfPath] + args, timeout: 5) else { return false }

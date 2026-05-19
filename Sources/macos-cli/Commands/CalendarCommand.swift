@@ -295,6 +295,10 @@ struct CalendarCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            guard title != nil || start != nil || end != nil || location != nil || notes != nil || calendar != nil else {
+                throw ValidationError("Specify at least one field to update: --title, --start, --end, --location, --notes, --calendar")
+            }
+
             let store = try EventKitStore.authorized(for: .event)
 
             guard let event = store.event(withIdentifier: id) else {

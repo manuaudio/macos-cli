@@ -494,11 +494,11 @@ struct MailCommand: ParsableCommand {
                 JSON.stringify({replied: false, error: 'No matching message found'});
             } else {
                 const subj = found.subject();
+                const beforeCount = Mail.outgoingMessages().length;
                 found.reply({replyToAll: \(replyAll)});
-                // Set body on the resulting outgoing message (last in outgoingMessages)
                 const msgs = Mail.outgoingMessages();
-                if (msgs.length > 0) {
-                    const outMsg = msgs[msgs.length - 1];
+                if (msgs.length > beforeCount) {
+                    const outMsg = msgs[beforeCount];
                     outMsg.content = '\(escapedBody)\\n\\n' + (outMsg.content() || '');
                     outMsg.send();
                 }

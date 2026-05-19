@@ -281,7 +281,7 @@ struct FinderCommand: ParsableCommand {
                 let setIndex = remove != nil ? 0 : colorIndex
                 let script = """
                 var finder = Application("Finder");
-                var item = finder.items.whose({url: 'file://\(escaped)'})[0];
+                var item = finder.item(Path('\(escaped)'));
                 item.labelIndex = \(setIndex);
                 'ok'
                 """
@@ -383,6 +383,6 @@ private func jxa(_ expr: String) -> String? {
         timeout: 8
     ) else { return nil }
     let r = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !r.lowercased().contains("not allowed"), !r.lowercased().contains("error") else { return nil }
+    guard !r.isEmpty, !r.lowercased().contains("not allowed"), !r.lowercased().contains("error") else { return nil }
     return r
 }

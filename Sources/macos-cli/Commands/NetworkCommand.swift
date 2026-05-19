@@ -192,7 +192,7 @@ struct NetworkCommand: ParsableCommand {
                     flush()
                     currentName = String(line.prefix(while: { $0 != ":" }))
                     currentAddresses = []
-                    currentStatus = line.contains("<UP,") || line.contains(",UP,") || line.contains(",UP>") ? "active" : "inactive"
+                    currentStatus = line.contains("<UP,") || line.contains(",UP,") || line.contains(",UP>") || line.contains("<UP>") ? "active" : "inactive"
                 } else if line.trimmingCharacters(in: .whitespaces).hasPrefix("inet ") {
                     // inet 192.168.1.5 netmask ... or inet6 ...
                     let parts = line.trimmingCharacters(in: .whitespaces)

@@ -103,7 +103,9 @@ struct NotesCommand: ParsableCommand {
 
         func run() throws {
             let db = notesDBPath().replacingOccurrences(of: "'", with: "\\'")
-            let q = title.lowercased().replacingOccurrences(of: "\"", with: "\\\"")
+            let q = title.lowercased()
+                         .replacingOccurrences(of: "'", with: "\\'")
+                         .replacingOccurrences(of: "\"", with: "\\\"")
             // Body is gzip-compressed protobuf in ZICNOTEDATA.ZDATA — use Python to decompress
             let py = """
 import sqlite3, gzip, re, json, sys

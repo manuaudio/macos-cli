@@ -5,7 +5,7 @@ A native macOS command-line tool that gives your terminal and your AI agent firs
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](#requirements)
 [![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange?logo=swift)](https://swift.org)
-[![Version](https://img.shields.io/badge/version-0.6.0-blue)](#install)
+[![Version](https://img.shields.io/badge/version-0.5.8-blue)](#install)
 
 ---
 
@@ -24,8 +24,8 @@ If you don't have Xcode CLT yet: `xcode-select --install`, then re-run the curl 
 ### Verify
 
 ```bash
-apple --version   # 0.5.3
-apple setup       # check all permissions — green checkmark per capability
+macos --version   # 0.5.8
+macos setup       # check all permissions — green checkmark per capability
 ```
 
 ---
@@ -36,15 +36,16 @@ apple setup       # check all permissions — green checkmark per capability
 |---|---|
 | **Productivity** | `reminders` `calendar` `contacts` `notes` |
 | **Communication** | `messages` `mail` |
-| **Media** | `photos` `music` |
+| **Media** | `photos` `music` `voice-memos` |
 | **Browser** | `safari` |
 | **Automation** | `mouse` `keyboard` `ax` (accessibility tree) `shortcuts` |
 | **Screen** | `screenshot` `screen` `ocr` `window` |
-| **System** | `system` `apps` `storage` `info` `notify` `speech` `finder` `process` `disk` `focus` `location` |
-| **Files** | `pdf` |
+| **System** | `system` `apps` `storage` `info` `notify` `speech` `finder` `process` `disk` `focus` `location` `bluetooth` `login-items` `dock` |
+| **Files** | `pdf` `file` `trash` `spotlight` |
+| **System Config** | `defaults` `keychain` `network` |
 | **Setup** | `setup` |
 
-Every read command supports `--json` for clean, parseable output. Designed for both humans and LLM agents.
+Every command supports `--json` for clean, parseable output. Designed for both humans and LLM agents.
 
 ---
 
@@ -52,37 +53,37 @@ Every read command supports `--json` for clean, parseable output. Designed for b
 
 ```bash
 # What's on your calendar today
-apple calendar events --json
+macos calendar events --json
 
 # Create a reminder
-apple reminders create --title "Follow up with Ryan" --due 2026-05-20
+macos reminders create --title "Follow up with Ryan" --due 2026-05-20
 
 # Find a contact
-apple contacts search "Ryan" --json
+macos contacts search "Ryan" --json
 
 # Take a screenshot
-apple screenshot full --output ~/Desktop/shot.png
+macos screenshot full --output ~/Desktop/shot.png
 
 # OCR the entire screen
-apple ocr full --json
+macos ocr full --json
 
 # Read the current Safari tab
-apple safari read
+macos safari read
 
 # Check battery
-apple system battery
+macos system battery
 
 # Send a notification
-apple notify send --title "Build finished" --body "All tests passed"
+macos notify send --title "Build finished" --body "All tests passed"
 
 # What music is playing
-apple music status
+macos music status
 
 # Type text into the frontmost app
-apple keyboard type "Hello from the terminal"
+macos keyboard type "Hello from the terminal"
 
 # Click a UI element by name (accessibility)
-apple ax click "OK"
+macos ax click "OK"
 ```
 
 ---
@@ -93,23 +94,25 @@ apple ax click "OK"
 
 ```bash
 # Create
-apple reminders create --title "Email Ryan about deposit"
-apple reminders create --title "Review stems" --due 2026-05-20 --list "Work" --notes "priority: high" --json
+macos reminders create --title "Email Ryan about deposit"
+macos reminders create --title "Review stems" --due 2026-05-20 --list "Work" --notes "priority: high" --json
 
 # List incomplete reminders
-apple reminders list
-apple reminders list --list "Work" --json
+macos reminders list
+macos reminders list --list "Work" --json
 
-# Mark complete (use the id from --json)
-apple reminders done "x-apple-reminder://AB12CD34-..."
+# Mark complete / uncomplete
+macos reminders done <id>
+macos reminders uncomplete <id>
+
+# Update a reminder
+macos reminders update --id <id> --title "New title" --due 2026-05-25 --list "Personal"
+
+# Delete a reminder
+macos reminders delete --id <id>
 
 # See all your lists
-apple reminders lists --json
-```
-
-**`create --json` returns:**
-```json
-{"id": "x-apple-reminder://AB12...", "title": "Review stems", "list": "Work", "due": "2026-05-20", "notes": "priority: high"}
+macos reminders lists --json
 ```
 
 ---
@@ -118,16 +121,16 @@ apple reminders lists --json
 
 ```bash
 # Upcoming events (today + 7 days by default)
-apple calendar events --json
+macos calendar events --json
 
 # Custom date range
-apple calendar events --from 2026-05-20 --to 2026-05-23 --json
+macos calendar events --from 2026-05-20 --to 2026-05-23 --json
 
 # Filter by calendar
-apple calendar events --calendar "Work" --json
+macos calendar events --calendar "Work" --json
 
 # Create an event
-apple calendar create \
+macos calendar create \
   --title "Soundcheck — Orpheum" \
   --start "2026-05-20 14:00" \
   --end   "2026-05-20 17:00" \
@@ -135,13 +138,16 @@ apple calendar create \
   --location "842 S Broadway, Los Angeles"
 
 # All-day event
-apple calendar create --title "Travel day" --start "2026-05-20" --all-day
+macos calendar create --title "Travel day" --start "2026-05-20" --all-day
+
+# Update an existing event (use id from events --json)
+macos calendar update --id <event-id> --title "New Title" --start "2026-05-20 15:00"
 
 # Delete an event by title and date
-apple calendar delete --title "Soundcheck — Orpheum" --date 2026-05-20
+macos calendar delete --title "Soundcheck — Orpheum" --date 2026-05-20
 
 # List all calendars
-apple calendar calendars --json
+macos calendar calendars --json
 ```
 
 > Every event created by `macos calendar create` automatically gets a 1-day and 1-hour alert.
@@ -152,11 +158,11 @@ apple calendar calendars --json
 
 ```bash
 # Search by name, email, or phone
-apple contacts search "Ryan" --json
-apple contacts search "ryan@example.com" --json --limit 5
+macos contacts search "Ryan" --json
+macos contacts search "ryan@example.com" --json --limit 5
 
 # Get full record by ID
-apple contacts get "AB12CD34-..." --json
+macos contacts get "AB12CD34-..." --json
 ```
 
 **`search --json` returns:**
@@ -169,10 +175,14 @@ apple contacts get "AB12CD34-..." --json
 ### `notes` — Apple Notes
 
 ```bash
-apple notes list --json              # all notes (title + modified date)
-apple notes search "meeting" --json
-apple notes read "My note"           # read by title
-apple notes create --title "My note" --body "Content here"
+macos notes list --json              # all notes (title + modified date)
+macos notes search "meeting" --json
+macos notes read "My note"           # read by title
+macos notes create --title "My note" --body "Content here"
+macos notes update --title "My note" --body "New content"
+macos notes delete --title "My note"
+macos notes folders --json           # list all folders with note count
+macos notes create-folder --name "Projects"
 ```
 
 ---
@@ -181,12 +191,18 @@ apple notes create --title "My note" --body "Content here"
 
 ```bash
 # Send an iMessage or SMS
-apple messages send --to "+13105550100" --body "On my way"
-apple messages send --to "ryan@example.com" --body "Check your email"
+macos messages send --to "+13105550100" --text "On my way"
+macos messages send --to "ryan@example.com" --text "Check your email"
 
 # List recent conversations
-apple messages conversations --json
-apple messages conversations --limit 20 --json
+macos messages conversations --json
+macos messages conversations --limit 20 --json
+
+# Read messages from a conversation
+macos messages read --with "Ryan" --limit 20 --json
+
+# Delete a conversation
+macos messages delete --with "Ryan"
 ```
 
 ---
@@ -194,16 +210,36 @@ apple messages conversations --limit 20 --json
 ### `mail` — Apple Mail
 
 ```bash
-# Create a draft (opens in Mail, does not send)
-apple mail draft --to "ryan@example.com" --subject "Invoice" --body "See attached."
-apple mail draft --to "a@b.com" --subject "Hello" --body "Hi" --json
+# Create a draft (does not send)
+macos mail draft --to "ryan@example.com" --subject "Invoice" --body "See attached."
+
+# Send immediately
+macos mail send --to "ryan@example.com" --subject "Invoice" --body "See attached." --cc "boss@example.com"
 
 # Search messages
-apple mail search "invoice" --json
-apple mail search "Ryan" --limit 20 --json
+macos mail search "invoice" --json
+macos mail search "Ryan" --limit 20 --json
+
+# Read full message content
+macos mail read "invoice" --json
+
+# Delete messages
+macos mail delete "old newsletter" --limit 5
+
+# Mark messages
+macos mail mark "invoice" --read
+macos mail mark "important email" --flagged
+
+# List mailboxes / folders
+macos mail mailboxes --json
+macos mail mailboxes --account "Gmail" --json
+
+# Reply to a message
+macos mail reply "Re: invoice" --body "Thanks, will process now."
+macos mail reply "all-hands" --body "Noted." --all   # reply-all
 
 # List accounts
-apple mail accounts --json
+macos mail accounts --json
 ```
 
 ---
@@ -211,9 +247,9 @@ apple mail accounts --json
 ### `photos` — Apple Photos
 
 ```bash
-apple photos albums --json           # list all albums with photo count
-apple photos search "sunset" --json
-apple photos recent --limit 10 --json
+macos photos albums --json           # list all albums with photo count
+macos photos search "sunset" --json
+macos photos recent --limit 10 --json
 ```
 
 ---
@@ -221,18 +257,18 @@ apple photos recent --limit 10 --json
 ### `music` — Apple Music
 
 ```bash
-apple music status                   # current track + playback state
-apple music status --json
+macos music status                   # current track + playback state
+macos music status --json
 
-apple music play
-apple music pause
-apple music next
-apple music prev
+macos music play
+macos music pause
+macos music next
+macos music prev
 
-apple music volume                   # get current volume (0–100)
-apple music volume 50                # set volume to 50
+macos music volume                   # get current volume (0–100)
+macos music volume 50                # set volume to 50
 
-apple music search "Daft Punk"       # search library and play first result
+macos music search "Daft Punk"       # search library and play first result
 ```
 
 **`status --json` returns:**
@@ -245,10 +281,10 @@ apple music search "Daft Punk"       # search library and play first result
 ### `safari` — Safari control
 
 ```bash
-apple safari tabs --json             # list all open tabs (title + URL)
-apple safari open "https://example.com"
-apple safari read                    # get text content of current tab
-apple safari execute "document.title"  # run JavaScript in current tab
+macos safari tabs --json             # list all open tabs (title + URL)
+macos safari open "https://example.com"
+macos safari read                    # get text content of current tab
+macos safari execute "document.title"  # run JavaScript in current tab
 ```
 
 ---
@@ -257,13 +293,13 @@ apple safari execute "document.title"  # run JavaScript in current tab
 
 ```bash
 # Full screen
-apple screenshot full --output ~/Desktop/shot.png
+macos screenshot full --output ~/Desktop/shot.png
 
 # Specific app window (requires Screen Recording permission)
-apple screenshot window --app "Terminal" --output /tmp/term.png
+macos screenshot window --app "Terminal" --output /tmp/term.png
 
 # Region (points from top-left)
-apple screenshot region --x 0 --y 0 --width 800 --height 600 --output /tmp/region.png
+macos screenshot region --x 0 --y 0 --width 800 --height 600 --output /tmp/region.png
 ```
 
 ---
@@ -274,15 +310,15 @@ Read text from the screen or an image file using Apple's Vision framework. Runs 
 
 ```bash
 # OCR the entire screen
-apple ocr full
-apple ocr full --json                # ["line one", "line two", ...]
+macos ocr full
+macos ocr full --json                # ["line one", "line two", ...]
 
 # OCR a screen region (x y width height, in points)
-apple ocr region --x 100 --y 200 --width 600 --height 300
+macos ocr region --x 100 --y 200 --width 600 --height 300
 
 # OCR an image file (JPEG, PNG, HEIC, etc.)
-apple ocr file --path ~/Desktop/receipt.png
-apple ocr file --path /tmp/screenshot.png --json
+macos ocr file --path ~/Desktop/receipt.png
+macos ocr file --path /tmp/screenshot.png --json
 ```
 
 ---
@@ -290,13 +326,13 @@ apple ocr file --path /tmp/screenshot.png --json
 ### `mouse` — Cursor control
 
 ```bash
-apple mouse position --json          # {"x": 500, "y": 300}
+macos mouse position --json          # {"x": 500, "y": 300}
 
-apple mouse move --x 500 --y 300
-apple mouse click --x 500 --y 300
-apple mouse click --x 500 --y 300 --right   # right-click
-apple mouse drag --from-x 100 --from-y 100 --to-x 500 --to-y 500
-apple mouse scroll --x 500 --y 300 --delta-y -3
+macos mouse move --x 500 --y 300
+macos mouse click --x 500 --y 300
+macos mouse click --x 500 --y 300 --right   # right-click
+macos mouse drag --from-x 100 --from-y 100 --to-x 500 --to-y 500
+macos mouse scroll --x 500 --y 300 --delta-y -3
 ```
 
 ---
@@ -305,14 +341,14 @@ apple mouse scroll --x 500 --y 300 --delta-y -3
 
 ```bash
 # Type text into the frontmost app
-apple keyboard type "Hello, world"
-apple keyboard type "Hello" --delay 50    # 50ms between keystrokes
+macos keyboard type "Hello, world"
+macos keyboard type "Hello" --delay 50    # 50ms between keystrokes
 
 # Send a key or shortcut
-apple keyboard key "return"
-apple keyboard key "cmd+c"
-apple keyboard key "cmd+shift+4"
-apple keyboard key "escape"
+macos keyboard key "return"
+macos keyboard key "cmd+c"
+macos keyboard key "cmd+shift+4"
+macos keyboard key "escape"
 ```
 
 Common key names: `return` `escape` `tab` `space` `delete` `up` `down` `left` `right` `f1`–`f12`
@@ -325,15 +361,15 @@ Interact with any app's UI elements by name — no screen coordinates needed.
 
 ```bash
 # Find UI elements matching a name
-apple ax find "OK" --app "Safari" --json
+macos ax find "OK" --app "Safari" --json
 
 # Click a UI element by name
-apple ax click "OK"
-apple ax click "Reminders" --app "Finder"
+macos ax click "OK"
+macos ax click "Reminders" --app "Finder"
 
 # Dump the UI tree of an app (top 2 levels)
-apple ax read "Safari" --json
-apple ax read "Finder"
+macos ax read "Safari" --json
+macos ax read "Finder"
 ```
 
 **`find --json` returns:**
@@ -346,12 +382,12 @@ apple ax read "Finder"
 ### `window` — Window management
 
 ```bash
-apple window list --json             # all visible windows with position + size
+macos window list --json             # all visible windows with position + size
 
-apple window move --app "Safari" --x 0 --y 0
-apple window resize --app "Safari" --width 1200 --height 800
-apple window focus --app "Terminal"
-apple window minimize --app "Safari"
+macos window move --app "Safari" --x 0 --y 0
+macos window resize --app "Safari" --width 1200 --height 800
+macos window focus --app "Terminal"
+macos window minimize --app "Safari"
 ```
 
 ---
@@ -359,14 +395,14 @@ apple window minimize --app "Safari"
 ### `finder` — Finder integration
 
 ```bash
-apple finder selected                # paths of selected files in Finder
-apple finder selected --json         # as JSON array
+macos finder selected                # paths of selected files in Finder
+macos finder selected --json         # as JSON array
 
-apple finder cwd                     # current folder in front Finder window
-apple finder cwd --json              # {"path": "/Users/you/Desktop"}
+macos finder cwd                     # current folder in front Finder window
+macos finder cwd --json              # {"path": "/Users/you/Desktop"}
 
-apple finder reveal ~/Desktop/file.txt   # reveal in Finder
-apple finder open ~/Desktop/folder       # open in Finder
+macos finder reveal ~/Desktop/file.txt   # reveal in Finder
+macos finder open ~/Desktop/folder       # open in Finder
 ```
 
 ---
@@ -374,17 +410,17 @@ apple finder open ~/Desktop/folder       # open in Finder
 ### `system` — System state
 
 ```bash
-apple system battery --json
+macos system battery --json
 # {"level": 87, "charging": false, "plugged_in": true}
 
-apple system audio volume            # get current volume
-apple system audio mute              # toggle mute
-apple system audio devices --json
-apple system audio now-playing --json
+macos system audio volume            # get current volume
+macos system audio mute              # toggle mute
+macos system audio devices --json
+macos system audio now-playing --json
 
-apple system wifi status --json      # SSID, channel, security
-apple system clipboard               # read clipboard to stdout
-apple system display --json
+macos system wifi status --json      # SSID, channel, security
+macos system clipboard               # read clipboard to stdout
+macos system display --json
 ```
 
 ---
@@ -392,14 +428,14 @@ apple system display --json
 ### `apps` — Application management
 
 ```bash
-apple apps list --json               # installed apps
-apple apps list --all --json         # all apps with full paths
+macos apps list --json               # installed apps
+macos apps list --all --json         # all apps with full paths
 
-apple apps launch "Safari"
-apple apps quit "Safari"
-apple apps quit "Xcode" --force
+macos apps launch "Safari"
+macos apps quit "Safari"
+macos apps quit "Xcode" --force
 
-apple apps info "Final Cut Pro" --json
+macos apps info "Final Cut Pro" --json
 ```
 
 ---
@@ -407,9 +443,9 @@ apple apps info "Final Cut Pro" --json
 ### `storage` — Disk info
 
 ```bash
-apple storage volumes --json         # mounted volumes with usage
-apple storage usage                  # disk usage at /
-apple storage usage ~/Developer --json
+macos storage volumes --json         # mounted volumes with usage
+macos storage usage                  # disk usage at /
+macos storage usage ~/Developer --json
 ```
 
 ---
@@ -417,9 +453,9 @@ apple storage usage ~/Developer --json
 ### `notify` — Notifications
 
 ```bash
-apple notify send --title "Build complete"
-apple notify send --title "Reminder" --body "Follow up with team" --subtitle "Work"
-apple notify send --title "Done" --sound "Glass"
+macos notify send --title "Build complete"
+macos notify send --title "Reminder" --body "Follow up with team" --subtitle "Work"
+macos notify send --title "Done" --sound "Glass"
 ```
 
 ---
@@ -427,11 +463,11 @@ apple notify send --title "Done" --sound "Glass"
 ### `speech` — Text-to-speech
 
 ```bash
-apple speech say "Meeting in 10 minutes"
-apple speech say "Hello" --voice "Samantha" --rate 180
-apple speech say "This is a recording" --output ~/Desktop/note.aiff
+macos speech say "Meeting in 10 minutes"
+macos speech say "Hello" --voice "Samantha" --rate 180
+macos speech say "This is a recording" --output ~/Desktop/note.aiff
 
-apple speech voices --json           # list all available voices
+macos speech voices --json           # list all available voices
 ```
 
 ---
@@ -439,11 +475,11 @@ apple speech voices --json           # list all available voices
 ### `info` — System diagnostics
 
 ```bash
-apple info system --json             # macOS version, hardware model
-apple info network --json            # interfaces and IP addresses
-apple info power                     # sleep and power settings
-apple info spotlight                 # Spotlight index status
-apple info keychain                  # Keychain summary
+macos info system --json             # macOS version, hardware model
+macos info network --json            # interfaces and IP addresses
+macos info power                     # sleep and power settings
+macos info spotlight                 # Spotlight index status
+macos info keychain                  # Keychain summary
 ```
 
 ---
@@ -452,12 +488,12 @@ apple info keychain                  # Keychain summary
 
 ```bash
 # List all shortcuts
-apple shortcuts list
-apple shortcuts list --json          # ["Shortcut 1", "Shortcut 2", ...]
+macos shortcuts list
+macos shortcuts list --json          # ["Shortcut 1", "Shortcut 2", ...]
 
 # Run a shortcut by name
-apple shortcuts run "Morning Focus"
-apple shortcuts run "Resize Image" --input "~/Desktop/photo.jpg" --json
+macos shortcuts run "Morning Focus"
+macos shortcuts run "Resize Image" --input "~/Desktop/photo.jpg" --json
 ```
 
 **`run --json` returns:**
@@ -473,16 +509,16 @@ Extract text from PDFs on-device via Apple's PDFKit — no network, no cloud.
 
 ```bash
 # Extract all text
-apple pdf text --path ~/Desktop/contract.pdf
+macos pdf text --path ~/Desktop/contract.pdf
 
 # Single page
-apple pdf text --path ~/Desktop/contract.pdf --page 3
+macos pdf text --path ~/Desktop/contract.pdf --page 3
 
 # JSON output (array of {page, text} objects)
-apple pdf text --path ~/Desktop/contract.pdf --json
+macos pdf text --path ~/Desktop/contract.pdf --json
 
 # File metadata
-apple pdf info --path ~/Desktop/contract.pdf --json
+macos pdf info --path ~/Desktop/contract.pdf --json
 ```
 
 **`info --json` returns:**
@@ -496,14 +532,14 @@ apple pdf info --path ~/Desktop/contract.pdf --json
 
 ```bash
 # Current state
-apple focus status --json            # {"dnd_active": false}
+macos focus status --json            # {"dnd_active": false}
 
 # List all configured Focus modes
-apple focus modes --json
+macos focus modes --json
 
 # Toggle legacy DND (see limitations in CHANGELOG)
-apple focus on
-apple focus off
+macos focus on
+macos focus off
 ```
 
 > For named Focus modes (Work, Personal, Sleep), create an Apple Shortcut and invoke it with `shortcuts run`.
@@ -514,17 +550,17 @@ apple focus off
 
 ```bash
 # List top processes by CPU (default)
-apple process list --json
-apple process list --sort mem --limit 10 --json
+macos process list --json
+macos process list --sort mem --limit 10 --json
 
 # Find by name (substring match)
-apple process find "Safari" --json
+macos process find "Safari" --json
 
 # Kill a process
-apple process kill --pid 1234
-apple process kill --name "Safari"           # first match
-apple process kill --name "Safari" --all     # all matches
-apple process kill --name "MyApp" --signal KILL
+macos process kill --pid 1234
+macos process kill --name "Safari"           # first match
+macos process kill --name "Safari" --all     # all matches
+macos process kill --name "MyApp" --signal KILL
 ```
 
 **`list --json` returns:**
@@ -538,23 +574,23 @@ apple process kill --name "MyApp" --signal KILL
 
 ```bash
 # List all disks and volumes
-apple disk list --json
+macos disk list --json
 
 # Detailed info
-apple disk info /dev/disk2 --json
-apple disk info /Volumes/BackupDrive --json
+macos disk info /dev/disk2 --json
+macos disk info /Volumes/BackupDrive --json
 
 # Eject (safe removal)
-apple disk eject /Volumes/BackupDrive
-apple disk eject /dev/disk2
+macos disk eject /Volumes/BackupDrive
+macos disk eject /dev/disk2
 
 # Unmount without ejecting
-apple disk unmount /Volumes/BackupDrive
-apple disk unmount /Volumes/BackupDrive --force
+macos disk unmount /Volumes/BackupDrive
+macos disk unmount /Volumes/BackupDrive --force
 
 # Mount
-apple disk mount /dev/disk2s1
-apple disk mount ~/Desktop/image.dmg
+macos disk mount /dev/disk2s1
+macos disk mount ~/Desktop/image.dmg
 ```
 
 ---
@@ -562,9 +598,9 @@ apple disk mount ~/Desktop/image.dmg
 ### `location` — GPS coordinates
 
 ```bash
-apple location get                   # 34.052235, -118.243683 (±15m)
-apple location get --json
-apple location get --timeout 30      # longer timeout for low-signal environments
+macos location get                   # 34.052235, -118.243683 (±15m)
+macos location get --json
+macos location get --timeout 30      # longer timeout for low-signal environments
 ```
 
 **`get --json` returns:**
@@ -580,19 +616,80 @@ Requires Location Services permission. macOS will show "Command Line Tool" in Sy
 
 ```bash
 # Create a contact
-apple contacts create --first-name "Ryan" --last-name "B." \
+macos contacts create --first-name "Ryan" --last-name "B." \
   --phone "+13105550100" --phone-label "mobile" \
   --email "ryan@example.com" --email-label "work" \
   --json
 
 # Update an existing contact
-apple contacts update "AB12CD34-..." \
+macos contacts update "AB12CD34-..." \
   --add-phone "+13105559999" \
   --add-phone-label "work" \
   --json
 
 # Delete a contact
-apple contacts delete "AB12CD34-..." --json
+macos contacts delete "AB12CD34-..." --json
+```
+
+---
+
+### `defaults` — macOS user defaults
+
+Read and write app preferences stored in macOS user defaults (plist system).
+
+```bash
+# Read a value
+macos defaults read --domain com.apple.finder --key AppleShowAllFiles
+
+# Write a value
+macos defaults write --domain com.apple.finder --key AppleShowAllFiles --value YES --type bool
+
+# Delete a key
+macos defaults delete --domain com.apple.finder --key AppleShowAllFiles
+
+# List all domains
+macos defaults list-domains --json
+```
+
+---
+
+### `keychain` — Keychain access
+
+Read and write secrets stored in the macOS Keychain.
+
+```bash
+# Get a password
+macos keychain get --service "example-service" --json
+
+# Save or update a password
+macos keychain set --service "my-service" --account "username" --password "secret" --update
+
+# Delete a Keychain item
+macos keychain delete --service "my-service" --account "username"
+
+# List Keychain service/account metadata (no passwords exposed)
+macos keychain list --query "aura" --json
+```
+
+---
+
+### `network` — Network diagnostics
+
+```bash
+# Ping a host
+macos network ping --host 8.8.8.8 --count 4 --json
+
+# DNS lookup
+macos network dns --host example.com --json
+
+# Check if a port is open
+macos network port --host example.com --port 443 --json
+
+# Traceroute
+macos network traceroute --host example.com --max-hops 20
+
+# List network interfaces and IPs
+macos network interfaces --json
 ```
 
 ---
@@ -600,7 +697,7 @@ apple contacts delete "AB12CD34-..." --json
 ### `setup` — Permission checker
 
 ```bash
-apple setup
+macos setup
 ```
 
 Checks every capability and prints a green checkmark or red X. Run after install or after granting new permissions.
@@ -656,7 +753,7 @@ Maps to: `macos reminders create --title <title> [--due <due>] [--list <list>] [
 ### Example: check calendar before scheduling
 
 ```bash
-COUNT=$(apple calendar events --from 2026-05-20 --to 2026-05-20 --json \
+COUNT=$(macos calendar events --from 2026-05-20 --to 2026-05-20 --json \
   | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
 echo "$COUNT events on that day"
 ```
@@ -664,14 +761,14 @@ echo "$COUNT events on that day"
 ### Example: OCR a receipt and extract the text
 
 ```bash
-apple ocr file --path ~/Desktop/receipt.png --json \
+macos ocr file --path ~/Desktop/receipt.png --json \
   | python3 -c "import sys,json; print('\n'.join(json.load(sys.stdin)))"
 ```
 
 ### Example: click a UI element without knowing its coordinates
 
 ```bash
-apple ax click "Sign In" --app "Safari"
+macos ax click "Sign In" --app "Safari"
 ```
 
 ---

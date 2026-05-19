@@ -5,7 +5,7 @@ struct MusicCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "music",
         abstract: "Control Apple Music playback",
-        subcommands: [Status.self, Play.self, Pause.self, Next.self, Previous.self, Volume.self, Search.self]
+        subcommands: [Status.self, Play.self, Pause.self, Next.self, Previous.self, Volume.self, Search.self, Playlists.self, AddToPlaylist.self, Queue.self]
     )
 
     struct Status: ParsableCommand {
@@ -141,6 +141,157 @@ struct MusicCommand: ParsableCommand {
                 print("Playing: \(track) — \(artist)")
             } else {
                 print("Playing: \(raw)")
+            }
+        }
+    }
+    // MARK: - Playlists
+
+    struct Playlists: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "playlists", abstract: "List playlists")
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let script = """
+            (function() {
+              var music = Application("Music");
+              var lists = music.playlists().map(function(p) {
+                try { return {name: p.name(), count: p.tracks().length}; }
+                catch(e) { return null; }
+              }).filter(Boolean);
+              return JSON.stringify(lists);
+            })()
+            """
+            guard let raw = jxa(script) else {
+                fputs("Error: Could not reach Music app\n", stderr)
+                throw ExitCode.failure
+            }
+            if json {
+                print(raw)
+            } else {
+                guard let data = raw.data(using: .utf8),
+                      let lists = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                    print(raw); return
+                }
+                for p in lists {
+                    let name  = p["name"]  as? String ?? ""
+                    let count = p["count"] as? Int ?? 0
+                    print("\(name)  (\(count) tracks)")
+                }
+                print("\(lists.count) playlist(s)")
+            }
+        }
+    }
+
+    // MARK: - AddToPlaylist
+
+    struct AddToPlaylist: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "add-to-playlist", abstract: "Add a track to a playlist")
+
+        @Option(name: .long, help: "Track name to add (searches library, takes first match)")
+        var track: String
+
+        @Option(name: .long, help: "Playlist name")
+        var playlist: String
+
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let qTrack    = track.replacingOccurrences(of: "'", with: "\\'").lowercased()
+            let qPlaylist = playlist.replacingOccurrences(of: "'", with: "\\'").lowercased()
+            let script = """
+            (function() {
+              var music = Application("Music");
+              var qt = '\(qTrack)';
+              var qp = '\(qPlaylist)';
+              var found = music.tracks().find(function(t) {
+                try { return t.name().toLowerCase().includes(qt) || t.artist().toLowerCase().includes(qt); }
+                catch(e) { return false; }
+              });
+              if (!found) { return JSON.stringify({error: 'no-track'}); }
+              var pl = music.playlists().find(function(p) {
+                try { return p.name().toLowerCase().includes(qp); }
+                catch(e) { return false; }
+              });
+              if (!pl) { return JSON.stringify({error: 'no-playlist'}); }
+              music.add([found], {to: pl});
+              return JSON.stringify({added: true, track: found.name(), playlist: pl.name()});
+            })()
+            """
+            guard let raw = jxa(script) else {
+                fputs("Error: Could not reach Music app\n", stderr)
+                throw ExitCode.failure
+            }
+            guard let data = raw.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                fputs("Error: Unexpected response\n", stderr); throw ExitCode.failure
+            }
+            if let err = obj["error"] as? String {
+                if err == "no-track" { throw ValidationError("No track found matching '\(track)'") }
+                else { throw ValidationError("No playlist found matching '\(playlist)'") }
+            }
+            if json {
+                print(raw)
+            } else {
+                let trackName = obj["track"] as? String ?? track
+                let plName    = obj["playlist"] as? String ?? playlist
+                print("Added '\(trackName)' to playlist '\(plName)'")
+            }
+        }
+    }
+
+    // MARK: - Queue
+
+    struct Queue: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "queue", abstract: "Show upcoming tracks from current playlist")
+
+        @Option(name: .long, help: "Max tracks to show (default: 10)") var limit: Int = 10
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let script = """
+            (function() {
+              var music = Application("Music");
+              var pos = Math.round(music.playerPosition());
+              var current;
+              try { current = music.currentTrack().name(); } catch(e) { current = null; }
+              var pl;
+              try { pl = music.currentPlaylist(); } catch(e) { return JSON.stringify([]); }
+              var tracks = pl.tracks();
+              // find current index by matching name
+              var startIdx = 0;
+              if (current) {
+                for (var i = 0; i < tracks.length; i++) {
+                  try { if (tracks[i].name() === current) { startIdx = i + 1; break; } } catch(e) {}
+                }
+              }
+              var upcoming = tracks.slice(startIdx, startIdx + \(limit)).map(function(t) {
+                try { return {title: t.name(), artist: t.artist(), album: t.album()}; }
+                catch(e) { return null; }
+              }).filter(Boolean);
+              return JSON.stringify(upcoming);
+            })()
+            """
+            guard let raw = jxa(script) else {
+                fputs("Error: Could not reach Music app\n", stderr)
+                throw ExitCode.failure
+            }
+            if json {
+                print(raw)
+            } else {
+                guard let data = raw.data(using: .utf8),
+                      let tracks = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                    print(raw); return
+                }
+                if tracks.isEmpty {
+                    print("Queue is empty or no playlist playing")
+                } else {
+                    for (i, t) in tracks.enumerated() {
+                        let title  = t["title"]  as? String ?? "—"
+                        let artist = t["artist"] as? String ?? "—"
+                        let album  = t["album"]  as? String ?? "—"
+                        print("\(i + 1). \(title) — \(artist)  [\(album)]")
+                    }
+                }
             }
         }
     }

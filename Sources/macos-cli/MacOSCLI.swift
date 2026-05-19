@@ -6,7 +6,7 @@ struct MacOSCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "macos",
         abstract: "macOS CLI — full agentic control of macOS via the terminal",
-        version: "0.5.7",
+        version: "0.5.8",
         subcommands: [
             // Personal data (EventKit + Contacts.framework + Notes via SQLite)
             RemindersCommand.self,
@@ -36,14 +36,12 @@ struct MacOSCLI: ParsableCommand {
             MusicCommand.self,
             FinderCommand.self,
             SetupCommand.self,
-            // 0.6 additions
             ShortcutsCommand.self,
             PdfCommand.self,
             FocusCommand.self,
             ProcessCommand.self,
             DiskCommand.self,
             LocationCommand.self,
-            // 0.5.5
             VoiceMemosCommand.self,
             // 0.5.7 — new agentic commands
             BluetoothCommand.self,
@@ -52,6 +50,10 @@ struct MacOSCLI: ParsableCommand {
             FileCommand.self,
             LoginItemsCommand.self,
             DockCommand.self,
+            // 0.5.8 — system-level controls
+            DefaultsCommand.self,
+            KeychainCommand.self,
+            NetworkCommand.self,
         ]
     )
 }

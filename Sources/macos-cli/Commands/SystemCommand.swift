@@ -18,6 +18,8 @@ struct SystemCommand: ParsableCommand {
             ClipboardCommand.self,
             DisplayCommand.self,
             VPNCommand.self,
+            LockCommand.self,
+            SleepCommand.self,
         ]
     )
 }
@@ -461,6 +463,42 @@ struct DisplayCommand: ParsableCommand {
                 }
             }
         }
+    }
+}
+
+// MARK: - Lock
+
+struct LockCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "lock", abstract: "Lock the screen immediately")
+    @Flag(name: .long, help: "Output JSON") var json = false
+
+    func run() throws {
+        // Primary: CGSession -suspend (fast, instant lock)
+        let cgSession = "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession"
+        var code = Process.run(args: [cgSession, "-suspend"])
+        if code != 0 {
+            // Fallback: turn off display (triggers lock if "Require password immediately" is set)
+            code = Process.run(args: ["/usr/bin/pmset", "displaysleepnow"])
+        }
+        if json {
+            printJSON(["locked": code == 0])
+        } else {
+            print(code == 0 ? "Screen locked." : "Lock command sent (exit \(code)).")
+        }
+    }
+}
+
+// MARK: - Sleep
+
+struct SleepCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "sleep", abstract: "Put the Mac to sleep")
+    @Flag(name: .long, help: "Output JSON") var json = false
+
+    func run() throws {
+        if json { printJSON(["sleeping": true]) } else { print("Going to sleep...") }
+        // pmset sleepnow returns immediately before the Mac actually sleeps, so flush stdout first
+        fflush(stdout)
+        _ = Process.run(args: ["/usr/bin/pmset", "sleepnow"])
     }
 }
 

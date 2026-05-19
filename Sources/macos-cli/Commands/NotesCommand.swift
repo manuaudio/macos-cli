@@ -21,7 +21,7 @@ struct NotesCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "notes",
         abstract: "Read and create Apple Notes",
-        subcommands: [List.self, Search.self, Read.self, Create.self]
+        subcommands: [List.self, Search.self, Read.self, Create.self, Delete.self, Update.self, Folders.self, CreateFolder.self]
     )
 
     // MARK: - List
@@ -147,6 +147,180 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
                 print("Updated: \(note["modified"] as? String ?? "")")
                 print("---")
                 print(note["body"] as? String ?? "")
+            }
+        }
+    }
+
+    // MARK: - Delete
+
+    struct Delete: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "delete", abstract: "Delete a note by title (partial match, first match)")
+
+        @Option(name: .long, help: "Note title to delete (partial match)")
+        var title: String
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            let escaped = title.replacingOccurrences(of: "'", with: "\\'")
+            let script = """
+            const Notes = Application('Notes');
+            const matches = Notes.notes.whose({name: {_contains: '\(escaped)'}});
+            if (!matches || matches.length === 0) {
+                JSON.stringify({deleted: false, error: 'No matching note found'});
+            } else {
+                const noteTitle = matches[0].name();
+                matches[0].delete();
+                JSON.stringify({deleted: true, title: noteTitle});
+            }
+            """
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty, let data = raw.data(using: .utf8),
+                  let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ValidationError("Could not delete note — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
+            }
+            if raw.lowercased().contains("error") && result["deleted"] as? Bool != true {
+                throw ValidationError("Delete failed: \(result["error"] as? String ?? raw)")
+            }
+            if json {
+                printJSON(result)
+            } else {
+                let deleted = result["deleted"] as? Bool ?? false
+                let noteTitle = result["title"] as? String ?? title
+                print(deleted ? "Deleted: \(noteTitle)" : "No matching note found for '\(title)'")
+            }
+        }
+    }
+
+    // MARK: - Update
+
+    struct Update: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "update", abstract: "Update a note's title and/or body")
+
+        @Option(name: .long, help: "Note title to find (partial match)")
+        var title: String
+
+        @Option(name: .long, help: "New title (optional)")
+        var newTitle: String?
+
+        @Option(name: .long, help: "New body content (optional)")
+        var body: String?
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            guard newTitle != nil || body != nil else {
+                throw ValidationError("Specify at least --new-title or --body to update")
+            }
+            let escaped = title.replacingOccurrences(of: "'", with: "\\'")
+            let titleUpdate = newTitle.map { t -> String in
+                let et = t.replacingOccurrences(of: "'", with: "\\'")
+                return "note.name = '\(et)';"
+            } ?? ""
+            let bodyUpdate = body.map { b -> String in
+                let eb = b.replacingOccurrences(of: "'", with: "\\'")
+                              .replacingOccurrences(of: "\\n", with: "\\\\n")
+                return "note.body = '\(eb)';"
+            } ?? ""
+            let script = """
+            const Notes = Application('Notes');
+            const matches = Notes.notes.whose({name: {_contains: '\(escaped)'}});
+            if (!matches || matches.length === 0) {
+                JSON.stringify({updated: false, error: 'No matching note found'});
+            } else {
+                const note = matches[0];
+                \(titleUpdate)
+                \(bodyUpdate)
+                JSON.stringify({updated: true});
+            }
+            """
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty, let data = raw.data(using: .utf8),
+                  let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ValidationError("Could not update note — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
+            }
+            if result["updated"] as? Bool != true {
+                throw ValidationError("Update failed: \(result["error"] as? String ?? raw)")
+            }
+            if json {
+                printJSON(result)
+            } else {
+                print("Updated note matching '\(title)'")
+            }
+        }
+    }
+
+    // MARK: - Folders
+
+    struct Folders: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "folders", abstract: "List all Notes folders")
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            let script = """
+            const Notes = Application('Notes');
+            const folders = Notes.folders().map(f => {
+                try { return {name: f.name(), count: f.notes().length}; }
+                catch(e) { return null; }
+            }).filter(Boolean);
+            JSON.stringify(folders);
+            """
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty, let data = raw.data(using: .utf8),
+                  let folders = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                throw ValidationError("Could not list Notes folders — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
+            }
+            if json {
+                printJSON(folders)
+            } else {
+                for f in folders {
+                    let name  = f["name"]  as? String ?? ""
+                    let count = f["count"] as? Int ?? 0
+                    print("\(name)  (\(count) note\(count == 1 ? "" : "s"))")
+                }
+                print("\(folders.count) folder\(folders.count == 1 ? "" : "s")")
+            }
+        }
+    }
+
+    // MARK: - CreateFolder
+
+    struct CreateFolder: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "create-folder", abstract: "Create a new Notes folder")
+
+        @Option(name: .long, help: "Folder name to create")
+        var name: String
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            let escaped = name.replacingOccurrences(of: "'", with: "\\'")
+            let script = """
+            const Notes = Application('Notes');
+            Notes.make({new: 'folder', withProperties: {name: '\(escaped)'}});
+            JSON.stringify({created: true, name: '\(escaped)'});
+            """
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if raw.lowercased().contains("error") || raw.isEmpty {
+                throw ValidationError("Could not create folder — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
+            }
+            guard let data = raw.data(using: .utf8),
+                  let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ValidationError("Unexpected response from Notes: \(raw.prefix(200))")
+            }
+            if json {
+                printJSON(result)
+            } else {
+                print("Created folder: \(name)")
             }
         }
     }

@@ -7,7 +7,7 @@ struct PhotosCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "photos",
         abstract: "Apple Photos — list albums, search photos",
-        subcommands: [Albums.self, Search.self, Recent.self]
+        subcommands: [Albums.self, Search.self, Recent.self, Export.self, AddToAlbum.self, Delete.self]
     )
 
     // MARK: - Albums
@@ -96,6 +96,158 @@ struct PhotosCommand: ParsableCommand {
                     if !desc.isEmpty { print("  \(desc)") }
                 }
                 print("\(photos.count) result(s)")
+            }
+        }
+    }
+
+    // MARK: - Export
+
+    struct Export: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "export", abstract: "Export photo(s) to a directory")
+
+        @Option(name: .long, help: "Photo filename or title to find (partial match)")
+        var name: String
+
+        @Option(name: .long, help: "Destination directory path (default: ~/Desktop)") var to: String = "~/Desktop"
+        @Option(name: .long, help: "Max photos to export (default: 1)") var limit: Int = 1
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let escapedName = name.replacingOccurrences(of: "'", with: "\\'")
+            let destDir = (to as NSString).expandingTildeInPath
+            let escapedDir = destDir.replacingOccurrences(of: "'", with: "\\'")
+            let script = """
+            const Photos = Application('Photos');
+            const q = '\(escapedName)'.toLowerCase();
+            const matches = Photos.mediaItems().filter(item => {
+                try { return (item.filename() || '').toLowerCase().includes(q); }
+                catch(e) { return false; }
+            }).slice(0, \(limit));
+            if (matches.length === 0) { JSON.stringify({exported: 0, to: '\(escapedDir)'}); }
+            else {
+                Photos.export(matches, {to: Path('\(escapedDir)')});
+                JSON.stringify({exported: matches.length, to: '\(escapedDir)'});
+            }
+            """
+            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 15),
+                  !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ValidationError("Photos export timed out — check Automation permission for Photos in System Settings")
+            }
+            let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let data = raw.data(using: .utf8),
+                  let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ValidationError("Could not export Photos — check Automation permission\n\(raw.prefix(200))")
+            }
+            let exported = result["exported"] as? Int ?? 0
+            let toPath   = result["to"] as? String ?? destDir
+            if exported == 0 {
+                throw ValidationError("No photos found matching '\(name)'")
+            }
+            if json {
+                printJSON(result)
+            } else {
+                print("Exported \(exported) photo(s) to \(toPath)")
+            }
+        }
+    }
+
+    // MARK: - AddToAlbum
+
+    struct AddToAlbum: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "add-to-album", abstract: "Add a photo to an album")
+
+        @Option(name: .long, help: "Photo name or filename (partial match)")
+        var name: String
+
+        @Option(name: .long, help: "Album name to add to")
+        var album: String
+
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let escapedName  = name.replacingOccurrences(of: "'", with: "\\'")
+            let escapedAlbum = album.replacingOccurrences(of: "'", with: "\\'")
+            let script = """
+            const Photos = Application('Photos');
+            const qPhoto = '\(escapedName)'.toLowerCase();
+            const qAlbum = '\(escapedAlbum)'.toLowerCase();
+            const photo = Photos.mediaItems().find(item => {
+                try { return (item.filename() || '').toLowerCase().includes(qPhoto); }
+                catch(e) { return false; }
+            });
+            if (!photo) { 'no-photo'; }
+            else {
+                const targetAlbum = Photos.albums().find(a => {
+                    try { return (a.name() || '').toLowerCase().includes(qAlbum); }
+                    catch(e) { return false; }
+                });
+                if (!targetAlbum) { 'no-album'; }
+                else {
+                    Photos.add([photo], {to: targetAlbum});
+                    'added';
+                }
+            }
+            """
+            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 15, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if result == "no-photo" {
+                throw ValidationError("No photo found matching '\(name)'")
+            } else if result == "no-album" {
+                throw ValidationError("No album found matching '\(album)'")
+            } else if result.lowercased().contains("error") {
+                throw ValidationError("Could not add photo to album\n\(result.prefix(200))")
+            }
+            if json {
+                printJSON(["added": true])
+            } else {
+                print("Added '\(name)' to album '\(album)'")
+            }
+        }
+    }
+
+    // MARK: - Delete
+
+    struct Delete: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "delete", abstract: "Delete photo(s) from the library")
+
+        @Option(name: .long, help: "Photo name or filename (partial match)")
+        var name: String
+
+        @Option(name: .long, help: "Max photos to delete (default: 1, safety limit)") var limit: Int = 1
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let escapedName = name.replacingOccurrences(of: "'", with: "\\'")
+            let script = """
+            const Photos = Application('Photos');
+            const q = '\(escapedName)'.toLowerCase();
+            const matches = Photos.mediaItems().filter(item => {
+                try { return (item.filename() || '').toLowerCase().includes(q); }
+                catch(e) { return false; }
+            }).slice(0, \(limit));
+            if (matches.length === 0) { JSON.stringify({deleted: 0}); }
+            else {
+                Photos.delete(matches);
+                JSON.stringify({deleted: matches.length});
+            }
+            """
+            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 15),
+                  !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ValidationError("Photos delete timed out — check Automation permission for Photos in System Settings")
+            }
+            let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let data = raw.data(using: .utf8),
+                  let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ValidationError("Could not delete from Photos — check Automation permission\n\(raw.prefix(200))")
+            }
+            let deleted = result["deleted"] as? Int ?? 0
+            if deleted == 0 {
+                throw ValidationError("No photos found matching '\(name)'")
+            }
+            if json {
+                printJSON(result)
+            } else {
+                print("Deleted \(deleted) photo(s)")
             }
         }
     }

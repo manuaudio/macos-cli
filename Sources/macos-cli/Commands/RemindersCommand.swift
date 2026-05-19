@@ -6,7 +6,7 @@ struct RemindersCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "reminders",
         abstract: "Manage Apple Reminders",
-        subcommands: [Create.self, List.self, Done.self, Lists.self]
+        subcommands: [Create.self, List.self, Done.self, Delete.self, Update.self, Uncomplete.self, Lists.self]
     )
 
     // MARK: - Create
@@ -190,6 +190,173 @@ struct RemindersCommand: ParsableCommand {
                 ])
             } else {
                 print("Done: \(reminder.title ?? id)")
+            }
+        }
+    }
+
+    // MARK: - Delete
+    struct Delete: ParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Delete a reminder by ID")
+
+        @Option(name: .long, help: "Reminder calendarItemIdentifier")
+        var id: String
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            let store = try EventKitStore.authorized(for: .reminder)
+            let pred = store.predicateForReminders(in: nil)
+            var found: EKReminder?
+            let sema = DispatchSemaphore(value: 0)
+            store.fetchReminders(matching: pred) { reminders in
+                found = reminders?.first { $0.calendarItemIdentifier == self.id }
+                sema.signal()
+            }
+            sema.wait()
+            guard let reminder = found else {
+                throw ValidationError("Reminder '\(id)' not found")
+            }
+            let savedTitle = reminder.title ?? id
+            do {
+                try store.remove(reminder, commit: true)
+            } catch {
+                throw CLIError.saveFailure(error.localizedDescription)
+            }
+            if json {
+                printJSON(["deleted": true, "id": id, "title": savedTitle])
+            } else {
+                print("Deleted: \(savedTitle)")
+            }
+        }
+    }
+
+    // MARK: - Update
+    struct Update: ParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Update a reminder by ID")
+
+        @Option(name: .long, help: "Reminder calendarItemIdentifier")
+        var id: String
+
+        @Option(name: .long, help: "New title")
+        var title: String?
+
+        @Option(name: .long, help: "New due date: YYYY-MM-DD or 'YYYY-MM-DD HH:MM'")
+        var due: String?
+
+        @Option(name: .long, help: "New notes")
+        var notes: String?
+
+        @Option(name: .long, help: "Move to a different list by name")
+        var list: String?
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            let store = try EventKitStore.authorized(for: .reminder)
+            let pred = store.predicateForReminders(in: nil)
+            var found: EKReminder?
+            let sema = DispatchSemaphore(value: 0)
+            store.fetchReminders(matching: pred) { reminders in
+                found = reminders?.first { $0.calendarItemIdentifier == self.id }
+                sema.signal()
+            }
+            sema.wait()
+            guard let reminder = found else {
+                throw ValidationError("Reminder '\(id)' not found")
+            }
+
+            if let t = title { reminder.title = t }
+            if let n = notes { reminder.notes = n }
+            if let due = due {
+                let fmts = ["yyyy-MM-dd HH:mm", "yyyy-MM-dd"]
+                var parsed = false
+                for fmt in fmts {
+                    let df = DateFormatter()
+                    df.dateFormat = fmt
+                    if let d = df.date(from: due) {
+                        reminder.dueDateComponents = Calendar.current.dateComponents(
+                            [.year, .month, .day, .hour, .minute], from: d)
+                        parsed = true
+                        break
+                    }
+                }
+                if !parsed {
+                    throw ValidationError("Invalid due format — use YYYY-MM-DD or 'YYYY-MM-DD HH:MM'")
+                }
+            }
+            if let listName = list {
+                let lists = store.calendars(for: .reminder)
+                guard let target = lists.first(where: { $0.title == listName }) else {
+                    throw ValidationError("List '\(listName)' not found")
+                }
+                reminder.calendar = target
+            }
+
+            do {
+                try store.save(reminder, commit: true)
+            } catch {
+                throw CLIError.saveFailure(error.localizedDescription)
+            }
+
+            if json {
+                var d: [String: Any] = [
+                    "id": reminder.calendarItemIdentifier,
+                    "title": reminder.title ?? "",
+                    "list": reminder.calendar?.title ?? "",
+                    "completed": reminder.isCompleted,
+                ]
+                if let n = reminder.notes { d["notes"] = n }
+                if let dc = reminder.dueDateComponents,
+                   let y = dc.year, let m = dc.month, let day = dc.day {
+                    d["due"] = "\(y)-\(String(format: "%02d", m))-\(String(format: "%02d", day))"
+                }
+                printJSON(d)
+            } else {
+                print("Updated: \(reminder.title ?? id)")
+            }
+        }
+    }
+
+    // MARK: - Uncomplete
+    struct Uncomplete: ParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Mark a reminder as not complete")
+
+        @Option(name: .long, help: "Reminder calendarItemIdentifier")
+        var id: String
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            let store = try EventKitStore.authorized(for: .reminder)
+            let pred = store.predicateForReminders(in: nil)
+            var found: EKReminder?
+            let sema = DispatchSemaphore(value: 0)
+            store.fetchReminders(matching: pred) { reminders in
+                found = reminders?.first { $0.calendarItemIdentifier == self.id }
+                sema.signal()
+            }
+            sema.wait()
+            guard let reminder = found else {
+                throw ValidationError("Reminder '\(id)' not found")
+            }
+            reminder.isCompleted = false
+            reminder.completionDate = nil
+            do {
+                try store.save(reminder, commit: true)
+            } catch {
+                throw CLIError.saveFailure(error.localizedDescription)
+            }
+            if json {
+                printJSON([
+                    "id": reminder.calendarItemIdentifier,
+                    "title": reminder.title ?? "",
+                    "completed": false,
+                ])
+            } else {
+                print("Uncompleted: \(reminder.title ?? id)")
             }
         }
     }

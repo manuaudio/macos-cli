@@ -6,7 +6,7 @@ struct CalendarCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "calendar",
         abstract: "Manage Apple Calendar events",
-        subcommands: [Events.self, Create.self, Delete.self, Calendars.self, Reload.self]
+        subcommands: [Events.self, Create.self, Delete.self, Update.self, Calendars.self, Reload.self]
     )
 
     // MARK: - Reload (force iCloud sync)
@@ -262,6 +262,97 @@ struct CalendarCommand: ParsableCommand {
                 printJSON(["deleted": deleted])
             } else {
                 print("deleted \(deleted)")
+            }
+        }
+    }
+
+    // MARK: - Update
+    struct Update: ParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Update an existing calendar event by ID")
+
+        @Option(name: .long, help: "Event identifier (from `macos calendar events --json`, the 'id' field)")
+        var id: String
+
+        @Option(name: .long, help: "New title")
+        var title: String?
+
+        @Option(name: .long, help: "New start: YYYY-MM-DD HH:MM")
+        var start: String?
+
+        @Option(name: .long, help: "New end: YYYY-MM-DD HH:MM")
+        var end: String?
+
+        @Option(name: .long, help: "New location")
+        var location: String?
+
+        @Option(name: .long, help: "New notes")
+        var notes: String?
+
+        @Option(name: .long, help: "Move to a different calendar by name")
+        var calendar: String?
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            let store = try EventKitStore.authorized(for: .event)
+
+            guard let event = store.event(withIdentifier: id) else {
+                throw ValidationError("Event '\(id)' not found")
+            }
+
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "en_US_POSIX")
+
+            func parseDate(_ s: String) -> Date? {
+                df.dateFormat = "yyyy-MM-dd HH:mm"; if let d = df.date(from: s) { return d }
+                df.dateFormat = "yyyy-MM-dd";       if let d = df.date(from: s) { return d }
+                return nil
+            }
+
+            if let t = title { event.title = t }
+            if let s = start {
+                guard let d = parseDate(s) else {
+                    throw ValidationError("Invalid start format — use YYYY-MM-DD HH:MM")
+                }
+                event.startDate = d
+            }
+            if let e = end {
+                guard let d = parseDate(e) else {
+                    throw ValidationError("Invalid end format — use YYYY-MM-DD HH:MM")
+                }
+                event.endDate = d
+            }
+            if let loc = location { event.location = loc }
+            if let n = notes { event.notes = n }
+            if let calName = calendar {
+                let allCalendars = store.calendars(for: .event)
+                guard let cal = allCalendars.first(where: { $0.title == calName }) else {
+                    throw ValidationError("Calendar '\(calName)' not found")
+                }
+                event.calendar = cal
+            }
+
+            do {
+                try store.save(event, span: .thisEvent, commit: true)
+            } catch {
+                throw CLIError.saveFailure(error.localizedDescription)
+            }
+
+            if json {
+                var d: [String: Any] = [
+                    "id": event.eventIdentifier ?? "",
+                    "title": event.title ?? "",
+                    "calendar": event.calendar?.title ?? "",
+                    "start": ISO8601DateFormatter().string(from: event.startDate),
+                    "end": ISO8601DateFormatter().string(from: event.endDate),
+                    "all_day": event.isAllDay,
+                ]
+                if let loc = event.location { d["location"] = loc }
+                if let n = event.notes { d["notes"] = n }
+                printJSON(d)
+            } else {
+                print("Updated: \(event.title ?? id)")
             }
         }
     }

@@ -73,12 +73,15 @@ struct SetupCommand: ParsableCommand {
         let musicOK = jxaOK("Application('Music').playerState().toString()")
         check("Music (status, play, pause, skip)",  &failures) { musicOK }
 
+        let notesAutoOK = jxaOK("Application('Notes').folders().length.toString()")
+        check("Notes (read, create, delete, update, folders)", &failures) { notesAutoOK }
+
         let finderOK = jxaOK("Application('Finder').selection().length.toString()")
-        check("Finder (selected, reveal, cwd)",     &failures) { finderOK }
+        check("Finder (selected, reveal, new-folder, rename, go-to)", &failures) { finderOK }
 
         let contactsStatus = CNContactStore.authorizationStatus(for: .contacts)
         let contactsOK = contactsStatus == .authorized
-        check("Contacts (search, lookup)", &failures) { contactsOK }
+        check("Contacts (search, create, update, delete)", &failures) { contactsOK }
 
         let calStatus = EKEventStore.authorizationStatus(for: .event)
         let calOK: Bool
@@ -87,7 +90,7 @@ struct SetupCommand: ParsableCommand {
         } else {
             calOK = calStatus == .authorized
         }
-        check("Calendar (events, create)", &failures) { calOK }
+        check("Calendar (events, create, update, delete)", &failures) { calOK }
 
         let remStatus = EKEventStore.authorizationStatus(for: .reminder)
         let remOK: Bool
@@ -96,16 +99,24 @@ struct SetupCommand: ParsableCommand {
         } else {
             remOK = remStatus == .authorized
         }
-        check("Reminders (list, create, complete)", &failures) { remOK }
+        check("Reminders (list, create, update, delete, complete)", &failures) { remOK }
 
-        let hasAutoFailures = [safariOK, mailOK, photosOK, msgOK, musicOK, finderOK, contactsOK, calOK, remOK].contains(false)
+        let hasAutoFailures = [safariOK, mailOK, photosOK, msgOK, musicOK, finderOK, notesAutoOK, contactsOK, calOK, remOK].contains(false)
         if hasAutoFailures {
             print("")
             print("  ⚠️   For any ❌ above:")
             print("       System Settings → Privacy & Security → Automation")
-            print("       Find Terminal → enable the app checkboxes")
+            print("       Find Terminal (or tmux/iTerm) → enable the app checkboxes")
             offerOpen("x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
         }
+        print("")
+
+        // ── 5. No-auth system commands ────────────────────────────────────────
+        header("System commands (no special permission)")
+        check("Network ping/dns/port/traceroute", &failures) { cliOK(["network", "dns", "--host", "8.8.8.8"]) }
+        check("Defaults read/write",              &failures) { cliOK(["defaults", "list-domains"]) }
+        check("Safari history (SQLite read)",     &failures) { cliOK(["safari", "history", "--limit", "1"]) }
+        check("Safari bookmarks (plist read)",    &failures) { cliOK(["safari", "bookmarks"]) }
         print("")
 
         // ── Summary ───────────────────────────────────────────────────────────
@@ -114,7 +125,7 @@ struct SetupCommand: ParsableCommand {
             print("✅  All capabilities working. You're fully set up.")
         } else {
             print("⚠️   Still needed: \(failures.joined(separator: ", "))")
-            print("    Re-run `apple setup` after granting permissions.")
+            print("    Re-run `macos setup` after granting permissions.")
         }
         print("")
     }

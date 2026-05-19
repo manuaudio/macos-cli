@@ -7,7 +7,8 @@ struct SafariCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "safari",
         abstract: "Control Safari — list tabs, open URLs, read page content",
-        subcommands: [Tabs.self, Open.self, Read.self, Execute.self]
+        subcommands: [Tabs.self, Open.self, Read.self, Execute.self,
+                      NewTab.self, Close.self, Reload.self, History.self, Bookmarks.self]
     )
 
     // MARK: - Tabs
@@ -144,6 +145,297 @@ struct SafariCommand: ParsableCommand {
                 throw ValidationError("JS execution failed\n\(result.prefix(200))")
             }
             print(result)
+        }
+    }
+
+    // MARK: - NewTab
+
+    struct NewTab: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "new-tab", abstract: "Open a new Safari tab at a URL")
+
+        @Option(name: .long, help: "URL to open (required)") var url: String
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let escaped = url.replacingOccurrences(of: "\\", with: "\\\\")
+                             .replacingOccurrences(of: "'", with: "\\'")
+            let script = """
+            const Safari = Application('Safari');
+            Safari.activate();
+            const wins = Safari.windows();
+            if (wins.length === 0) {
+                Safari.openLocation('\(escaped)');
+            } else {
+                const tab = Safari.Tab({url: '\(escaped)'});
+                wins[0].tabs.push(tab);
+                wins[0].currentTab = tab;
+            }
+            'ok';
+            """
+            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            if result.lowercased().contains("error") {
+                throw ValidationError("Could not open new tab — check Automation permission for Safari\n\(result.prefix(200))")
+            }
+            if json {
+                printJSON(["opened": url])
+            } else {
+                print("Opened: \(url)")
+            }
+        }
+    }
+
+    // MARK: - Close
+
+    struct Close: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "close", abstract: "Close a Safari tab")
+
+        @Option(name: .long, help: "Close tab matching this URL substring") var url: String?
+        @Option(name: .long, help: "Close tab at window:tab index (e.g. 0:1)") var index: String?
+        @Flag(name: .long, help: "Close the current active tab") var current = false
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let script: String
+            if current {
+                script = """
+                const Safari = Application('Safari');
+                const w = Safari.windows()[0];
+                const t = w.currentTab();
+                t.close();
+                JSON.stringify({closed: 1});
+                """
+            } else if let idx = index {
+                let parts = idx.split(separator: ":").map { Int($0) ?? 0 }
+                guard parts.count == 2 else { throw ValidationError("--index must be in format window:tab (e.g. 0:1)") }
+                let wi = parts[0], ti = parts[1]
+                script = """
+                const Safari = Application('Safari');
+                Safari.windows()[\(wi)].tabs()[\(ti)].close();
+                JSON.stringify({closed: 1});
+                """
+            } else if let urlSubstr = url {
+                let escaped = urlSubstr.replacingOccurrences(of: "\\", with: "\\\\")
+                                       .replacingOccurrences(of: "'", with: "\\'")
+                script = """
+                const Safari = Application('Safari');
+                let closed = 0;
+                Safari.windows().forEach(w => {
+                    w.tabs().forEach(t => {
+                        try {
+                            if ((t.url() || '').includes('\(escaped)')) {
+                                t.close();
+                                closed++;
+                            }
+                        } catch(e) {}
+                    });
+                });
+                JSON.stringify({closed});
+                """
+            } else {
+                throw ValidationError("Specify --url, --index, or --current")
+            }
+
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if raw.lowercased().contains("error") {
+                throw ValidationError("Could not close tab\n\(raw.prefix(200))")
+            }
+            if json {
+                print(raw.isEmpty ? "{\"closed\":0}" : raw)
+            } else {
+                if let data = raw.data(using: .utf8),
+                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let n = obj["closed"] as? Int {
+                    print("Closed \(n) tab(s)")
+                } else {
+                    print("Closed tab")
+                }
+            }
+        }
+    }
+
+    // MARK: - Reload
+
+    struct Reload: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "reload", abstract: "Reload a Safari tab")
+
+        @Option(name: .long, help: "Reload tab matching this URL substring (default: current tab)") var url: String?
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let script: String
+            if let urlSubstr = url {
+                let escaped = urlSubstr.replacingOccurrences(of: "\\", with: "\\\\")
+                                       .replacingOccurrences(of: "'", with: "\\'")
+                script = """
+                const Safari = Application('Safari');
+                let reloaded = 0;
+                outer: for (const w of Safari.windows()) {
+                    for (const t of w.tabs()) {
+                        try {
+                            if ((t.url() || '').includes('\(escaped)')) {
+                                Safari.doJavaScript('location.reload()', {in: t});
+                                reloaded++;
+                                break outer;
+                            }
+                        } catch(e) {}
+                    }
+                }
+                JSON.stringify({reloaded});
+                """
+            } else {
+                script = """
+                const Safari = Application('Safari');
+                const t = Safari.windows()[0].currentTab();
+                Safari.doJavaScript('location.reload()', {in: t});
+                JSON.stringify({reloaded: 1, url: t.url()});
+                """
+            }
+
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if raw.lowercased().contains("error") {
+                throw ValidationError("Could not reload tab\n\(raw.prefix(200))")
+            }
+            if json {
+                print(raw.isEmpty ? "{\"reloaded\":0}" : raw)
+            } else {
+                print("Reloaded")
+            }
+        }
+    }
+
+    // MARK: - History
+
+    struct History: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "history", abstract: "Browse Safari history via History.db")
+
+        @Option(name: .long, help: "Max items to return (default: 20)") var limit: Int = 20
+        @Option(name: .long, help: "Filter by title or URL substring") var query: String?
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let dbPath = (NSHomeDirectory() as NSString).appendingPathComponent("Library/Safari/History.db")
+            guard FileManager.default.fileExists(atPath: dbPath) else {
+                throw ValidationError("Safari History.db not found at \(dbPath)")
+            }
+
+            // Apple epoch: seconds since 2001-01-01
+            let baseSQL: String
+            if let q = query {
+                let safe = q.replacingOccurrences(of: "'", with: "''")
+                baseSQL = """
+                SELECT v.title, i.url, CAST(v.visit_time + 978307200 AS INTEGER) as ts
+                FROM history_visits v
+                JOIN history_items i ON v.history_item = i.id
+                WHERE v.title LIKE '%\(safe)%' OR i.url LIKE '%\(safe)%'
+                ORDER BY v.visit_time DESC
+                LIMIT \(limit);
+                """
+            } else {
+                baseSQL = """
+                SELECT v.title, i.url, CAST(v.visit_time + 978307200 AS INTEGER) as ts
+                FROM history_visits v
+                JOIN history_items i ON v.history_item = i.id
+                ORDER BY v.visit_time DESC
+                LIMIT \(limit);
+                """
+            }
+
+            let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", dbPath, baseSQL], timeout: 15, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if raw.isEmpty {
+                if json { print("[]") } else { print("No history found") }
+                return
+            }
+
+            let rows: [[String: Any]] = raw.components(separatedBy: "\n").compactMap { line in
+                let parts = line.components(separatedBy: "\t")
+                guard parts.count >= 3 else { return nil }
+                let ts = Int(parts[2]) ?? 0
+                let date = ts > 0 ? Date(timeIntervalSince1970: Double(ts)) : Date()
+                let fmt = ISO8601DateFormatter()
+                return ["title": parts[0], "url": parts[1], "visited": fmt.string(from: date)]
+            }
+
+            if json {
+                printJSON(rows)
+            } else {
+                for row in rows {
+                    let title = row["title"] as? String ?? ""
+                    let url   = row["url"]   as? String ?? ""
+                    let vis   = row["visited"] as? String ?? ""
+                    print("\(vis)  \(title.isEmpty ? "(no title)" : title)")
+                    print("  \(url.prefix(100))")
+                }
+            }
+        }
+    }
+
+    // MARK: - Bookmarks
+
+    struct Bookmarks: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "bookmarks", abstract: "List Safari bookmarks")
+
+        @Option(name: .long, help: "Filter by title or URL substring") var query: String?
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let plistPath = (NSHomeDirectory() as NSString).appendingPathComponent("Library/Safari/Bookmarks.plist")
+            guard FileManager.default.fileExists(atPath: plistPath) else {
+                throw ValidationError("Bookmarks.plist not found at \(plistPath)")
+            }
+
+            // Convert plist to JSON using plutil
+            let jsonStr = Process.capture(args: ["/usr/bin/plutil", "-convert", "json", "-o", "-", plistPath], timeout: 10, fallback: "")
+            guard !jsonStr.isEmpty, let data = jsonStr.data(using: .utf8),
+                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ValidationError("Could not parse Bookmarks.plist")
+            }
+
+            // Recursively extract leaf bookmarks
+            var results: [[String: String]] = []
+            func extract(_ node: Any) {
+                if let dict = node as? [String: Any] {
+                    let btype = dict["WebBookmarkType"] as? String ?? ""
+                    if btype == "WebBookmarkTypeLeaf" {
+                        let urlStr = dict["URLString"] as? String ?? ""
+                        let uriDict = dict["URIDictionary"] as? [String: Any]
+                        let title = uriDict?["title"] as? String ?? ""
+                        if !urlStr.isEmpty {
+                            results.append(["title": title, "url": urlStr])
+                        }
+                    }
+                    // Recurse into children
+                    if let children = dict["Children"] as? [Any] {
+                        for child in children { extract(child) }
+                    }
+                } else if let arr = node as? [Any] {
+                    for item in arr { extract(item) }
+                }
+            }
+            extract(root)
+
+            // Apply optional filter
+            let filtered: [[String: String]]
+            if let q = query?.lowercased(), !q.isEmpty {
+                filtered = results.filter {
+                    ($0["title"] ?? "").lowercased().contains(q) ||
+                    ($0["url"]   ?? "").lowercased().contains(q)
+                }
+            } else {
+                filtered = results
+            }
+
+            if json {
+                printJSON(filtered)
+            } else {
+                if filtered.isEmpty { print("No bookmarks found"); return }
+                for bm in filtered {
+                    print("\(bm["title"] ?? "(no title)") — \(bm["url"] ?? "")")
+                }
+            }
         }
     }
 }

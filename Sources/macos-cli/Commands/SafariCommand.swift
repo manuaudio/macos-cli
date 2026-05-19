@@ -67,7 +67,7 @@ struct SafariCommand: ParsableCommand {
         @Flag(name: .long, help: "Open in new tab (default: new tab)") var newTab = false
 
         func run() throws {
-            let escaped = url.replacingOccurrences(of: "\"", with: "\\\"")
+            let escaped = url.replacingOccurrences(of: "'", with: "\\'")
             let script = """
             const Safari = Application('Safari');
             Safari.activate();

@@ -27,11 +27,13 @@ struct AxCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let appSelector = app.map { "application process \"\($0)\"" } ?? "application process 1"
             let escaped = name.replacingOccurrences(of: "\"", with: "\\\"")
+            let procExpr = app == nil
+                ? "se.applicationProcesses()[0]"
+                : "se.applicationProcesses.whose({name: \"\(app!.replacingOccurrences(of: "\"", with: "\\\""))\"})(  )[0]"
             let script = """
             const se = Application('System Events');
-            const proc = se.\(appSelector.contains("1") ? "applicationProcesses()[0]" : "applicationProcesses.whose({name: \"\(app ?? "")\"})()[0]");
+            const proc = \(procExpr);
             if (!proc) { JSON.stringify([]); }
             else {
                 const found = [];

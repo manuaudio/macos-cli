@@ -84,10 +84,18 @@ struct KeyboardCommand: ParsableCommand {
 
             let script: String
             if let code = KeyboardCommand.keyCodes[key] {
-                script = "Application('System Events').keyCode(\(code)\(modStr.isEmpty ? "" : ", {\(modStr)})"))"
+                if modStr.isEmpty {
+                    script = "Application('System Events').keyCode(\(code))"
+                } else {
+                    script = "Application('System Events').keyCode(\(code), {\(modStr)})"
+                }
             } else if key.count == 1 {
                 let escaped = key.replacingOccurrences(of: "\"", with: "\\\"")
-                script = "Application('System Events').keystroke(\"\(escaped)\"\(modStr.isEmpty ? "" : ", {\(modStr)})"))"
+                if modStr.isEmpty {
+                    script = "Application('System Events').keystroke(\"\(escaped)\")"
+                } else {
+                    script = "Application('System Events').keystroke(\"\(escaped)\", {\(modStr)})"
+                }
             } else {
                 throw ValidationError("Unknown key: '\(key)'. Use single chars or: return, tab, space, escape, delete, arrow keys, f1-f12")
             }

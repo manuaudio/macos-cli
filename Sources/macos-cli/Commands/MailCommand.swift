@@ -347,8 +347,8 @@ struct MailCommand: ParsableCommand {
             let escaped = query.replacingOccurrences(of: "'", with: "\\'")
             // Build the property-set lines
             var sets: [String] = []
-            if read     { sets.append("m.readStatus = true;") }
-            if unread   { sets.append("m.readStatus = false;") }
+            if read     { sets.append("m.read = true;") }
+            if unread   { sets.append("m.read = false;") }
             if flagged  { sets.append("m.flagged = true;") }
             if unflagged { sets.append("m.flagged = false;") }
             let setLines = sets.joined(separator: "\n                        ")

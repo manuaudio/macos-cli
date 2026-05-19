@@ -26,7 +26,7 @@ struct DefaultsCommand: ParsableCommand {
                 throw ValidationError("defaults read timed out for domain '\(domain)'")
             }
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.hasPrefix("2") && trimmed.contains("does not exist") {
+            if trimmed.contains("does not exist") {
                 throw ValidationError("Domain '\(domain)' not found or key '\(key ?? "")' does not exist")
             }
             if json {

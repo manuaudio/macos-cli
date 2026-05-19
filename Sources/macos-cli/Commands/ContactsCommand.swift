@@ -308,7 +308,8 @@ struct ContactsCommand: ParsableCommand {
                 CNContactJobTitleKey as CNKeyDescriptor,
                 CNContactPhoneNumbersKey as CNKeyDescriptor,
                 CNContactEmailAddressesKey as CNKeyDescriptor,
-                CNContactNoteKey as CNKeyDescriptor,
+                // CNContactNoteKey intentionally omitted — gated behind entitlement on macOS 13+
+                // Use `macos contacts set-note` for note field updates
             ]
             guard let contact = try? store.unifiedContact(withIdentifier: id, keysToFetch: allKeys) else {
                 throw ValidationError("Contact '\(id)' not found")

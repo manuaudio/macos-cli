@@ -6,8 +6,109 @@ struct ContactsCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "contacts",
         abstract: "Search and manage Apple Contacts",
-        subcommands: [Search.self, Get.self, Create.self, Update.self, Delete.self]
+        subcommands: [Search.self, Get.self, Create.self, Update.self, Delete.self,
+                      GetNote.self, SetNote.self]
     )
+
+    // MARK: - GetNote / SetNote (entitlement-protected note field)
+    //
+    // macOS 13+ gates CNContactNoteKey behind the
+    // `com.apple.developer.contacts.notes` entitlement (apple-cli is un-entitled,
+    // so reading/writing the note field via Contacts.framework throws
+    // CNPropertyNotFetchedException). AppleScript routes the request through
+    // Contacts.app — which IS entitled — so we wrap that path inside the CLI
+    // for the note field only. Same pattern as `apple mail refresh`.
+
+    struct GetNote: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "get-note",
+            abstract: "Read the note field of a contact (works around macOS 13+ entitlement)")
+
+        @Argument(help: "Contact identifier (UUID:ABPerson)") var id: String
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            // AppleScript escape the id (single-quote-safe).
+            let safeId = id.replacingOccurrences(of: "\"", with: "\\\"")
+            let script = """
+            tell application "Contacts"
+              try
+                set p to first person whose id = "\(safeId)"
+                set n to note of p
+                if n is missing value then return ""
+                return n as text
+              on error errMsg
+                return "__ERROR__: " & errMsg
+              end try
+            end tell
+            """
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-e", script],
+                                      timeout: 15, fallback: "")
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("__ERROR__") {
+                throw ValidationError("get-note failed: \(trimmed.prefix(200))")
+            }
+            if json {
+                printJSON(["id": id, "note": trimmed])
+            } else {
+                print(trimmed)
+            }
+        }
+    }
+
+    struct SetNote: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "set-note",
+            abstract: "Write the note field of a contact (works around macOS 13+ entitlement)")
+
+        @Argument(help: "Contact identifier (UUID:ABPerson)") var id: String
+        @Option(name: .long, help: "Note text") var text: String
+        @Flag(name: .long, help: "Only write if note is currently empty") var ifEmpty = false
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let safeId = id.replacingOccurrences(of: "\"", with: "\\\"")
+            // Escape backslashes first, then double-quotes, then encode literal
+            // newlines as AppleScript "\n" (which is the linefeed escape inside
+            // a string literal in AppleScript).
+            let safeText = text
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+            let conditional = ifEmpty
+                ? """
+                  if (note of p) is missing value or (note of p) is "" then
+                    set note of p to "\(safeText)"
+                  end if
+                """
+                : """
+                  set note of p to "\(safeText)"
+                """
+            let script = """
+            tell application "Contacts"
+              try
+                set p to first person whose id = "\(safeId)"
+                \(conditional)
+                save
+                return "ok"
+              on error errMsg
+                return "__ERROR__: " & errMsg
+              end try
+            end tell
+            """
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-e", script],
+                                      timeout: 30, fallback: "")
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("__ERROR__") {
+                throw ValidationError("set-note failed: \(trimmed.prefix(200))")
+            }
+            if json {
+                printJSON(["id": id, "ok": trimmed == "ok"])
+            } else {
+                print(trimmed)
+            }
+        }
+    }
 
     // MARK: - Search
     struct Search: ParsableCommand {
@@ -137,6 +238,7 @@ struct ContactsCommand: ParsableCommand {
         @Option(name: .long, help: "First name") var firstName: String = ""
         @Option(name: .long, help: "Last name")  var lastName: String = ""
         @Option(name: .long, help: "Organization/company") var organization: String?
+        @Option(name: .long, help: "Job title") var jobTitle: String?
         @Option(name: .long, help: "Phone (can repeat: --phone '+13105550100' --phone-label 'mobile')") var phone: [String] = []
         @Option(name: .long, help: "Phone label for last --phone (default: mobile)") var phoneLabel: String = "mobile"
         @Option(name: .long, help: "Email (can repeat)") var email: [String] = []
@@ -155,6 +257,7 @@ struct ContactsCommand: ParsableCommand {
             contact.givenName  = firstName
             contact.familyName = lastName
             if let org = organization { contact.organizationName = org }
+            if let t = jobTitle { contact.jobTitle = t }
             if let n = note { contact.note = n }
 
             contact.phoneNumbers = phone.enumerated().map { idx, num in
@@ -186,6 +289,7 @@ struct ContactsCommand: ParsableCommand {
         @Option(name: .long, help: "New first name") var firstName: String?
         @Option(name: .long, help: "New last name")  var lastName: String?
         @Option(name: .long, help: "New organization") var organization: String?
+        @Option(name: .long, help: "New job title") var jobTitle: String?
         @Option(name: .long, help: "Add phone number") var addPhone: String?
         @Option(name: .long, help: "Label for --add-phone (default: mobile)") var addPhoneLabel: String = "mobile"
         @Option(name: .long, help: "Add email address") var addEmail: String?
@@ -201,6 +305,7 @@ struct ContactsCommand: ParsableCommand {
                 CNContactGivenNameKey as CNKeyDescriptor,
                 CNContactFamilyNameKey as CNKeyDescriptor,
                 CNContactOrganizationNameKey as CNKeyDescriptor,
+                CNContactJobTitleKey as CNKeyDescriptor,
                 CNContactPhoneNumbersKey as CNKeyDescriptor,
                 CNContactEmailAddressesKey as CNKeyDescriptor,
                 CNContactNoteKey as CNKeyDescriptor,
@@ -213,6 +318,7 @@ struct ContactsCommand: ParsableCommand {
             if let v = firstName     { mutable.givenName        = v }
             if let v = lastName      { mutable.familyName       = v }
             if let v = organization  { mutable.organizationName = v }
+            if let v = jobTitle      { mutable.jobTitle         = v }
             if let v = note          { mutable.note             = v }
 
             if let p = addPhone {

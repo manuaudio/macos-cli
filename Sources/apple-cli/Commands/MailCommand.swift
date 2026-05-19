@@ -7,8 +7,37 @@ struct MailCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "mail",
         abstract: "Apple Mail — create drafts, search messages",
-        subcommands: [Draft.self, Search.self, Accounts.self]
+        subcommands: [Draft.self, Search.self, Accounts.self, Refresh.self]
     )
+
+    // MARK: - Refresh (force Mail.app to check for new mail)
+
+    struct Refresh: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Force Mail to check all accounts for new messages now")
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            // Mail.app exposes no direct EventKit-style API; AppleScript is the
+            // only path. We wrap it inside the CLI so callers don't have to
+            // construct an osascript shell command themselves.
+            let script = "tell application \"Mail\" to check for new mail"
+            let result = Process.capture(args: ["/usr/bin/osascript", "-e", script],
+                                         timeout: 30, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // osascript returns empty on success; non-empty usually signals an error.
+            if !result.isEmpty && result.lowercased().contains("error") {
+                throw ValidationError("Mail refresh failed: \(result.prefix(200))")
+            }
+            if json {
+                printJSON(["refresh_requested": true])
+            } else {
+                print("Mail refresh requested.")
+            }
+        }
+    }
 
     // MARK: - Draft
 

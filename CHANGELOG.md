@@ -4,6 +4,20 @@ Honest version history. Each entry documents what works, what was broken, and wh
 
 ---
 
+## [0.5.6] — 2026-05-18
+
+### Added — close 4 capability gaps surfaced by the chief/Aura MCP→CLI sweep
+
+- **`apple contacts create/update --job-title`** — first-class job-title field on both create and update. Previously callers had to fold job title into `--note` as `Title: <value>` because the flag didn't exist.
+- **`apple calendar reload`** — force Calendar to refresh from iCloud / CalDAV sources. Uses EventKit's `refreshSourcesIfNecessary()` directly (no AppleScript / Calendar.app dependency).
+- **`apple mail refresh`** — force Mail.app to check all accounts for new mail. Wraps `tell application "Mail" to check for new mail` AppleScript inside the CLI so callers don't have to construct osascript shell commands themselves.
+- **`apple contacts get-note <id>` + `apple contacts set-note <id> --text "..." [--if-empty]`** — read/write the contact note field. macOS 13+ gates `CNContactNoteKey` behind the `com.apple.developer.contacts.notes` entitlement that un-entitled binaries (including apple-cli and pyobjc) can't satisfy. AppleScript routes through Contacts.app — which IS entitled — so we wrap that path inside the CLI for the note field only. Same wrapped-AppleScript pattern as `mail refresh`.
+
+### Why these landed together
+Aura's chief codebase did a full MCP→CLI sweep on 2026-05-18 (replacing 8 production scripts that used osascript). Three capability gaps were documented as known limitations during the migration. v0.5.6 closes those gaps so the migrated scripts don't need workarounds.
+
+---
+
 ## [0.5.3] — 2026-05-19
 
 ### Fixed — agent usability audit

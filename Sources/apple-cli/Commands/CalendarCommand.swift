@@ -6,8 +6,28 @@ struct CalendarCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "calendar",
         abstract: "Manage Apple Calendar events",
-        subcommands: [Events.self, Create.self, Delete.self, Calendars.self]
+        subcommands: [Events.self, Create.self, Delete.self, Calendars.self, Reload.self]
     )
+
+    // MARK: - Reload (force iCloud sync)
+    struct Reload: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Force Calendar to refresh from iCloud / CalDAV sources")
+
+        @Flag(name: .long, help: "Output JSON")
+        var json = false
+
+        func run() throws {
+            let store = try EventKitStore.authorized(for: .event)
+            // EventKit-native refresh — no AppleScript / Calendar.app dependency.
+            store.refreshSourcesIfNecessary()
+            if json {
+                printJSON(["reloaded": true])
+            } else {
+                print("Calendar sources refresh requested.")
+            }
+        }
+    }
 
     // MARK: - Events
     struct Events: ParsableCommand {

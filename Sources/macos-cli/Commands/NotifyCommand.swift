@@ -4,7 +4,7 @@ import Foundation
 struct NotifyCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "notify",
-        abstract: "Send a macOS system notification",
+        abstract: "Send macOS notifications",
         subcommands: [SendCmd.self]
     )
 
@@ -18,7 +18,6 @@ struct NotifyCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            // Use osascript — most reliable for CLI notifications
             var script = "display notification \"\(body.escaped)\""
             script += " with title \"\(title.escaped)\""
             if let sub = subtitle { script += " subtitle \"\(sub.escaped)\"" }

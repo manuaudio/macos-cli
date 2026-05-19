@@ -3,19 +3,21 @@ import Foundation
 import CoreFoundation
 import IOKit
 import IOKit.ps
+import AppKit
 
 // MARK: - Top-level system command
 
 struct SystemCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "system",
-        abstract: "macOS system controls — battery, audio, Wi-Fi, display, clipboard",
+        abstract: "macOS system controls — battery, audio, Wi-Fi, display, clipboard, VPN",
         subcommands: [
             BatteryCommand.self,
             AudioCommand.self,
             WifiCommand.self,
             ClipboardCommand.self,
             DisplayCommand.self,
+            VPNCommand.self,
         ]
     )
 }
@@ -344,8 +346,8 @@ struct ClipboardCommand: ParsableCommand {
 struct DisplayCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "display",
-        abstract: "Display brightness control",
-        subcommands: [BrightnessCmd.self, DarkModeCmd.self]
+        abstract: "Display brightness, dark mode, and wallpaper control",
+        subcommands: [BrightnessCmd.self, DarkModeCmd.self, WallpaperCmd.self]
     )
 
     struct BrightnessCmd: ParsableCommand {
@@ -404,6 +406,59 @@ struct DisplayCommand: ParsableCommand {
                     "tell application \"System Events\" to tell appearance preferences to return dark mode"], timeout: 10, fallback: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if json { printJSON(["dark_mode": result == "true"]) } else { print("Dark mode: \(result)") }
+            }
+        }
+    }
+
+    struct WallpaperCmd: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "wallpaper",
+            abstract: "Get or set the desktop wallpaper",
+            subcommands: [GetCmd.self, SetCmd.self]
+        )
+
+        struct GetCmd: ParsableCommand {
+            static let configuration = CommandConfiguration(commandName: "get", abstract: "Get current wallpaper path for each display")
+            @Flag(name: .long, help: "Output JSON") var json = false
+
+            func run() throws {
+                let screens = NSScreen.screens
+                let items: [[String: Any]] = screens.enumerated().compactMap { index, screen in
+                    guard let url = NSWorkspace.shared.desktopImageURL(for: screen) else { return nil }
+                    return ["display": index, "name": screen.localizedName, "path": url.path]
+                }
+                if json {
+                    let data = try JSONSerialization.data(withJSONObject: items, options: [.prettyPrinted])
+                    print(String(data: data, encoding: .utf8)!)
+                } else {
+                    for item in items {
+                        print("Display \(item["display"] ?? 0) (\(item["name"] ?? "")): \(item["path"] ?? "")")
+                    }
+                }
+            }
+        }
+
+        struct SetCmd: ParsableCommand {
+            static let configuration = CommandConfiguration(commandName: "set", abstract: "Set the desktop wallpaper (all displays)")
+            @Argument(help: "Path to image file") var path: String
+            @Flag(name: .long, help: "Output JSON") var json = false
+
+            func run() throws {
+                let expanded = (path as NSString).expandingTildeInPath
+                guard FileManager.default.fileExists(atPath: expanded) else {
+                    throw ValidationError("Image file not found: \(path)")
+                }
+                let url = URL(fileURLWithPath: expanded)
+                let screens = NSScreen.screens
+                guard !screens.isEmpty else { throw ValidationError("No displays found.") }
+                for screen in screens {
+                    try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+                }
+                if json {
+                    print("{\"set\": true, \"path\": \"\(expanded)\", \"displays\": \(screens.count)}")
+                } else {
+                    print("Wallpaper set to: \(expanded) (\(screens.count) display\(screens.count == 1 ? "" : "s"))")
+                }
             }
         }
     }
@@ -476,5 +531,85 @@ extension Process {
         let tail = pipe.fileHandleForReading.readDataToEndOfFile()
         if !tail.isEmpty { lock.lock(); collected.append(tail); lock.unlock() }
         return String(data: collected, encoding: .utf8)
+    }
+}
+
+// MARK: - VPN
+
+struct VPNCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "vpn",
+        abstract: "VPN connection management — list, connect, disconnect",
+        subcommands: [StatusCmd.self, ConnectCmd.self, DisconnectCmd.self]
+    )
+
+    struct StatusCmd: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "status", abstract: "List VPN configurations and their state")
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            guard let output = Process.capture(args: ["/usr/sbin/scutil", "--nc", "list"], timeout: 10) else {
+                throw ValidationError("VPN status query timed out.")
+            }
+            let lines = output.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            let items: [[String: Any]] = lines.compactMap { line -> [String: Any]? in
+                let connected = line.contains("(Connected)")
+                let uuidPattern = try? NSRegularExpression(pattern: "[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}")
+                let nsLine = line as NSString
+                let uuidRange = uuidPattern?.firstMatch(in: line, range: NSRange(location: 0, length: nsLine.length))
+                let uuid = uuidRange.map { nsLine.substring(with: $0.range) } ?? ""
+                let nameMatch = line.range(of: "\"[^\"]+\"$", options: .regularExpression)
+                let name = nameMatch.map { String(line[$0]).trimmingCharacters(in: .init(charactersIn: "\"")) } ?? line
+                let protoMatch = line.range(of: "\\[[^\\]]+\\]", options: .regularExpression)
+                let proto = protoMatch.map { String(line[$0]).trimmingCharacters(in: .init(charactersIn: "[]")) } ?? ""
+                return ["name": name, "uuid": uuid, "protocol": proto, "connected": connected]
+            }
+            if json {
+                let data = try JSONSerialization.data(withJSONObject: items, options: [.prettyPrinted])
+                print(String(data: data, encoding: .utf8)!)
+            } else {
+                if items.isEmpty { print("No VPN configurations found."); return }
+                for item in items {
+                    let status = (item["connected"] as? Bool == true) ? "Connected" : "Disconnected"
+                    print("[\(status)] \(item["name"] ?? "") (\(item["protocol"] ?? ""))")
+                }
+            }
+        }
+    }
+
+    struct ConnectCmd: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "connect", abstract: "Connect a VPN by name")
+        @Argument(help: "VPN name (as shown in 'system vpn status')") var name: String
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let result = Process.run(args: ["/usr/sbin/scutil", "--nc", "start", name])
+            guard result == 0 else {
+                throw ValidationError("Failed to start VPN '\(name)'. Check name with 'system vpn status'.")
+            }
+            if json {
+                print("{\"connecting\": true, \"name\": \"\(name)\"}")
+            } else {
+                print("Connecting to VPN: \(name)")
+            }
+        }
+    }
+
+    struct DisconnectCmd: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "disconnect", abstract: "Disconnect a VPN by name")
+        @Argument(help: "VPN name") var name: String
+        @Flag(name: .long, help: "Output JSON") var json = false
+
+        func run() throws {
+            let result = Process.run(args: ["/usr/sbin/scutil", "--nc", "stop", name])
+            guard result == 0 else {
+                throw ValidationError("Failed to stop VPN '\(name)'.")
+            }
+            if json {
+                print("{\"disconnected\": true, \"name\": \"\(name)\"}")
+            } else {
+                print("Disconnected VPN: \(name)")
+            }
+        }
     }
 }

@@ -58,10 +58,18 @@ function openAIToolSchema(t: ToolDef) {
 }
 
 // ── HTTP handlers ───────────────────────────────────────────────────────────
+function corsHeaders(): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: { "content-type": "application/json", "cache-control": "no-store", ...corsHeaders() },
   });
 }
 
@@ -78,6 +86,7 @@ async function handleToolCalls(req: Request): Promise<Response> {
   }
 
   const calls = body as Array<{ name?: unknown; arguments?: unknown }>;
+  console.error(`[${new Date().toISOString()}] tool_calls: ${calls.map((c: any) => c.name).join(", ")}`);
   const results = await Promise.all(
     calls.map(async (call): Promise<{ name: string; result?: string; error?: string }> => {
       const name = typeof call.name === "string" ? call.name : "";
@@ -105,6 +114,10 @@ const server = Bun.serve({
   port,
   async fetch(req) {
     const url = new URL(req.url);
+
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders() });
+    }
 
     if (req.method === "GET" && url.pathname === "/v1/health") {
       return jsonResponse({ ok: true, version, tools_count: tools.length });

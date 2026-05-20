@@ -77,6 +77,8 @@ export function buildArgs(tool: ToolDef, args: Record<string, unknown>): string[
   return out;
 }
 
+const TOOL_TIMEOUT_MS = parseInt(process.env.MACOS_BRIDGE_TIMEOUT_MS ?? "60000", 10);
+
 export async function runTool(
   tool: ToolDef,
   args: Record<string, unknown>,
@@ -89,11 +91,20 @@ export async function runTool(
     stderr: "pipe",
   });
 
-  const [stdoutText, stderrText, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
+  const timeoutHandle = setTimeout(() => {
+    try { proc.kill(); } catch {}
+  }, TOOL_TIMEOUT_MS);
+
+  let stdoutText: string, stderrText: string, exitCode: number;
+  try {
+    [stdoutText, stderrText, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
 
   if (exitCode === 0) {
     return { ok: true, stdout: stdoutText, stderr: stderrText, exitCode };

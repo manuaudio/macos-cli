@@ -45,9 +45,14 @@ fi
 # ── Build ────────────────────────────────────────────────────────────────────
 echo "🔨  Building (this takes ~30s)..."
 cd "$REPO_DIR"
-swift build -c release --quiet 2>/dev/null || swift build -c release 2>&1 | grep -E "error:|Build complete"
+echo "Building macos binary..."
+if ! swift build -c release 2>&1 | tee /tmp/macos-build.log | grep -q "Build complete"; then
+    echo "Build failed. Full output:"
+    cat /tmp/macos-build.log
+    exit 1
+fi
 
-BUILT_BINARY=$(find .build -name "macos-cli" -type f ! -name "*.d" 2>/dev/null | grep release | head -1)
+BUILT_BINARY=$(find .build -path '*/release/macos-cli' -type f -not -path '*dSYM*' -not -path '*checkouts*' 2>/dev/null | head -1)
 if [ -z "$BUILT_BINARY" ]; then
     echo "❌  Build failed — binary not found"
     exit 1
@@ -66,9 +71,13 @@ echo "✅  Installed: $($INSTALL_DIR/$BINARY_NAME --version)"
 echo ""
 
 # ── Setup ────────────────────────────────────────────────────────────────────
-echo "Running permission check..."
 echo ""
-"$INSTALL_DIR/$BINARY_NAME" setup
+echo "✓ macos installed. Setting up permissions..."
+echo ""
+"$INSTALL_DIR/$BINARY_NAME" auth setup --all --yes 2>/dev/null || true
+echo ""
+echo "Run 'macos auth setup' to customize permissions interactively."
+echo "Run 'macos setup' to verify everything works."
 
 # ── Optional: install MCP + HTTP bridge ──────────────────────────────────────
 # These let local LLM stacks (Claude Desktop / Code via MCP, Ollama / LM Studio
@@ -79,6 +88,12 @@ install_wrapper_layer() {
         echo ""
         echo "ℹ️   Skipping MCP + bridge install — bun not found."
         echo "    To enable later: brew install oven-sh/bun/bun, then re-run install.sh."
+        return 0
+    fi
+
+    BUN_MAJOR=$(bun --version 2>/dev/null | cut -d. -f1)
+    if [ -z "$BUN_MAJOR" ] || [ "$BUN_MAJOR" -lt 1 ]; then
+        echo "ℹ️  Bun 1.0+ required for MCP server build. Run: brew install oven-sh/bun/bun"
         return 0
     fi
 

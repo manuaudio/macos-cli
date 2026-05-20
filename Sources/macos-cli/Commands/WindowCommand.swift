@@ -115,6 +115,7 @@ struct WindowCommand: ParsableCommand {
         @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
 
         func run() throws {
+            try Auth.check("window.write")
             // Activate via NSRunningApplication first
             let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "")
             let _ = runningApps  // unused — use osascript activate instead
@@ -226,11 +227,15 @@ struct WindowCommand: ParsableCommand {
             var posRef: CFTypeRef?
             AXUIElementCopyAttributeValue(targetWindow, kAXPositionAttribute as CFString, &posRef)
             var winOrigin = CGPoint.zero
-            if let p = posRef { AXValueGetValue(p as! AXValue, .cgPoint, &winOrigin) }
+            if let p = posRef, CFGetTypeID(p) == AXValueGetTypeID() {
+                AXValueGetValue(p as! AXValue, .cgPoint, &winOrigin)
+            }
             var sizeRef: CFTypeRef?
             AXUIElementCopyAttributeValue(targetWindow, kAXSizeAttribute as CFString, &sizeRef)
             var winSize = CGSize.zero
-            if let s = sizeRef { AXValueGetValue(s as! AXValue, .cgSize, &winSize) }
+            if let s = sizeRef, CFGetTypeID(s) == AXValueGetTypeID() {
+                AXValueGetValue(s as! AXValue, .cgSize, &winSize)
+            }
 
             let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
             let winCenterAK = CGPoint(

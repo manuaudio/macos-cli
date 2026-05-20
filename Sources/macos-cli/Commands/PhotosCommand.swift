@@ -165,6 +165,7 @@ struct PhotosCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("photos.write")
             let escapedName  = jxaEscape(name)
             let escapedAlbum = jxaEscape(album)
             let script = """

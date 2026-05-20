@@ -334,12 +334,16 @@ struct ClipboardCommand: ParsableCommand {
         @Argument(help: "Text to copy") var text: String
 
         func run() throws {
+            try Auth.check("clipboard.write")
+            guard let data = text.data(using: .utf8) else {
+                throw ValidationError("Text is not valid UTF-8")
+            }
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/pbcopy")
             let pipe = Pipe()
             proc.standardInput = pipe
             try proc.run()
-            pipe.fileHandleForWriting.write(text.data(using: .utf8)!)
+            pipe.fileHandleForWriting.write(data)
             pipe.fileHandleForWriting.closeFile()
             proc.waitUntilExit()
             print("Copied \(text.count) chars to clipboard")

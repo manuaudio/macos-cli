@@ -303,6 +303,9 @@ struct AxCommand: ParsableCommand {
                 guard let app = focused else {
                     throw ValidationError("No focused application — pass --app <name>")
                 }
+                guard CFGetTypeID(app) == AXUIElementGetTypeID() else {
+                    throw ValidationError("Focused application element has unexpected type")
+                }
                 target = app as! AXUIElement
             } else {
                 let ws = NSWorkspace.shared

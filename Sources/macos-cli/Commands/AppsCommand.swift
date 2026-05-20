@@ -47,6 +47,7 @@ struct AppsCommand: ParsableCommand {
         @Argument(help: "App name or bundle ID (e.g. 'Safari', 'com.apple.Safari')") var app: String
 
         func run() throws {
+            try Auth.check("apps.launch")
             let ws = NSWorkspace.shared
             // Try bundle ID first
             if app.contains(".") {
@@ -57,10 +58,25 @@ struct AppsCommand: ParsableCommand {
                     return
                 }
             }
-            // Try by name
-            let result = Process.capture(args: ["/usr/bin/open", "-a", app], timeout: 5, fallback: "")
-            if result.contains("error") || result.contains("Error") {
-                throw ValidationError("App '\(app)' not found")
+            // Try by name via JXA envelope
+            let escapedApp = jxaEscape(app)
+            let script = """
+            try {
+                Application('\(escapedApp)').activate();
+                JSON.stringify({ok:true,result:'launched'});
+            } catch(e) { JSON.stringify({ok:false,error:String(e&&e.message?e.message:e)}); }
+            """
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 5, fallback: "")
+            if let env = parseJXAEnvelope(raw) {
+                if !env.ok {
+                    throw ValidationError("App '\(app)' not found or could not be launched: \(env.error)")
+                }
+            } else {
+                // fallback: try open -a
+                let code = Process.run(args: ["/usr/bin/open", "-a", app])
+                guard code == 0 else {
+                    throw ValidationError("App '\(app)' not found")
+                }
             }
             print("Launched: \(app)")
         }

@@ -96,38 +96,37 @@ export async function runTool(
     stderr: "pipe",
   });
 
-  const executionPromise = Promise.all([
+  const executionPromise: Promise<RunResult> = Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
-  ]);
+  ]).then(([stdoutText, stderrText, exitCode]) => {
+    if (exitCode === 0) {
+      return { ok: true, stdout: stdoutText, stderr: stderrText, exitCode } as RunResult;
+    }
+    // Auth denied is a known, non-fatal failure shape:
+    //   "'calendar.delete' is denied. Run `macos auth grant calendar.delete` ..."
+    const denied = /is denied(\.| by default)/.test(stderrText);
+    return {
+      ok: false,
+      stdout: stdoutText,
+      stderr: stderrText,
+      exitCode,
+      error: denied
+        ? `capability denied: ${stderrText.trim()}`
+        : `macos ${cliArgs.join(" ")} exited ${exitCode}: ${stderrText.trim() || "no stderr"}`,
+    } as RunResult;
+  });
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => {
+  let timeoutHandle: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<RunResult>((resolve) => {
+    timeoutHandle = setTimeout(() => {
       try { proc.kill(); } catch {}
-      reject(new Error(`Tool timed out after ${TOOL_TIMEOUT_MS / 1000}s`));
-    }, TOOL_TIMEOUT_MS)
-  );
+      resolve({ ok: false, stdout: "", stderr: "", exitCode: -1, error: `Tool timed out after ${TOOL_TIMEOUT_MS / 1000}s` });
+    }, TOOL_TIMEOUT_MS);
+  });
 
-  const [stdoutText, stderrText, exitCode] = await Promise.race([
-    executionPromise,
-    timeoutPromise,
-  ]);
-
-  if (exitCode === 0) {
-    return { ok: true, stdout: stdoutText, stderr: stderrText, exitCode };
-  }
-
-  // Auth denied is a known, non-fatal failure shape:
-  //   "'calendar.delete' is denied. Run `macos auth grant calendar.delete` ..."
-  const denied = /is denied(\.| by default)/.test(stderrText);
-  return {
-    ok: false,
-    stdout: stdoutText,
-    stderr: stderrText,
-    exitCode,
-    error: denied
-      ? `capability denied: ${stderrText.trim()}`
-      : `macos ${cliArgs.join(" ")} exited ${exitCode}: ${stderrText.trim() || "no stderr"}`,
-  };
+  const result = await Promise.race([executionPromise, timeoutPromise]);
+  clearTimeout(timeoutHandle!); // no-op if timeout already fired
+  return result;
 }

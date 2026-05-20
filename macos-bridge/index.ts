@@ -98,11 +98,15 @@ async function handleToolCalls(req: Request): Promise<Response> {
       if (!tool) {
         return { name, error: `unknown tool: ${name}` };
       }
-      const r = await runTool(tool, args);
-      if (r.ok) {
-        return { name, result: r.stdout || "(no output)" };
+      try {
+        const r = await runTool(tool, args);
+        if (r.ok) {
+          return { name, result: r.stdout || "(no output)" };
+        }
+        return { name, error: r.error ?? r.stderr };
+      } catch (e: any) {
+        return { name, error: e?.message ?? String(e) };
       }
-      return { name, error: r.error ?? r.stderr };
     }),
   );
 

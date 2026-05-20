@@ -1,0 +1,2670 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "0.6.2",
+  "binary": "macos",
+  "binary_paths": ["/usr/local/bin/macos", "/opt/homebrew/bin/macos"],
+  "tools": [
+    {
+      "name": "macos_calendar_list",
+      "description": "List Apple Calendar events in a date range.",
+      "command": ["calendar", "events"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "from": {"type": "string", "description": "Start date YYYY-MM-DD (default: today)"},
+          "to": {"type": "string", "description": "End date YYYY-MM-DD (default: 7 days from start)"},
+          "calendar": {"type": "string", "description": "Calendar name filter"},
+          "json": {"type": "boolean", "description": "Output as JSON"}
+        },
+        "required": []
+      },
+      "flags": {"from": "--from", "to": "--to", "calendar": "--calendar", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_calendar_create",
+      "description": "Create a calendar event. Adds 1-day and 1-hour alerts automatically.",
+      "command": ["calendar", "create"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string", "description": "Event title"},
+          "start": {"type": "string", "description": "Start: YYYY-MM-DD HH:MM"},
+          "end": {"type": "string", "description": "End: YYYY-MM-DD HH:MM (default: 1h after start)"},
+          "calendar": {"type": "string", "description": "Calendar name"},
+          "location": {"type": "string", "description": "Location"},
+          "notes": {"type": "string", "description": "Notes"},
+          "all_day": {"type": "boolean", "description": "All-day event"},
+          "json": {"type": "boolean", "description": "Output as JSON"}
+        },
+        "required": ["title", "start"]
+      },
+      "flags": {"title": "--title", "start": "--start", "end": "--end", "calendar": "--calendar", "location": "--location", "notes": "--notes", "all_day": "--all-day", "json": "--json"},
+      "flags_boolean": ["all_day", "json"]
+    },
+    {
+      "name": "macos_calendar_delete",
+      "description": "Delete calendar events by title and date.",
+      "command": ["calendar", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string", "description": "Event title"},
+          "date": {"type": "string", "description": "Date YYYY-MM-DD"},
+          "calendar": {"type": "string", "description": "Calendar name filter"},
+          "contains": {"type": "boolean", "description": "Match title as substring"},
+          "all": {"type": "boolean", "description": "Delete all matching events"},
+          "json": {"type": "boolean", "description": "Output as JSON"}
+        },
+        "required": ["title", "date"]
+      },
+      "flags": {"title": "--title", "date": "--date", "calendar": "--calendar", "contains": "--contains", "all": "--all", "json": "--json"},
+      "flags_boolean": ["contains", "all", "json"]
+    },
+    {
+      "name": "macos_calendar_update",
+      "description": "Update an existing calendar event by ID.",
+      "command": ["calendar", "update"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "description": "Event identifier"},
+          "title": {"type": "string"},
+          "start": {"type": "string", "description": "YYYY-MM-DD HH:MM"},
+          "end": {"type": "string", "description": "YYYY-MM-DD HH:MM"},
+          "location": {"type": "string"},
+          "notes": {"type": "string"},
+          "calendar": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["id"]
+      },
+      "flags": {"id": "--id", "title": "--title", "start": "--start", "end": "--end", "location": "--location", "notes": "--notes", "calendar": "--calendar", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_calendar_calendars",
+      "description": "List all calendars.",
+      "command": ["calendar", "calendars"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_calendar_reload",
+      "description": "Force Calendar to refresh from iCloud / CalDAV sources.",
+      "command": ["calendar", "reload"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_reminders_create",
+      "description": "Create a new reminder.",
+      "command": ["reminders", "create"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "due": {"type": "string", "description": "YYYY-MM-DD or 'YYYY-MM-DD HH:MM'"},
+          "list": {"type": "string"},
+          "notes": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["title"]
+      },
+      "flags": {"title": "--title", "due": "--due", "list": "--list", "notes": "--notes", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_reminders_list",
+      "description": "List reminders.",
+      "command": ["reminders", "list"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "list": {"type": "string", "description": "List name filter"},
+          "completed": {"type": "boolean", "description": "Include completed"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"list": "--list", "completed": "--completed", "json": "--json"},
+      "flags_boolean": ["completed", "json"]
+    },
+    {
+      "name": "macos_reminders_done",
+      "description": "Mark a reminder as complete by ID.",
+      "command": ["reminders", "done"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "description": "Reminder calendar item identifier", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": ["id"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_reminders_delete",
+      "description": "Delete a reminder by ID.",
+      "command": ["reminders", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["id"]
+      },
+      "flags": {"id": "--id", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_reminders_update",
+      "description": "Update a reminder by ID.",
+      "command": ["reminders", "update"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "title": {"type": "string"},
+          "due": {"type": "string"},
+          "notes": {"type": "string"},
+          "list": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["id"]
+      },
+      "flags": {"id": "--id", "title": "--title", "due": "--due", "notes": "--notes", "list": "--list", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_reminders_uncomplete",
+      "description": "Mark a reminder as not complete.",
+      "command": ["reminders", "uncomplete"],
+      "parameters": {
+        "type": "object",
+        "properties": {"id": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["id"]
+      },
+      "flags": {"id": "--id", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_reminders_lists",
+      "description": "List all reminder lists.",
+      "command": ["reminders", "lists"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_contacts_search",
+      "description": "Search contacts by name, phone, or email.",
+      "command": ["contacts", "search"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "positional": true},
+          "limit": {"type": "integer", "description": "Max results (default 20)"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["query"]
+      },
+      "flags": {"limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_contacts_get",
+      "description": "Get a contact by ID.",
+      "command": ["contacts", "get"],
+      "parameters": {
+        "type": "object",
+        "properties": {"id": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["id"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_contacts_create",
+      "description": "Create a new contact.",
+      "command": ["contacts", "create"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "first_name": {"type": "string"},
+          "last_name": {"type": "string"},
+          "organization": {"type": "string"},
+          "job_title": {"type": "string"},
+          "phone": {"type": "string", "description": "Phone number"},
+          "phone_label": {"type": "string", "description": "mobile/home/work"},
+          "email": {"type": "string"},
+          "email_label": {"type": "string"},
+          "note": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"first_name": "--first-name", "last_name": "--last-name", "organization": "--organization", "job_title": "--job-title", "phone": "--phone", "phone_label": "--phone-label", "email": "--email", "email_label": "--email-label", "note": "--note", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_contacts_update",
+      "description": "Update fields on an existing contact.",
+      "command": ["contacts", "update"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "positional": true},
+          "first_name": {"type": "string"},
+          "last_name": {"type": "string"},
+          "organization": {"type": "string"},
+          "job_title": {"type": "string"},
+          "add_phone": {"type": "string"},
+          "add_phone_label": {"type": "string"},
+          "add_email": {"type": "string"},
+          "add_email_label": {"type": "string"},
+          "note": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["id"]
+      },
+      "flags": {"first_name": "--first-name", "last_name": "--last-name", "organization": "--organization", "job_title": "--job-title", "add_phone": "--add-phone", "add_phone_label": "--add-phone-label", "add_email": "--add-email", "add_email_label": "--add-email-label", "note": "--note", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_contacts_delete",
+      "description": "Delete a contact by ID.",
+      "command": ["contacts", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {"id": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["id"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_contacts_get_note",
+      "description": "Read the note field of a contact.",
+      "command": ["contacts", "get-note"],
+      "parameters": {
+        "type": "object",
+        "properties": {"id": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["id"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_contacts_set_note",
+      "description": "Write the note field of a contact.",
+      "command": ["contacts", "set-note"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "positional": true},
+          "text": {"type": "string"},
+          "if_empty": {"type": "boolean", "description": "Only write if currently empty"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["id", "text"]
+      },
+      "flags": {"text": "--text", "if_empty": "--if-empty", "json": "--json"},
+      "flags_boolean": ["if_empty", "json"]
+    },
+
+    {
+      "name": "macos_notes_list",
+      "description": "List all notes (title + modified date).",
+      "command": ["notes", "list"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_notes_search",
+      "description": "Search notes by title.",
+      "command": ["notes", "search"],
+      "parameters": {
+        "type": "object",
+        "properties": {"query": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["query"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_notes_read",
+      "description": "Read a note's full content by title.",
+      "command": ["notes", "read"],
+      "parameters": {
+        "type": "object",
+        "properties": {"title": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["title"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_notes_create",
+      "description": "Create a new note.",
+      "command": ["notes", "create"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "body": {"type": "string"},
+          "folder": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["title"]
+      },
+      "flags": {"title": "--title", "body": "--body", "folder": "--folder", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_notes_delete",
+      "description": "Delete a note by title (partial match, first match).",
+      "command": ["notes", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["title"]
+      },
+      "flags": {"title": "--title", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_notes_update",
+      "description": "Update a note's title and/or body.",
+      "command": ["notes", "update"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string", "description": "Note title to find (partial match)"},
+          "new_title": {"type": "string"},
+          "body": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["title"]
+      },
+      "flags": {"title": "--title", "new_title": "--new-title", "body": "--body", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_notes_folders",
+      "description": "List all Notes folders.",
+      "command": ["notes", "folders"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_notes_create_folder",
+      "description": "Create a new Notes folder.",
+      "command": ["notes", "create-folder"],
+      "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["name"]
+      },
+      "flags": {"name": "--name", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_mail_draft",
+      "description": "Create a draft email in Apple Mail.",
+      "command": ["mail", "draft"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "to": {"type": "string"},
+          "subject": {"type": "string"},
+          "body": {"type": "string"},
+          "cc": {"type": "string"},
+          "open": {"type": "boolean", "description": "Open the draft after creating"}
+        },
+        "required": ["to", "subject"]
+      },
+      "flags": {"to": "--to", "subject": "--subject", "body": "--body", "cc": "--cc", "open": "--open"},
+      "flags_boolean": ["open"]
+    },
+    {
+      "name": "macos_mail_send",
+      "description": "Send an email immediately via Mail.",
+      "command": ["mail", "send"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "to": {"type": "string"},
+          "subject": {"type": "string"},
+          "body": {"type": "string"},
+          "cc": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["to", "subject"]
+      },
+      "flags": {"to": "--to", "subject": "--subject", "body": "--body", "cc": "--cc", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_mail_search",
+      "description": "Search Apple Mail messages.",
+      "command": ["mail", "search"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "positional": true},
+          "limit": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["query"]
+      },
+      "flags": {"limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_mail_read",
+      "description": "Read full message content for messages matching a query.",
+      "command": ["mail", "read"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string"},
+          "limit": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["query"]
+      },
+      "flags": {"query": "--query", "limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_mail_delete",
+      "description": "Delete messages matching a query.",
+      "command": ["mail", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string"},
+          "limit": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["query"]
+      },
+      "flags": {"query": "--query", "limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_mail_mark",
+      "description": "Mark messages as read/unread/flagged/unflagged.",
+      "command": ["mail", "mark"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string"},
+          "read": {"type": "boolean"},
+          "unread": {"type": "boolean"},
+          "flagged": {"type": "boolean"},
+          "unflagged": {"type": "boolean"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["query"]
+      },
+      "flags": {"query": "--query", "read": "--read", "unread": "--unread", "flagged": "--flagged", "unflagged": "--unflagged", "json": "--json"},
+      "flags_boolean": ["read", "unread", "flagged", "unflagged", "json"]
+    },
+    {
+      "name": "macos_mail_reply",
+      "description": "Reply to a message matching a query.",
+      "command": ["mail", "reply"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string"},
+          "body": {"type": "string"},
+          "all": {"type": "boolean", "description": "Reply-all"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["query", "body"]
+      },
+      "flags": {"query": "--query", "body": "--body", "all": "--all", "json": "--json"},
+      "flags_boolean": ["all", "json"]
+    },
+    {
+      "name": "macos_mail_accounts",
+      "description": "List Mail accounts.",
+      "command": ["mail", "accounts"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_mail_refresh",
+      "description": "Force Mail to check all accounts now.",
+      "command": ["mail", "refresh"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_mail_mailboxes",
+      "description": "List all mailboxes across Mail accounts.",
+      "command": ["mail", "mailboxes"],
+      "parameters": {
+        "type": "object",
+        "properties": {"account": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"account": "--account", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_messages_send",
+      "description": "Send an iMessage or SMS.",
+      "command": ["messages", "send"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "to": {"type": "string", "description": "Name, phone, or email"},
+          "text": {"type": "string"}
+        },
+        "required": ["to", "text"]
+      },
+      "flags": {"to": "--to", "text": "--text"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_messages_conversations",
+      "description": "List recent iMessage conversations.",
+      "command": ["messages", "conversations"],
+      "parameters": {
+        "type": "object",
+        "properties": {"limit": {"type": "integer"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_messages_read",
+      "description": "Read messages from a conversation.",
+      "command": ["messages", "read"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "with": {"type": "string", "description": "Participant name/phone/email"},
+          "limit": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["with"]
+      },
+      "flags": {"with": "--with", "limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_messages_delete",
+      "description": "Delete a conversation.",
+      "command": ["messages", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {"with": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["with"]
+      },
+      "flags": {"with": "--with", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_screen_info",
+      "description": "Display screen dimensions and scaling.",
+      "command": ["screen", "info"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_screen_capture",
+      "description": "Take a screenshot (legacy alias; prefer screenshot tools).",
+      "command": ["screen", "capture"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "output": {"type": "string", "description": "Output file path"},
+          "window": {"type": "boolean", "description": "Capture window selection interactively"}
+        },
+        "required": []
+      },
+      "flags": {"output": "--output", "window": "--window"},
+      "flags_boolean": ["window"]
+    },
+    {
+      "name": "macos_screen_lock",
+      "description": "Lock the screen.",
+      "command": ["screen", "lock"],
+      "parameters": {"type": "object", "properties": {}, "required": []},
+      "flags": {},
+      "flags_boolean": []
+    },
+
+    {
+      "name": "macos_screenshot_full",
+      "description": "Capture the full screen to a PNG.",
+      "command": ["screenshot", "full"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "output": {"type": "string", "description": "Output path (default /tmp/screenshot.png)"},
+          "silent": {"type": "boolean", "description": "No shutter sound"}
+        },
+        "required": []
+      },
+      "flags": {"output": "--output", "silent": "--silent"},
+      "flags_boolean": ["silent"]
+    },
+    {
+      "name": "macos_screenshot_window",
+      "description": "Capture a specific app window.",
+      "command": ["screenshot", "window"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string"},
+          "output": {"type": "string"}
+        },
+        "required": ["app"]
+      },
+      "flags": {"app": "--app", "output": "--output"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_screenshot_region",
+      "description": "Capture a rectangular region.",
+      "command": ["screenshot", "region"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "x": {"type": "integer"},
+          "y": {"type": "integer"},
+          "width": {"type": "integer"},
+          "height": {"type": "integer"},
+          "output": {"type": "string"}
+        },
+        "required": ["x", "y", "width", "height"]
+      },
+      "flags": {"x": "--x", "y": "--y", "width": "--width", "height": "--height", "output": "--output"},
+      "flags_boolean": []
+    },
+
+    {
+      "name": "macos_ocr_full",
+      "description": "OCR the entire screen using Vision.",
+      "command": ["ocr", "full"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_ocr_region",
+      "description": "OCR a screen region.",
+      "command": ["ocr", "region"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "x": {"type": "integer"},
+          "y": {"type": "integer"},
+          "width": {"type": "integer"},
+          "height": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["x", "y", "width", "height"]
+      },
+      "flags": {"x": "--x", "y": "--y", "width": "--width", "height": "--height", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_ocr_file",
+      "description": "OCR an image file.",
+      "command": ["ocr", "file"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"path": "--path", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_pdf_text",
+      "description": "Extract text from a PDF file.",
+      "command": ["pdf", "text"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "page": {"type": "integer", "description": "1-indexed page (default all)"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["path"]
+      },
+      "flags": {"path": "--path", "page": "--page", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_pdf_info",
+      "description": "Get PDF metadata.",
+      "command": ["pdf", "info"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"path": "--path", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_apps_list",
+      "description": "List running applications.",
+      "command": ["apps", "list"],
+      "parameters": {
+        "type": "object",
+        "properties": {"all": {"type": "boolean"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"all": "--all", "json": "--json"},
+      "flags_boolean": ["all", "json"]
+    },
+    {
+      "name": "macos_apps_launch",
+      "description": "Launch an application.",
+      "command": ["apps", "launch"],
+      "parameters": {
+        "type": "object",
+        "properties": {"app": {"type": "string", "positional": true}},
+        "required": ["app"]
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_apps_quit",
+      "description": "Quit an application.",
+      "command": ["apps", "quit"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string", "positional": true},
+          "force": {"type": "boolean"}
+        },
+        "required": ["app"]
+      },
+      "flags": {"force": "--force"},
+      "flags_boolean": ["force"]
+    },
+    {
+      "name": "macos_apps_info",
+      "description": "Show frontmost app info.",
+      "command": ["apps", "info"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_safari_tabs",
+      "description": "List open Safari tabs.",
+      "command": ["safari", "tabs"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_safari_open",
+      "description": "Open a URL in Safari.",
+      "command": ["safari", "open"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "positional": true},
+          "new_tab": {"type": "boolean"}
+        },
+        "required": ["url"]
+      },
+      "flags": {"new_tab": "--new-tab"},
+      "flags_boolean": ["new_tab"]
+    },
+    {
+      "name": "macos_safari_read",
+      "description": "Get text content of current Safari tab.",
+      "command": ["safari", "read"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "window": {"type": "integer"},
+          "tab": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"window": "--window", "tab": "--tab", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_safari_execute",
+      "description": "Execute JavaScript in the current Safari tab.",
+      "command": ["safari", "execute"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "js": {"type": "string", "positional": true},
+          "window": {"type": "integer"}
+        },
+        "required": ["js"]
+      },
+      "flags": {"window": "--window"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_safari_new_tab",
+      "description": "Open a new Safari tab at a URL.",
+      "command": ["safari", "new-tab"],
+      "parameters": {
+        "type": "object",
+        "properties": {"url": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["url"]
+      },
+      "flags": {"url": "--url", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_safari_close",
+      "description": "Close a Safari tab.",
+      "command": ["safari", "close"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string"},
+          "index": {"type": "string", "description": "window:tab e.g. 0:1"},
+          "current": {"type": "boolean"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"url": "--url", "index": "--index", "current": "--current", "json": "--json"},
+      "flags_boolean": ["current", "json"]
+    },
+    {
+      "name": "macos_safari_reload",
+      "description": "Reload a Safari tab.",
+      "command": ["safari", "reload"],
+      "parameters": {
+        "type": "object",
+        "properties": {"url": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"url": "--url", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_safari_history",
+      "description": "Browse Safari history.",
+      "command": ["safari", "history"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": {"type": "integer"},
+          "query": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"limit": "--limit", "query": "--query", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_safari_bookmarks",
+      "description": "List Safari bookmarks.",
+      "command": ["safari", "bookmarks"],
+      "parameters": {
+        "type": "object",
+        "properties": {"query": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"query": "--query", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_system_clipboard_get",
+      "description": "Read clipboard contents.",
+      "command": ["system", "clipboard", "get"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_clipboard_set",
+      "description": "Write text to the clipboard.",
+      "command": ["system", "clipboard", "set"],
+      "parameters": {
+        "type": "object",
+        "properties": {"text": {"type": "string", "positional": true}},
+        "required": ["text"]
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_system_battery",
+      "description": "Battery status.",
+      "command": ["system", "battery"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_audio_volume",
+      "description": "Get or set system volume (0-100).",
+      "command": ["system", "audio", "volume"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "level": {"type": "integer", "description": "0-100 (omit to get)", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_audio_mute",
+      "description": "Get or set mute state.",
+      "command": ["system", "audio", "mute"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {"type": "string", "description": "on or off (omit to get)", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_audio_devices",
+      "description": "List audio input/output devices.",
+      "command": ["system", "audio", "devices"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_audio_now_playing",
+      "description": "Currently playing media info.",
+      "command": ["system", "audio", "now-playing"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_wifi_status",
+      "description": "Current Wi-Fi connection.",
+      "command": ["system", "wifi", "status"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_wifi_networks",
+      "description": "Scan for nearby Wi-Fi networks.",
+      "command": ["system", "wifi", "networks"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_wifi_join",
+      "description": "Join a Wi-Fi network.",
+      "command": ["system", "wifi", "join"],
+      "parameters": {
+        "type": "object",
+        "properties": {"ssid": {"type": "string"}, "password": {"type": "string"}},
+        "required": ["ssid"]
+      },
+      "flags": {"ssid": "--ssid", "password": "--password"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_system_wifi_leave",
+      "description": "Disconnect from current Wi-Fi.",
+      "command": ["system", "wifi", "leave"],
+      "parameters": {"type": "object", "properties": {}, "required": []},
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_system_display_brightness",
+      "description": "Get or set display brightness (0.0–1.0).",
+      "command": ["system", "display", "brightness"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "level": {"type": "number", "description": "0.0–1.0 (omit to get)", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_display_dark_mode",
+      "description": "Toggle or get dark mode.",
+      "command": ["system", "display", "dark-mode"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {"type": "string", "description": "on or off (omit to get)", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_display_wallpaper_get",
+      "description": "Get current wallpaper path.",
+      "command": ["system", "display", "wallpaper", "get"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_display_wallpaper_set",
+      "description": "Set the desktop wallpaper.",
+      "command": ["system", "display", "wallpaper", "set"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": ["path"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_vpn_status",
+      "description": "List VPN configurations and state.",
+      "command": ["system", "vpn", "status"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_vpn_connect",
+      "description": "Connect a VPN by name.",
+      "command": ["system", "vpn", "connect"],
+      "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["name"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_vpn_disconnect",
+      "description": "Disconnect a VPN by name.",
+      "command": ["system", "vpn", "disconnect"],
+      "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["name"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_lock",
+      "description": "Lock the screen immediately.",
+      "command": ["system", "lock"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_system_sleep",
+      "description": "Put the Mac to sleep.",
+      "command": ["system", "sleep"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_storage_volumes",
+      "description": "List mounted volumes.",
+      "command": ["storage", "volumes"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_storage_usage",
+      "description": "Disk usage of a path.",
+      "command": ["storage", "usage"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "description": "Path to measure (default home)", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_notify_send",
+      "description": "Send a macOS notification.",
+      "command": ["notify", "send"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "body": {"type": "string"},
+          "subtitle": {"type": "string"},
+          "sound": {"type": "string", "description": "default, Hero, Ping, Purr, Sosumi, etc."},
+          "json": {"type": "boolean"}
+        },
+        "required": ["title"]
+      },
+      "flags": {"title": "--title", "body": "--body", "subtitle": "--subtitle", "sound": "--sound", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_speech_say",
+      "description": "Speak text aloud using a macOS voice.",
+      "command": ["speech", "say"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {"type": "string", "positional": true},
+          "voice": {"type": "string"},
+          "rate": {"type": "integer", "description": "Words per minute"},
+          "output": {"type": "string", "description": "Output audio file path"}
+        },
+        "required": ["text"]
+      },
+      "flags": {"voice": "--voice", "rate": "--rate", "output": "--output"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_speech_voices",
+      "description": "List available TTS voices.",
+      "command": ["speech", "voices"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_info_system",
+      "description": "CPU, RAM, uptime, OS info.",
+      "command": ["info", "system"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_info_network",
+      "description": "Network interfaces and IPs.",
+      "command": ["info", "network"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_info_power_sleep",
+      "description": "Put Mac to sleep.",
+      "command": ["info", "power", "sleep"],
+      "parameters": {"type": "object", "properties": {}, "required": []},
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_info_power_caffeinate",
+      "description": "Prevent sleep for N seconds (0 = indefinite).",
+      "command": ["info", "power", "caffeinate"],
+      "parameters": {
+        "type": "object",
+        "properties": {"seconds": {"type": "integer", "positional": true}},
+        "required": []
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_info_power_settings",
+      "description": "Show power management settings.",
+      "command": ["info", "power", "settings"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_spaces_list",
+      "description": "List Mission Control spaces.",
+      "command": ["spaces", "list"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_spaces_switch",
+      "description": "Switch to a space by 1-based index.",
+      "command": ["spaces", "switch"],
+      "parameters": {
+        "type": "object",
+        "properties": {"index": {"type": "integer", "positional": true}},
+        "required": ["index"]
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+
+    {
+      "name": "macos_audio_list",
+      "description": "List all audio devices.",
+      "command": ["audio", "list"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_audio_info",
+      "description": "Show default input + output devices.",
+      "command": ["audio", "info"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_audio_set_output",
+      "description": "Set the default audio output device.",
+      "command": ["audio", "set-output"],
+      "parameters": {
+        "type": "object",
+        "properties": {"device": {"type": "string", "positional": true}},
+        "required": ["device"]
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_audio_set_input",
+      "description": "Set the default audio input device.",
+      "command": ["audio", "set-input"],
+      "parameters": {
+        "type": "object",
+        "properties": {"device": {"type": "string", "positional": true}},
+        "required": ["device"]
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+
+    {
+      "name": "macos_script_run",
+      "description": "Execute JXA or AppleScript and return the result.",
+      "command": ["script", "run"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "jxa": {"type": "string", "description": "JavaScript for Automation code"},
+          "applescript": {"type": "string", "description": "AppleScript code"},
+          "file": {"type": "string", "description": "Path to .js or .scpt file"},
+          "timeout": {"type": "integer", "description": "Seconds (default 30)"},
+          "silent": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"jxa": "--jxa", "applescript": "--applescript", "file": "--file", "timeout": "--timeout", "silent": "--silent"},
+      "flags_boolean": ["silent"]
+    },
+
+    {
+      "name": "macos_shortcuts_list",
+      "description": "List all Apple Shortcuts.",
+      "command": ["shortcuts", "list"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_shortcuts_run",
+      "description": "Run a shortcut by name.",
+      "command": ["shortcuts", "run"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "positional": true},
+          "input": {"type": "string", "description": "Input text passed via stdin"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["name"]
+      },
+      "flags": {"input": "--input", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_timemachine_status",
+      "description": "Show backup status and last-backup time.",
+      "command": ["timemachine", "status"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_timemachine_start",
+      "description": "Start a Time Machine backup immediately.",
+      "command": ["timemachine", "start"],
+      "parameters": {"type": "object", "properties": {}, "required": []},
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_timemachine_stop",
+      "description": "Cancel a running Time Machine backup.",
+      "command": ["timemachine", "stop"],
+      "parameters": {"type": "object", "properties": {}, "required": []},
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_timemachine_list_snapshots",
+      "description": "List local Time Machine snapshots.",
+      "command": ["timemachine", "list-snapshots"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_timemachine_list_destinations",
+      "description": "List configured backup destinations.",
+      "command": ["timemachine", "list-destinations"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_menu_list",
+      "description": "List top-level menu items for an app.",
+      "command": ["menu", "list"],
+      "parameters": {
+        "type": "object",
+        "properties": {"app": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"app": "--app", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_menu_click",
+      "description": "Click a menu item by path (e.g. 'View > Show Sidebar').",
+      "command": ["menu", "click"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "positional": true, "description": "Menu path separated by ' > '"},
+          "app": {"type": "string"}
+        },
+        "required": ["path"]
+      },
+      "flags": {"app": "--app"},
+      "flags_boolean": []
+    },
+
+    {
+      "name": "macos_mouse_move",
+      "description": "Move cursor to position.",
+      "command": ["mouse", "move"],
+      "parameters": {
+        "type": "object",
+        "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}},
+        "required": ["x", "y"]
+      },
+      "flags": {"x": "--x", "y": "--y"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_mouse_click",
+      "description": "Click at position.",
+      "command": ["mouse", "click"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "x": {"type": "integer"},
+          "y": {"type": "integer"},
+          "right": {"type": "boolean"},
+          "double": {"type": "boolean"}
+        },
+        "required": ["x", "y"]
+      },
+      "flags": {"x": "--x", "y": "--y", "right": "--right", "double": "--double"},
+      "flags_boolean": ["right", "double"]
+    },
+    {
+      "name": "macos_mouse_drag",
+      "description": "Click and drag from (from_x, from_y) to (to_x, to_y).",
+      "command": ["mouse", "drag"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "from_x": {"type": "integer"},
+          "from_y": {"type": "integer"},
+          "to_x": {"type": "integer"},
+          "to_y": {"type": "integer"}
+        },
+        "required": ["from_x", "from_y", "to_x", "to_y"]
+      },
+      "flags": {"from_x": "--from-x", "from_y": "--from-y", "to_x": "--to-x", "to_y": "--to-y"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_mouse_scroll",
+      "description": "Scroll at position (positive = up, negative = down).",
+      "command": ["mouse", "scroll"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "x": {"type": "integer"},
+          "y": {"type": "integer"},
+          "amount": {"type": "integer"}
+        },
+        "required": ["x", "y"]
+      },
+      "flags": {"x": "--x", "y": "--y", "amount": "--amount"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_mouse_position",
+      "description": "Get current cursor position.",
+      "command": ["mouse", "position"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_keyboard_type",
+      "description": "Type text into the frontmost app.",
+      "command": ["keyboard", "type"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {"type": "string", "positional": true},
+          "delay": {"type": "integer", "description": "Delay between keystrokes in ms"}
+        },
+        "required": ["text"]
+      },
+      "flags": {"delay": "--delay"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_keyboard_key",
+      "description": "Send a key combo (e.g. 'cmd+c', 'escape').",
+      "command": ["keyboard", "key"],
+      "parameters": {
+        "type": "object",
+        "properties": {"combo": {"type": "string", "positional": true}},
+        "required": ["combo"]
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+
+    {
+      "name": "macos_ax_find",
+      "description": "Find UI elements matching a name.",
+      "command": ["ax", "find"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "positional": true},
+          "app": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["name"]
+      },
+      "flags": {"app": "--app", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_ax_click",
+      "description": "Click a UI element by name.",
+      "command": ["ax", "click"],
+      "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "positional": true}, "app": {"type": "string"}},
+        "required": ["name"]
+      },
+      "flags": {"app": "--app"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_ax_read",
+      "description": "Dump the UI tree of an app (top 2 levels).",
+      "command": ["ax", "read"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_ax_hints",
+      "description": "List interactive UI elements with hint numbers.",
+      "command": ["ax", "hints"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string"},
+          "click": {"type": "integer", "description": "Click element with this hint #"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"app": "--app", "click": "--click", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_window_list",
+      "description": "List visible windows with positions and sizes.",
+      "command": ["window", "list"],
+      "parameters": {
+        "type": "object",
+        "properties": {"app": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"app": "--app", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_window_move",
+      "description": "Move a window to (x, y).",
+      "command": ["window", "move"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string", "positional": true},
+          "x": {"type": "integer"},
+          "y": {"type": "integer"},
+          "title": {"type": "string"}
+        },
+        "required": ["app", "x", "y"]
+      },
+      "flags": {"x": "--x", "y": "--y", "title": "--title"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_window_resize",
+      "description": "Resize a window.",
+      "command": ["window", "resize"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string", "positional": true},
+          "width": {"type": "integer"},
+          "height": {"type": "integer"},
+          "title": {"type": "string"}
+        },
+        "required": ["app", "width", "height"]
+      },
+      "flags": {"width": "--width", "height": "--height", "title": "--title"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_window_focus",
+      "description": "Bring a window to the front.",
+      "command": ["window", "focus"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string", "positional": true},
+          "title": {"type": "string"}
+        },
+        "required": ["app"]
+      },
+      "flags": {"title": "--title"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_window_minimize",
+      "description": "Minimize a window.",
+      "command": ["window", "minimize"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string", "positional": true},
+          "title": {"type": "string"}
+        },
+        "required": ["app"]
+      },
+      "flags": {"title": "--title"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_window_fullscreen",
+      "description": "Toggle fullscreen for an app window.",
+      "command": ["window", "fullscreen"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string", "positional": true},
+          "title": {"type": "string"}
+        },
+        "required": ["app"]
+      },
+      "flags": {"title": "--title"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_window_maximize",
+      "description": "Expand a window to fill the visible screen area.",
+      "command": ["window", "maximize"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string", "positional": true},
+          "title": {"type": "string"}
+        },
+        "required": ["app"]
+      },
+      "flags": {"title": "--title"},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_window_snap",
+      "description": "Snap a window to a screen region.",
+      "command": ["window", "snap"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": {"type": "string", "positional": true},
+          "position": {"type": "string", "positional": true, "description": "left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|left-third|center-third|right-third"},
+          "title": {"type": "string"}
+        },
+        "required": ["app", "position"]
+      },
+      "flags": {"title": "--title"},
+      "flags_boolean": []
+    },
+
+    {
+      "name": "macos_photos_albums",
+      "description": "List all photo albums.",
+      "command": ["photos", "albums"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_photos_search",
+      "description": "Search photos by keyword.",
+      "command": ["photos", "search"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "positional": true},
+          "limit": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["query"]
+      },
+      "flags": {"limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_photos_recent",
+      "description": "List recently added photos.",
+      "command": ["photos", "recent"],
+      "parameters": {
+        "type": "object",
+        "properties": {"limit": {"type": "integer"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_photos_export",
+      "description": "Export photo(s) to a directory.",
+      "command": ["photos", "export"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Photo filename/title (partial)"},
+          "to": {"type": "string", "description": "Destination directory"},
+          "limit": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["name"]
+      },
+      "flags": {"name": "--name", "to": "--to", "limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_photos_add_to_album",
+      "description": "Add a photo to an album.",
+      "command": ["photos", "add-to-album"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "album": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["name", "album"]
+      },
+      "flags": {"name": "--name", "album": "--album", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_photos_delete",
+      "description": "Delete photo(s) from the library (default limit 1).",
+      "command": ["photos", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "limit": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["name"]
+      },
+      "flags": {"name": "--name", "limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_music_status",
+      "description": "Current track + playback state.",
+      "command": ["music", "status"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_music_play",
+      "description": "Play or resume.",
+      "command": ["music", "play"],
+      "parameters": {"type": "object", "properties": {}, "required": []},
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_music_pause",
+      "description": "Pause playback.",
+      "command": ["music", "pause"],
+      "parameters": {"type": "object", "properties": {}, "required": []},
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_music_next",
+      "description": "Skip to next track.",
+      "command": ["music", "next"],
+      "parameters": {"type": "object", "properties": {}, "required": []},
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_music_prev",
+      "description": "Go to previous track.",
+      "command": ["music", "prev"],
+      "parameters": {"type": "object", "properties": {}, "required": []},
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_music_volume",
+      "description": "Get or set Music app volume (0-100).",
+      "command": ["music", "volume"],
+      "parameters": {
+        "type": "object",
+        "properties": {"level": {"type": "integer", "positional": true}},
+        "required": []
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_music_search",
+      "description": "Search Music library; plays the first result.",
+      "command": ["music", "search"],
+      "parameters": {
+        "type": "object",
+        "properties": {"query": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["query"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_music_playlists",
+      "description": "List Music playlists.",
+      "command": ["music", "playlists"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_music_add_to_playlist",
+      "description": "Add a track to a playlist.",
+      "command": ["music", "add-to-playlist"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "track": {"type": "string"},
+          "playlist": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["track", "playlist"]
+      },
+      "flags": {"track": "--track", "playlist": "--playlist", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_music_queue",
+      "description": "Show upcoming tracks.",
+      "command": ["music", "queue"],
+      "parameters": {
+        "type": "object",
+        "properties": {"limit": {"type": "integer"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_finder_selected",
+      "description": "Get paths of currently selected Finder files.",
+      "command": ["finder", "selected"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_finder_reveal",
+      "description": "Reveal a file or folder in Finder.",
+      "command": ["finder", "reveal"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "positional": true}},
+        "required": ["path"]
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_finder_open",
+      "description": "Open a file or folder in Finder.",
+      "command": ["finder", "open"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "positional": true}},
+        "required": ["path"]
+      },
+      "flags": {},
+      "flags_boolean": []
+    },
+    {
+      "name": "macos_finder_cwd",
+      "description": "Get current Finder folder.",
+      "command": ["finder", "cwd"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_finder_new_folder",
+      "description": "Create a new folder and reveal it.",
+      "command": ["finder", "new-folder"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"path": "--path", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_finder_rename",
+      "description": "Rename a file or folder.",
+      "command": ["finder", "rename"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["from", "to"]
+      },
+      "flags": {"from": "--from", "to": "--to", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_finder_tag",
+      "description": "Read or write Finder color tags.",
+      "command": ["finder", "tag"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "add": {"type": "string", "description": "red, orange, yellow, green, blue, purple, gray"},
+          "remove": {"type": "string"},
+          "list": {"type": "boolean"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["path"]
+      },
+      "flags": {"path": "--path", "add": "--add", "remove": "--remove", "list": "--list", "json": "--json"},
+      "flags_boolean": ["list", "json"]
+    },
+    {
+      "name": "macos_finder_go_to",
+      "description": "Navigate front Finder window to a directory.",
+      "command": ["finder", "go-to"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"path": "--path", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_finder_show_hidden",
+      "description": "Toggle or check Finder's 'Show hidden files' setting.",
+      "command": ["finder", "show-hidden"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "on": {"type": "boolean"},
+          "off": {"type": "boolean"},
+          "status": {"type": "boolean"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"on": "--on", "off": "--off", "status": "--status", "json": "--json"},
+      "flags_boolean": ["on", "off", "status", "json"]
+    },
+
+    {
+      "name": "macos_focus_status",
+      "description": "Show current Focus mode and DND state.",
+      "command": ["focus", "status"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_focus_modes",
+      "description": "List configured Focus modes.",
+      "command": ["focus", "modes"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_focus_on",
+      "description": "Enable Do Not Disturb (or a specific Focus mode).",
+      "command": ["focus", "on"],
+      "parameters": {
+        "type": "object",
+        "properties": {"mode": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"mode": "--mode", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_focus_off",
+      "description": "Disable Do Not Disturb.",
+      "command": ["focus", "off"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_process_list",
+      "description": "List running processes.",
+      "command": ["process", "list"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sort": {"type": "string", "description": "cpu, mem, name, pid"},
+          "limit": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"sort": "--sort", "limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_process_find",
+      "description": "Find processes by name (substring match).",
+      "command": ["process", "find"],
+      "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["name"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_process_kill",
+      "description": "Kill a process by PID or name.",
+      "command": ["process", "kill"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pid": {"type": "integer"},
+          "name": {"type": "string"},
+          "signal": {"type": "string", "description": "TERM, KILL, HUP (default TERM)"},
+          "all": {"type": "boolean"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"pid": "--pid", "name": "--name", "signal": "--signal", "all": "--all", "json": "--json"},
+      "flags_boolean": ["all", "json"]
+    },
+
+    {
+      "name": "macos_disk_list",
+      "description": "List all disks and partitions.",
+      "command": ["disk", "list"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_disk_info",
+      "description": "Detailed info for a disk or volume.",
+      "command": ["disk", "info"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_disk_eject",
+      "description": "Eject a disk or volume.",
+      "command": ["disk", "eject"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_disk_unmount",
+      "description": "Unmount a volume (without ejecting disk).",
+      "command": ["disk", "unmount"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "positional": true},
+          "force": {"type": "boolean"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["path"]
+      },
+      "flags": {"force": "--force", "json": "--json"},
+      "flags_boolean": ["force", "json"]
+    },
+    {
+      "name": "macos_disk_mount",
+      "description": "Mount a disk image or volume.",
+      "command": ["disk", "mount"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_location_get",
+      "description": "Get current location via CoreLocation.",
+      "command": ["location", "get"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "json": {"type": "boolean"},
+          "timeout": {"type": "number", "description": "Seconds to wait (default 15)"}
+        },
+        "required": []
+      },
+      "flags": {"json": "--json", "timeout": "--timeout"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_bluetooth_list",
+      "description": "List paired Bluetooth devices.",
+      "command": ["bluetooth", "list"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_bluetooth_connect",
+      "description": "Connect a paired Bluetooth device.",
+      "command": ["bluetooth", "connect"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "device": {"type": "string", "positional": true, "description": "Name or address"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["device"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_bluetooth_disconnect",
+      "description": "Disconnect a Bluetooth device.",
+      "command": ["bluetooth", "disconnect"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "device": {"type": "string", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": ["device"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_trash_add",
+      "description": "Move a file or folder to Trash.",
+      "command": ["trash", "add"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_trash_empty",
+      "description": "Empty the Trash.",
+      "command": ["trash", "empty"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_trash_list",
+      "description": "List Trash contents.",
+      "command": ["trash", "list"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_spotlight_search",
+      "description": "Spotlight (mdfind) filesystem search.",
+      "command": ["spotlight", "search"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "positional": true},
+          "name_only": {"type": "boolean"},
+          "kind": {"type": "string", "description": "app, image, pdf, audio, video, document, folder"},
+          "limit": {"type": "integer"},
+          "in_dir": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["query"]
+      },
+      "flags": {"name_only": "--name-only", "kind": "--kind", "limit": "--limit", "in_dir": "--in-dir", "json": "--json"},
+      "flags_boolean": ["name_only", "json"]
+    },
+
+    {
+      "name": "macos_file_list",
+      "description": "List directory contents.",
+      "command": ["file", "list"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "positional": true},
+          "all": {"type": "boolean", "description": "Include hidden files"},
+          "json": {"type": "boolean"}
+        },
+        "required": []
+      },
+      "flags": {"all": "--all", "json": "--json"},
+      "flags_boolean": ["all", "json"]
+    },
+    {
+      "name": "macos_file_copy",
+      "description": "Copy a file or directory.",
+      "command": ["file", "copy"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "src": {"type": "string", "positional": true},
+          "dst": {"type": "string", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": ["src", "dst"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_file_move",
+      "description": "Move or rename a file or directory.",
+      "command": ["file", "move"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "src": {"type": "string", "positional": true},
+          "dst": {"type": "string", "positional": true},
+          "json": {"type": "boolean"}
+        },
+        "required": ["src", "dst"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_file_delete",
+      "description": "Permanently delete (use trash_add for recoverable).",
+      "command": ["file", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_file_stat",
+      "description": "File metadata.",
+      "command": ["file", "stat"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_file_read",
+      "description": "Print text file contents (10MB safety cap).",
+      "command": ["file", "read"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "positional": true},
+          "max_bytes": {"type": "integer"},
+          "force": {"type": "boolean"}
+        },
+        "required": ["path"]
+      },
+      "flags": {"max_bytes": "--max-bytes", "force": "--force"},
+      "flags_boolean": ["force"]
+    },
+
+    {
+      "name": "macos_login_items_list",
+      "description": "List current login items.",
+      "command": ["login-items", "list"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_login_items_add",
+      "description": "Add an app to login items.",
+      "command": ["login-items", "add"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "positional": true, "description": "Path to .app bundle"},
+          "hidden": {"type": "boolean"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["path"]
+      },
+      "flags": {"hidden": "--hidden", "json": "--json"},
+      "flags_boolean": ["hidden", "json"]
+    },
+    {
+      "name": "macos_login_items_remove",
+      "description": "Remove a login item by name.",
+      "command": ["login-items", "remove"],
+      "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["name"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_dock_list",
+      "description": "List pinned Dock apps.",
+      "command": ["dock", "list"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_dock_add",
+      "description": "Pin an app to the Dock.",
+      "command": ["dock", "add"],
+      "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["path"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_dock_remove",
+      "description": "Remove an app from the Dock by name.",
+      "command": ["dock", "remove"],
+      "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "positional": true}, "json": {"type": "boolean"}},
+        "required": ["name"]
+      },
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_dock_restart",
+      "description": "Restart the Dock (applies pending changes).",
+      "command": ["dock", "restart"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_defaults_read",
+      "description": "Read a defaults domain or key.",
+      "command": ["defaults", "read"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "domain": {"type": "string"},
+          "key": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["domain"]
+      },
+      "flags": {"domain": "--domain", "key": "--key", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_defaults_write",
+      "description": "Write a value to a defaults key.",
+      "command": ["defaults", "write"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "domain": {"type": "string"},
+          "key": {"type": "string"},
+          "value": {"type": "string"},
+          "type": {"type": "string", "description": "string, bool, int, float"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["domain", "key", "value"]
+      },
+      "flags": {"domain": "--domain", "key": "--key", "value": "--value", "type": "--type", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_defaults_delete",
+      "description": "Delete a defaults key.",
+      "command": ["defaults", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "domain": {"type": "string"},
+          "key": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["domain", "key"]
+      },
+      "flags": {"domain": "--domain", "key": "--key", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_defaults_list_domains",
+      "description": "List all defaults domains.",
+      "command": ["defaults", "list-domains"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_keychain_get",
+      "description": "Retrieve a Keychain password.",
+      "command": ["keychain", "get"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "service": {"type": "string"},
+          "account": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["service"]
+      },
+      "flags": {"service": "--service", "account": "--account", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_keychain_set",
+      "description": "Save or update a Keychain password.",
+      "command": ["keychain", "set"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "service": {"type": "string"},
+          "account": {"type": "string"},
+          "password": {"type": "string"},
+          "update": {"type": "boolean"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["service", "account", "password"]
+      },
+      "flags": {"service": "--service", "account": "--account", "password": "--password", "update": "--update", "json": "--json"},
+      "flags_boolean": ["update", "json"]
+    },
+    {
+      "name": "macos_keychain_delete",
+      "description": "Delete a Keychain item.",
+      "command": ["keychain", "delete"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "service": {"type": "string"},
+          "account": {"type": "string"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["service"]
+      },
+      "flags": {"service": "--service", "account": "--account", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_keychain_list",
+      "description": "List Keychain service/account metadata (no passwords).",
+      "command": ["keychain", "list"],
+      "parameters": {
+        "type": "object",
+        "properties": {"query": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"query": "--query", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_network_ping",
+      "description": "Ping a host.",
+      "command": ["network", "ping"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "host": {"type": "string"},
+          "count": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["host"]
+      },
+      "flags": {"host": "--host", "count": "--count", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_network_dns",
+      "description": "Resolve a hostname to IPs.",
+      "command": ["network", "dns"],
+      "parameters": {
+        "type": "object",
+        "properties": {"host": {"type": "string"}, "json": {"type": "boolean"}},
+        "required": ["host"]
+      },
+      "flags": {"host": "--host", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_network_port",
+      "description": "Check if a TCP port is open.",
+      "command": ["network", "port"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "host": {"type": "string"},
+          "port": {"type": "integer"},
+          "timeout": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["host", "port"]
+      },
+      "flags": {"host": "--host", "port": "--port", "timeout": "--timeout", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_network_traceroute",
+      "description": "Trace the route to a host.",
+      "command": ["network", "traceroute"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "host": {"type": "string"},
+          "max_hops": {"type": "integer"},
+          "json": {"type": "boolean"}
+        },
+        "required": ["host"]
+      },
+      "flags": {"host": "--host", "max_hops": "--max-hops", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_network_interfaces",
+      "description": "List network interfaces and IPs.",
+      "command": ["network", "interfaces"],
+      "parameters": {"type": "object", "properties": {"json": {"type": "boolean"}}, "required": []},
+      "flags": {"json": "--json"},
+      "flags_boolean": ["json"]
+    },
+
+    {
+      "name": "macos_voice_memos_list",
+      "description": "List all voice memos.",
+      "command": ["voice-memos", "list"],
+      "parameters": {
+        "type": "object",
+        "properties": {"limit": {"type": "integer"}, "json": {"type": "boolean"}},
+        "required": []
+      },
+      "flags": {"limit": "--limit", "json": "--json"},
+      "flags_boolean": ["json"]
+    },
+    {
+      "name": "macos_voice_memos_export",
+      "description": "Copy a voice memo to a destination path.",
+      "command": ["voice-memos", "export"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string", "positional": true},
+          "out": {"type": "string"}
+        },
+        "required": ["title"]
+      },
+      "flags": {"out": "--out"},
+      "flags_boolean": []
+    }
+  ]
+}

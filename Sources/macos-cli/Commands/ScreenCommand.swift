@@ -60,6 +60,7 @@ struct ScreenCommand: ParsableCommand {
         @Flag(name: .long, help: "Capture window selection interactively") var window = false
 
         func run() throws {
+            try Auth.check("screen.capture")
             var args = ["/usr/sbin/screencapture", "-x"]  // -x = no sound
             if window { args.append("-w") }
             args.append(output)

@@ -80,6 +80,7 @@ struct KeychainCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("keychain.delete")
             var args = ["/usr/bin/security", "delete-generic-password", "-s", service]
             if let a = account { args += ["-a", a] }
             let code = Process.run(args: args)

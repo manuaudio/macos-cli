@@ -91,7 +91,13 @@ struct AudioDeviceCommand: ParsableCommand {
     // Match device by name substring or by numeric ID string
     private static func findDevice(_ query: String, input: Bool) throws -> AudioDeviceID {
         let ids = try allDeviceIDs()
-        if let idNum = AudioDeviceID(query), ids.contains(idNum) { return idNum }
+        if let idNum = AudioDeviceID(query), ids.contains(idNum) {
+            guard hasScope(idNum, input: input) else {
+                let kind = input ? "input" : "output"
+                throw ValidationError("Device \(idNum) is not an \(kind) device. Run `macos audio list` to see devices.")
+            }
+            return idNum
+        }
         guard let match = ids.first(where: {
             hasScope($0, input: input) &&
             deviceName($0).lowercased().contains(query.lowercased())
@@ -157,14 +163,16 @@ struct AudioDeviceCommand: ParsableCommand {
             try Auth.check("audio.read")
             let outID = AudioDeviceCommand.getDefault(input: false)
             let inID  = AudioDeviceCommand.getDefault(input: true)
+            let outName = outID == 0 ? "(unknown)" : AudioDeviceCommand.deviceName(outID)
+            let inName  = inID  == 0 ? "(unknown)" : AudioDeviceCommand.deviceName(inID)
             if json {
                 printJSON([
-                    "output": ["id": outID, "name": AudioDeviceCommand.deviceName(outID)],
-                    "input":  ["id": inID,  "name": AudioDeviceCommand.deviceName(inID)]
+                    "output": ["id": outID, "name": outName],
+                    "input":  ["id": inID,  "name": inName]
                 ])
             } else {
-                print("Output: \(AudioDeviceCommand.deviceName(outID))")
-                print("Input:  \(AudioDeviceCommand.deviceName(inID))")
+                print("Output: \(outName)")
+                print("Input:  \(inName)")
             }
         }
     }

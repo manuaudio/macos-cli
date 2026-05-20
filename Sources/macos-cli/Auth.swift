@@ -9,22 +9,19 @@ struct Auth {
     // Call at top of any destructive run(). Throws ValidationError if denied.
     static func check(_ capability: String) throws {
         let caps = load()
-        if caps.isEmpty {
-            // No config file — apply default policy: reads allowed, writes denied
-            if isWriteCapability(capability) {
+        // Use defaultCapabilities as the fallback when no config file exists
+        let allowed = caps[capability] ?? defaultCapabilities[capability] ?? !isWriteCapability(capability)
+        if !allowed {
+            if caps.isEmpty {
                 throw ValidationError(
                     "'\(capability)' is denied by default. Run `macos auth setup` to configure permissions, " +
                     "or `macos auth grant \(capability)` to enable this capability."
                 )
+            } else {
+                throw ValidationError(
+                    "'\(capability)' is denied. Run `macos auth grant \(capability)` to enable it."
+                )
             }
-            return
-        }
-        // Config exists — use stored value; fall back to default policy
-        let allowed = caps[capability] ?? !isWriteCapability(capability)
-        if !allowed {
-            throw ValidationError(
-                "'\(capability)' is denied. Run `macos auth grant \(capability)` to enable it."
-            )
         }
     }
 
@@ -46,7 +43,7 @@ struct Auth {
 
     // Conservative default: anything with a "write" suffix or known destructive verb is a write capability
     static func isWriteCapability(_ capability: String) -> Bool {
-        let writeSuffixes = ["write", "send", "delete", "set", "run", "click", "shutdown", "reboot", "get"]
+        let writeSuffixes = ["write", "send", "delete", "set", "run", "click", "shutdown", "reboot"]
         return writeSuffixes.contains { capability.hasSuffix($0) }
     }
 
@@ -59,8 +56,10 @@ struct Auth {
         ("mail.delete",        false, "Delete emails"),
         ("contacts.read",      true,  "Read contacts"),
         ("contacts.write",     false, "Create and modify contacts"),
+        ("contacts.delete",    false, "Delete contacts"),
         ("keychain.get",       false, "Read keychain entries"),
         ("keychain.set",       false, "Write keychain entries"),
+        ("keychain.delete",    false, "Delete keychain entries"),
         ("reminders.read",     true,  "Read reminders"),
         ("reminders.write",    true,  "Create and modify reminders"),
         ("reminders.delete",   false, "Delete reminders"),

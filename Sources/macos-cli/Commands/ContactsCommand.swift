@@ -358,6 +358,7 @@ struct ContactsCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("contacts.delete")
             let store = CNContactStore()
             try requestAccess(store)
 

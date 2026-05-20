@@ -466,6 +466,7 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("mail.send")
             let escaped     = query.replacingOccurrences(of: "'", with: "\\'")
             let escapedBody = body.replacingOccurrences(of: "'", with: "\\'")
                                    .replacingOccurrences(of: "\\n", with: "\\\\n")

@@ -21,8 +21,8 @@ struct MenuCommand: ParsableCommand {
 
             let procClause: String
             if let app = app {
-                let escaped = app.replacingOccurrences(of: "'", with: "\\'")
-                procClause = "se.applicationProcesses.whose({name: '\(escaped)'})[0]"
+                let escaped = app.replacingOccurrences(of: "\"", with: "\\\"")
+                procClause = "se.applicationProcesses.whose({name: \"\(escaped)\"})[0]"
             } else {
                 procClause = "se.applicationProcesses.whose({frontmost: true})[0]"
             }
@@ -73,29 +73,29 @@ struct MenuCommand: ParsableCommand {
 
             let procClause: String
             if let app = app {
-                let escaped = app.replacingOccurrences(of: "'", with: "\\'")
-                procClause = "se.applicationProcesses.whose({name: '\(escaped)'})[0]"
+                let escaped = app.replacingOccurrences(of: "\"", with: "\\\"")
+                procClause = "se.applicationProcesses.whose({name: \"\(escaped)\"})[0]"
             } else {
                 procClause = "se.applicationProcesses.whose({frontmost: true})[0]"
             }
 
-            var chain = "proc.menuBars[0].menuBarItems.whose({title: '\(parts[0].replacingOccurrences(of: "'", with: "\\'"))'})[0]"
-            if parts.count > 1 {
-                chain += ".menus[0]"
-                for part in parts.dropFirst() {
-                    let escaped = part.replacingOccurrences(of: "'", with: "\\'")
-                    chain += ".menuItems.whose({title: '\(escaped)'})[0]"
-                }
-                chain += ".click()"
-            } else {
-                chain += ".click()"
-            }
+            // Build JSON array of path parts for JXA
+            let partsJSON = parts.map { part -> String in
+                let escaped = part.replacingOccurrences(of: "\\", with: "\\\\")
+                                  .replacingOccurrences(of: "\"", with: "\\\"")
+                return "\"\(escaped)\""
+            }.joined(separator: ", ")
 
             let script = """
             const se = Application('System Events');
             const proc = \(procClause);
             if (!proc) throw new Error('App not found');
-            \(chain);
+            const path = [\(partsJSON)];
+            let target = proc.menuBars[0].menuBarItems.whose({title: path[0]})[0].menus[0];
+            for (let i = 1; i < path.length - 1; i++) {
+                target = target.menuItems.whose({title: path[i]})[0].menus[0];
+            }
+            target.menuItems.whose({title: path[path.length - 1]})[0].click();
             'ok';
             """
             let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "error")

@@ -159,7 +159,7 @@ struct WindowCommand: ParsableCommand {
             try axWindow(app: app, title: title) { win in
                 var currentRef: CFTypeRef?
                 AXUIElementCopyAttributeValue(win, "AXFullScreen" as CFString, &currentRef)
-                let current = (currentRef as? Bool) ?? false
+                let current = (currentRef as? NSNumber)?.boolValue ?? false
                 AXUIElementSetAttributeValue(win, "AXFullScreen" as CFString, (!current) as CFTypeRef)
                 print("\(self.app) \(!current ? "entered" : "exited") fullscreen")
             }

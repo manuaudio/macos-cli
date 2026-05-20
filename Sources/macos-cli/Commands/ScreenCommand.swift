@@ -73,6 +73,7 @@ struct ScreenCommand: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "lock", abstract: "Lock the screen")
 
         func run() throws {
+            try Auth.check("screen.lock")
             Process.run(args: ["/usr/bin/pmset", "displaysleepnow"])
             // Also trigger screensaver lock
             let script = "tell application \"System Events\" to start screensaver"

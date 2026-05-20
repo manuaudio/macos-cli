@@ -29,6 +29,7 @@ struct RemindersCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("reminders.write")
             let store = try EventKitStore.authorized(for: .reminder)
             let reminder = EKReminder(eventStore: store)
             reminder.title = title
@@ -205,6 +206,7 @@ struct RemindersCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("reminders.delete")
             let store = try EventKitStore.authorized(for: .reminder)
             let pred = store.predicateForReminders(in: nil)
             var found: EKReminder?
@@ -254,6 +256,7 @@ struct RemindersCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("reminders.write")
             guard title != nil || due != nil || notes != nil || list != nil else {
                 throw ValidationError("Specify at least one field to update: --title, --due, --notes, --list")
             }

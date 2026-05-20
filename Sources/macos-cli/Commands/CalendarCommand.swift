@@ -122,6 +122,7 @@ struct CalendarCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("calendar.write")
             let store = try EventKitStore.authorized(for: .event)
 
             let df = DateFormatter()
@@ -212,6 +213,7 @@ struct CalendarCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("calendar.delete")
             let store = try EventKitStore.authorized(for: .event)
 
             let dateDf = DateFormatter()
@@ -295,6 +297,7 @@ struct CalendarCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("calendar.write")
             guard title != nil || start != nil || end != nil || location != nil || notes != nil || calendar != nil else {
                 throw ValidationError("Specify at least one field to update: --title, --start, --end, --location, --notes, --calendar")
             }

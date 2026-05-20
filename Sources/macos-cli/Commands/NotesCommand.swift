@@ -165,6 +165,7 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
         var json = false
 
         func run() throws {
+            try Auth.check("notes.delete")
             let escaped = title.replacingOccurrences(of: "'", with: "\\'")
             let script = """
             const Notes = Application('Notes');
@@ -214,6 +215,7 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
         var json = false
 
         func run() throws {
+            try Auth.check("notes.write")
             guard newTitle != nil || body != nil else {
                 throw ValidationError("Specify at least --new-title or --body to update")
             }
@@ -345,6 +347,7 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
         var json = false
 
         func run() throws {
+            try Auth.check("notes.write")
             let escapedTitle = title.replacingOccurrences(of: "'", with: "\\'")
                                    .replacingOccurrences(of: "\\n", with: "\\\\n")
             let escapedBody  = body.replacingOccurrences(of: "'", with: "\\'")

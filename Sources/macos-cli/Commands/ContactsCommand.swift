@@ -247,6 +247,7 @@ struct ContactsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("contacts.write")
             guard !firstName.isEmpty || !lastName.isEmpty || organization != nil else {
                 throw ValidationError("Provide at least --first-name, --last-name, or --organization")
             }
@@ -298,6 +299,7 @@ struct ContactsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("contacts.write")
             let store = CNContactStore()
             try requestAccess(store)
 

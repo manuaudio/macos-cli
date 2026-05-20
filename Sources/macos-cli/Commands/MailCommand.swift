@@ -161,6 +161,7 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("mail.send")
             let escapedTo      = to.replacingOccurrences(of: "'", with: "\\'")
             let escapedSubject = subject.replacingOccurrences(of: "'", with: "\\'")
                                         .replacingOccurrences(of: "\\n", with: "\\\\n")
@@ -285,6 +286,7 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("mail.delete")
             let escaped = query.replacingOccurrences(of: "'", with: "\\'")
             let script = """
             const Mail = Application('Mail');

@@ -20,6 +20,7 @@ struct KeychainCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("keychain.get")
             var args = ["/usr/bin/security", "find-generic-password", "-s", service]
             if let a = account { args += ["-a", a] }
             args.append("-w")
@@ -54,6 +55,7 @@ struct KeychainCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("keychain.set")
             var args = ["/usr/bin/security", "add-generic-password", "-s", service, "-a", account, "-w", password]
             if update { args.append("-U") }
             let code = Process.run(args: args)

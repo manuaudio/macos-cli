@@ -22,6 +22,7 @@ struct ScreenshotCommand: ParsableCommand {
         @Flag(name: .long, help: "No shutter sound") var silent = true
 
         func run() throws {
+            try Auth.check("screen.capture")
             var args = ["/usr/sbin/screencapture", "-x"]  // -x = no sound
             args.append(output)
             let code = Process.run(args: args)
@@ -44,6 +45,7 @@ struct ScreenshotCommand: ParsableCommand {
         var output: String = "/tmp/screenshot.png"
 
         func run() throws {
+            try Auth.check("screen.capture")
             let escapedApp = app
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "'", with: "\\'")
@@ -133,6 +135,7 @@ except Exception as e:
         var output: String = "/tmp/screenshot.png"
 
         func run() throws {
+            try Auth.check("screen.capture")
             // screencapture -R x,y,w,h
             let args = ["/usr/sbin/screencapture", "-x", "-R", "\(x),\(y),\(width),\(height)", output]
             let code = Process.run(args: args)

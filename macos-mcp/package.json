@@ -1,0 +1,18 @@
+{
+  "name": "macos-mcp",
+  "version": "0.6.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run index.ts",
+    "build": "bun build --compile --minify --target=bun-darwin-x64 ./index.ts --outfile macos-mcp",
+    "build:arm": "bun build --compile --minify --target=bun-darwin-arm64 ./index.ts --outfile macos-mcp"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.4.0"
+  }
+}

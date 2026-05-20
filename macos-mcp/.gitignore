@@ -1,0 +1,4 @@
+node_modules/
+dist/
+macos-mcp
+bun.lockb

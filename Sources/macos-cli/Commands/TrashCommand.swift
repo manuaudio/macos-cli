@@ -43,7 +43,7 @@ struct TrashCommand: ParsableCommand {
                 throw ValidationError("Empty trash timed out after 30s. Trash may be large.")
             }
             if json {
-                print("{\"emptied\": true}")
+                printJSON(["emptied": true])
             } else {
                 print("Trash emptied.")
             }

@@ -468,7 +468,7 @@ struct DisplayCommand: ParsableCommand {
                     try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
                 }
                 if json {
-                    print("{\"set\": true, \"path\": \"\(expanded)\", \"displays\": \(screens.count)}")
+                    printJSON(["set": true, "path": expanded, "displays": screens.count] as [String: Any])
                 } else {
                     print("Wallpaper set to: \(expanded) (\(screens.count) display\(screens.count == 1 ? "" : "s"))")
                 }
@@ -575,7 +575,7 @@ struct VPNCommand: ParsableCommand {
                 throw ValidationError("Failed to start VPN '\(name)'. Check name with 'system vpn status'.")
             }
             if json {
-                print("{\"connecting\": true, \"name\": \"\(name)\"}")
+                printJSON(["connecting": true, "name": name] as [String: Any])
             } else {
                 print("Connecting to VPN: \(name)")
             }
@@ -594,7 +594,7 @@ struct VPNCommand: ParsableCommand {
                 throw ValidationError("Failed to stop VPN '\(name)'.")
             }
             if json {
-                print("{\"disconnected\": true, \"name\": \"\(name)\"}")
+                printJSON(["disconnected": true, "name": name] as [String: Any])
             } else {
                 print("Disconnected VPN: \(name)")
             }

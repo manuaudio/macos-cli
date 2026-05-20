@@ -251,16 +251,16 @@ struct FinderCommand: ParsableCommand {
             let tagCLI = "/usr/local/bin/tag"
             if FileManager.default.fileExists(atPath: tagCLI) {
                 if let colorToAdd = add {
-                    let result = Process.capture(args: [tagCLI, "--add", colorToAdd, expanded], timeout: 5, fallback: "")
-                    if result.lowercased().contains("error") {
-                        throw ValidationError("Could not add tag '\(colorToAdd)': \(result.prefix(200))")
+                    let code = Process.run(args: [tagCLI, "--add", colorToAdd, expanded])
+                    guard code == 0 else {
+                        throw ValidationError("Could not add tag '\(colorToAdd)' (tag exited \(code))")
                     }
                     if !json { print("Added tag '\(colorToAdd)' to \(expanded)") }
                 }
                 if let colorToRemove = remove {
-                    let result = Process.capture(args: [tagCLI, "--remove", colorToRemove, expanded], timeout: 5, fallback: "")
-                    if result.lowercased().contains("error") {
-                        throw ValidationError("Could not remove tag '\(colorToRemove)': \(result.prefix(200))")
+                    let code = Process.run(args: [tagCLI, "--remove", colorToRemove, expanded])
+                    guard code == 0 else {
+                        throw ValidationError("Could not remove tag '\(colorToRemove)' (tag exited \(code))")
                     }
                     if !json { print("Removed tag '\(colorToRemove)' from \(expanded)") }
                 }

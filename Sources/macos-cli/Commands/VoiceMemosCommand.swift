@@ -80,6 +80,7 @@ struct VoiceMemosCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("voicememos.read")
             let memos = loadMemos().prefix(limit)
             if memos.isEmpty {
                 fputs("No voice memos found. Recordings dir: \(recordingsBase().path)\n", stderr)
@@ -121,6 +122,7 @@ struct VoiceMemosCommand: ParsableCommand {
         var out: String?
 
         func run() throws {
+            try Auth.check("voicememos.read")
             let memos = loadMemos()
             guard let memo = memos.first(where: { $0.title.localizedCaseInsensitiveContains(title) }) else {
                 throw ValidationError("No memo matching '\(title)' found.")

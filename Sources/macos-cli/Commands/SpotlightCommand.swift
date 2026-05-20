@@ -19,6 +19,7 @@ struct SpotlightCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("spotlight.search")
+            let safeQuery = query.replacingOccurrences(of: "'", with: "\\'")
             var args = ["/usr/bin/mdfind"]
 
             if let kindFilter = kind {
@@ -33,16 +34,16 @@ struct SpotlightCommand: ParsableCommand {
                 ]
                 if let predicate = kindMap[kindFilter] {
                     let nameClause = nameOnly
-                        ? "kMDItemFSName == '*\(query)*'cd"
-                        : "kMDItemTextContent == '*\(query)*'cd || kMDItemFSName == '*\(query)*'cd"
+                        ? "kMDItemFSName == '*\(safeQuery)*'cd"
+                        : "kMDItemTextContent == '*\(safeQuery)*'cd || kMDItemFSName == '*\(safeQuery)*'cd"
                     args.append("\(predicate) && (\(nameClause))")
                 } else {
                     throw ValidationError("Unknown kind '\(kindFilter)'. Use: app, image, pdf, audio, video, document, folder")
                 }
             } else if nameOnly {
-                args += ["-name", query]
+                args += ["-name", safeQuery]
             } else {
-                args.append(query)
+                args.append(safeQuery)
             }
 
             if let dir = inDir {
@@ -82,7 +83,7 @@ struct SpotlightCommand: ParsableCommand {
                 let data = try JSONSerialization.data(withJSONObject: wrapper, options: [.prettyPrinted])
                 print(String(data: data, encoding: .utf8)!)
             } else {
-                if paths.isEmpty { print("No results for: \(query)"); return }
+                if paths.isEmpty { print("No results for: \(safeQuery)"); return }
                 print("Found \(allPaths.count) matches (showing \(paths.count)):")
                 paths.forEach { print($0) }
             }

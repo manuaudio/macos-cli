@@ -4,6 +4,8 @@
 
 import { existsSync } from "node:fs";
 
+const TOOL_TIMEOUT_MS = parseInt(process.env.MACOS_MCP_TIMEOUT_MS ?? "60000", 10);
+
 export interface ToolDef {
   name: string;
   description: string;
@@ -94,10 +96,22 @@ export async function runTool(
     stderr: "pipe",
   });
 
-  const [stdoutText, stderrText, exitCode] = await Promise.all([
+  const executionPromise = Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
+  ]);
+
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => {
+      try { proc.kill(); } catch {}
+      reject(new Error(`Tool timed out after ${TOOL_TIMEOUT_MS / 1000}s`));
+    }, TOOL_TIMEOUT_MS)
+  );
+
+  const [stdoutText, stderrText, exitCode] = await Promise.race([
+    executionPromise,
+    timeoutPromise,
   ]);
 
   if (exitCode === 0) {

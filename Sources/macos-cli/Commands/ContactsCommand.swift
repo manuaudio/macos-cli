@@ -28,6 +28,7 @@ struct ContactsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("contacts.read")
             // AppleScript escape the id (single-quote-safe).
             let safeId = id.replacingOccurrences(of: "\"", with: "\\\"")
             let script = """
@@ -67,6 +68,7 @@ struct ContactsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("contacts.write")
             let safeId = id.replacingOccurrences(of: "\"", with: "\\\"")
             // Escape backslashes first, then double-quotes, then encode literal
             // newlines as AppleScript "\n" (which is the linefeed escape inside

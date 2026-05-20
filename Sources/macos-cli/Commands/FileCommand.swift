@@ -183,6 +183,9 @@ struct FileCommand: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "read", abstract: "Print text file contents")
         @Argument(help: "File path") var path: String
         @Option(name: .long, help: "Max bytes to read (default: 102400)") var maxBytes: Int = 102_400
+        @Flag(name: .long, help: "Skip the 10MB safety limit") var force = false
+
+        private static let safetyCeiling = 10 * 1024 * 1024
 
         func run() throws {
             try Auth.check("file.read")
@@ -190,8 +193,17 @@ struct FileCommand: ParsableCommand {
             guard FileManager.default.fileExists(atPath: url.path) else {
                 throw ValidationError("File not found: \(path)")
             }
+            let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+            let fileSize = (attrs[.size] as? Int) ?? 0
+            if !force && fileSize > Self.safetyCeiling {
+                throw ValidationError(
+                    "Refusing to read \(fileSize) bytes — exceeds 10MB safety limit. " +
+                    "Pass --force to override, or use --max-bytes to read a window."
+                )
+            }
             let data = try Data(contentsOf: url)
-            guard let text = String(data: data.prefix(maxBytes), encoding: .utf8) else {
+            let slice = data.prefix(maxBytes)
+            guard let text = String(data: slice, encoding: .utf8) else {
                 throw ValidationError("File is not valid UTF-8 text: \(path)")
             }
             print(text)

@@ -25,11 +25,23 @@ enum EventKitStore {
         var done = false
 
         DispatchQueue.main.async {
-            store.requestAccess(to: type) { ok, err in
+            let completion: (Bool, Error?) -> Void = { ok, err in
                 granted = ok
                 authError = err
                 done = true
                 CFRunLoopStop(CFRunLoopGetMain())
+            }
+            if #available(macOS 14.0, *) {
+                switch type {
+                case .event:
+                    store.requestFullAccessToEvents(completion: completion)
+                case .reminder:
+                    store.requestFullAccessToReminders(completion: completion)
+                @unknown default:
+                    store.requestAccess(to: type, completion: completion)
+                }
+            } else {
+                store.requestAccess(to: type, completion: completion)
             }
         }
 

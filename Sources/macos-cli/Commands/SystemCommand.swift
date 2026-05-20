@@ -279,6 +279,21 @@ struct WifiCommand: ParsableCommand {
         }
     }
 
+    /// Detect the actual Wi-Fi interface name (e.g. en0, en1) at runtime.
+    static func wifiInterface() -> String {
+        let out = Process.capture(args: ["/usr/sbin/networksetup", "-listallhardwareports"], timeout: 5, fallback: "")
+        let lines = out.components(separatedBy: "\n")
+        for (i, line) in lines.enumerated() {
+            if line.contains("Wi-Fi") || line.contains("AirPort") {
+                if i + 1 < lines.count {
+                    let dev = lines[i + 1].replacingOccurrences(of: "Device: ", with: "").trimmingCharacters(in: .whitespaces)
+                    if !dev.isEmpty { return dev }
+                }
+            }
+        }
+        return "en0" // fallback
+    }
+
     struct JoinCmd: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "join", abstract: "Join a Wi-Fi network")
 
@@ -287,7 +302,8 @@ struct WifiCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("wifi.write")
-            var args = ["/usr/sbin/networksetup", "-setairportnetwork", "en0", ssid]
+            let iface = WifiCommand.wifiInterface()
+            var args = ["/usr/sbin/networksetup", "-setairportnetwork", iface, ssid]
             if let pw = password { args.append(pw) }
             let code = Process.run(args: args)
             guard code == 0 else {
@@ -302,9 +318,8 @@ struct WifiCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("wifi.write")
-            _ = Process.run(args: ["/usr/sbin/networksetup", "-setairportpower", "en0", "off"])
-            usleep(500_000)
-            _ = Process.run(args: ["/usr/sbin/networksetup", "-setairportpower", "en0", "on"])
+            let iface = WifiCommand.wifiInterface()
+            _ = Process.run(args: ["/usr/sbin/networksetup", "-setairportnetwork", iface, ""])
             print("Disconnected from Wi-Fi")
         }
     }

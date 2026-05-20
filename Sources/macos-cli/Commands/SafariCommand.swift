@@ -70,8 +70,6 @@ struct SafariCommand: ParsableCommand {
         @Argument(help: "URL to open")
         var url: String
 
-        @Flag(name: .long, help: "Open in new tab (default: new tab)") var newTab = false
-
         func run() throws {
             try Auth.check("safari.execute")
             let escaped = jxaEscape(url)

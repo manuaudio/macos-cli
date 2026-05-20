@@ -19,11 +19,9 @@ struct ScreenshotCommand: ParsableCommand {
         @Option(name: .long, help: "Output path (default: /tmp/screenshot.png)")
         var output: String = "/tmp/screenshot.png"
 
-        @Flag(name: .long, help: "No shutter sound") var silent = true
-
         func run() throws {
             try Auth.check("screen.capture")
-            var args = ["/usr/sbin/screencapture", "-x"]  // -x = no sound
+            var args = ["/usr/sbin/screencapture", "-x"]  // -x = no sound (always silent)
             args.append(output)
             let code = Process.run(args: args)
             guard code == 0 else {

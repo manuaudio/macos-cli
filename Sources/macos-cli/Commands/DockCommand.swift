@@ -71,7 +71,7 @@ struct DockCommand: ParsableCommand {
             let newEntry: [String: Any] = [
                 "tile-data": [
                     "file-data": [
-                        "_CFURLString": "file://" + expanded,
+                        "_CFURLString": URL(fileURLWithPath: expanded).absoluteString,
                         "_CFURLStringType": 15
                     ]
                 ],

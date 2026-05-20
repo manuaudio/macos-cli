@@ -24,6 +24,7 @@ struct MacOSCLI: ParsableCommand {
             // UI automation (Accessibility + Screen Recording required)
             SpacesCommand.self,
             AudioDeviceCommand.self,
+            ScriptCommand.self,
             MouseCommand.self,
             KeyboardCommand.self,
             AxCommand.self,

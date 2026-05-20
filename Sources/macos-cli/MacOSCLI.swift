@@ -36,6 +36,7 @@ struct MacOSCLI: ParsableCommand {
             MusicCommand.self,
             FinderCommand.self,
             SetupCommand.self,
+            AuthCommand.self,
             ShortcutsCommand.self,
             PdfCommand.self,
             FocusCommand.self,

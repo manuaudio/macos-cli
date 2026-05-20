@@ -28,22 +28,29 @@ struct MenuCommand: ParsableCommand {
             }
 
             let script = """
+            try {
             const se = Application('System Events');
             const proc = \(procClause);
             if (!proc) throw new Error('App not found');
             const items = proc.menuBars[0].menuBarItems();
-            JSON.stringify(items.map(i => {
+            JSON.stringify({ok:true, result:items.map(i => {
                 try { return { title: i.title(), enabled: i.enabled() }; }
                 catch(e) { return null; }
-            }).filter(Boolean));
+            }).filter(Boolean)});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError(
+                    "Could not read menu bar. Requires Automation permission for System Events in System Settings → Privacy & Security.\nRaw: \(errMsg.prefix(200))"
+                )
+            }
+            guard let data = env.resultJSON.data(using: .utf8),
                   let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
             else {
                 throw ValidationError(
-                    "Could not read menu bar. Requires Automation permission for System Events in System Settings → Privacy & Security.\nRaw: \(raw.prefix(200))"
+                    "Could not read menu bar. Requires Automation permission for System Events in System Settings → Privacy & Security.\nRaw: \(env.resultJSON.prefix(200))"
                 )
             }
             if json {
@@ -73,36 +80,57 @@ struct MenuCommand: ParsableCommand {
 
             let procClause: String
             if let app = app {
-                let escaped = app.replacingOccurrences(of: "\"", with: "\\\"")
-                procClause = "se.applicationProcesses.whose({name: \"\(escaped)\"})[0]"
+                procClause = "se.applicationProcesses.whose({name: \"\(jxaEscape(app))\"})[0]"
             } else {
                 procClause = "se.applicationProcesses.whose({frontmost: true})[0]"
             }
 
             // Build JSON array of path parts for JXA
-            let partsJSON = parts.map { part -> String in
-                let escaped = part.replacingOccurrences(of: "\\", with: "\\\\")
-                                  .replacingOccurrences(of: "\"", with: "\\\"")
-                return "\"\(escaped)\""
-            }.joined(separator: ", ")
+            let partsJSON = parts.map { "\"\(jxaEscape($0))\"" }.joined(separator: ", ")
 
-            let script = """
-            const se = Application('System Events');
-            const proc = \(procClause);
-            if (!proc) throw new Error('App not found');
-            const path = [\(partsJSON)];
-            let target = proc.menuBars[0].menuBarItems.whose({title: path[0]})[0].menus[0];
-            for (let i = 1; i < path.length - 1; i++) {
-                target = target.menuItems.whose({title: path[i]})[0].menus[0];
+            let script: String
+            if parts.count == 1 {
+                script = """
+                try {
+                    const se = Application('System Events');
+                    const proc = \(procClause);
+                    if (!proc) { JSON.stringify({ok:false, error:'App not found'}); }
+                    else {
+                        const path = [\(partsJSON)];
+                        proc.menuBars[0].menuBarItems.whose({title: path[0]})[0].click();
+                        JSON.stringify({ok:true, result:'clicked'});
+                    }
+                } catch (e) {
+                    JSON.stringify({ok:false, error: String(e && e.message ? e.message : e)});
+                }
+                """
+            } else {
+                script = """
+                try {
+                    const se = Application('System Events');
+                    const proc = \(procClause);
+                    if (!proc) { JSON.stringify({ok:false, error:'App not found'}); }
+                    else {
+                        const path = [\(partsJSON)];
+                        let target = proc.menuBars[0].menuBarItems.whose({title: path[0]})[0].menus[0];
+                        for (let i = 1; i < path.length - 1; i++) {
+                            target = target.menuItems.whose({title: path[i]})[0].menus[0];
+                        }
+                        target.menuItems.whose({title: path[path.length - 1]})[0].click();
+                        JSON.stringify({ok:true, result:'clicked'});
+                    }
+                } catch (e) {
+                    JSON.stringify({ok:false, error: String(e && e.message ? e.message : e)});
+                }
+                """
             }
-            target.menuItems.whose({title: path[path.length - 1]})[0].click();
-            'ok';
-            """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "error")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if result.lowercased().contains("error") || result == "error" {
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            guard let env = parseJXAEnvelope(raw) else {
+                throw ValidationError("Could not click '\(path)'. Empty or unparseable JXA result.\nRaw: \(raw.prefix(300))")
+            }
+            if !env.ok {
                 throw ValidationError(
-                    "Could not click '\(path)'. Verify the path is correct and the app is frontmost. Automation permission for System Events is required.\nRaw: \(result.prefix(300))"
+                    "Could not click '\(path)'. Verify the path is correct and Automation permission for System Events is granted.\n\(env.error)"
                 )
             }
             print("Clicked: \(path)")

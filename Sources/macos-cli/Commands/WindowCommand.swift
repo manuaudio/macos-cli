@@ -75,6 +75,7 @@ struct WindowCommand: ParsableCommand {
         @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
 
         func run() throws {
+            try Auth.check("window.write")
             try axWindow(app: app, title: title) { win in
                 var point = CGPoint(x: x, y: y)
                 let pos = AXValueCreate(.cgPoint, &point)!
@@ -95,6 +96,7 @@ struct WindowCommand: ParsableCommand {
         @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
 
         func run() throws {
+            try Auth.check("window.write")
             try axWindow(app: app, title: title) { win in
                 var size = CGSize(width: width, height: height)
                 let sz = AXValueCreate(.cgSize, &size)!
@@ -143,6 +145,7 @@ struct WindowCommand: ParsableCommand {
         @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
 
         func run() throws {
+            try Auth.check("window.write")
             try axWindow(app: app, title: title) { win in
                 AXUIElementSetAttributeValue(win, kAXMinimizedAttribute as CFString, true as CFTypeRef)
                 print("Minimized \(app)")
@@ -156,6 +159,7 @@ struct WindowCommand: ParsableCommand {
         @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
 
         func run() throws {
+            try Auth.check("window.write")
             try axWindow(app: app, title: title) { win in
                 var currentRef: CFTypeRef?
                 AXUIElementCopyAttributeValue(win, "AXFullScreen" as CFString, &currentRef)
@@ -172,6 +176,7 @@ struct WindowCommand: ParsableCommand {
         @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
 
         func run() throws {
+            try Auth.check("window.write")
             guard let screen = NSScreen.main else {
                 throw ValidationError("Could not determine main screen.")
             }
@@ -198,9 +203,42 @@ struct WindowCommand: ParsableCommand {
         @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
 
         func run() throws {
-            guard let screen = NSScreen.main else {
-                throw ValidationError("Could not determine main screen.")
+            try Auth.check("window.write")
+            let axApp = AXUIElementCreateApplication(pid(for: app))
+            var windowsRef: CFTypeRef?
+            let err = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef)
+            guard err == .success, let windows = windowsRef as? [AXUIElement], !windows.isEmpty else {
+                throw ValidationError("Could not access \(app) windows — check Accessibility permission")
             }
+            let targetWindow: AXUIElement
+            if let t = title {
+                let match = windows.first { win -> Bool in
+                    var titleRef: CFTypeRef?
+                    AXUIElementCopyAttributeValue(win, kAXTitleAttribute as CFString, &titleRef)
+                    return (titleRef as? String ?? "").localizedCaseInsensitiveContains(t)
+                }
+                guard let m = match else { throw ValidationError("No window with title '\(t)' in \(app)") }
+                targetWindow = m
+            } else {
+                targetWindow = windows[0]
+            }
+
+            var posRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(targetWindow, kAXPositionAttribute as CFString, &posRef)
+            var winOrigin = CGPoint.zero
+            if let p = posRef { AXValueGetValue(p as! AXValue, .cgPoint, &winOrigin) }
+            var sizeRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(targetWindow, kAXSizeAttribute as CFString, &sizeRef)
+            var winSize = CGSize.zero
+            if let s = sizeRef { AXValueGetValue(s as! AXValue, .cgSize, &winSize) }
+
+            let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+            let winCenterAK = CGPoint(
+                x: winOrigin.x + winSize.width / 2,
+                y: primaryHeight - winOrigin.y - winSize.height / 2
+            )
+            let screen = NSScreen.screens.first(where: { $0.frame.contains(winCenterAK) }) ?? NSScreen.main
+            guard let screen = screen else { throw ValidationError("Could not determine a target screen.") }
             let vf = screen.visibleFrame
             let sf = screen.frame
             let W = vf.width, H = vf.height
@@ -226,15 +264,13 @@ struct WindowCommand: ParsableCommand {
                 )
             }
 
-            try axWindow(app: app, title: title) { win in
-                var origin = CGPoint(x: rx, y: ry)
-                let pos = AXValueCreate(.cgPoint, &origin)!
-                AXUIElementSetAttributeValue(win, kAXPositionAttribute as CFString, pos)
-                var size = CGSize(width: rw, height: rh)
-                let sz = AXValueCreate(.cgSize, &size)!
-                AXUIElementSetAttributeValue(win, kAXSizeAttribute as CFString, sz)
-                print("Snapped \(self.app) to \(self.position): \(Int(rw))×\(Int(rh)) at (\(Int(rx)),\(Int(ry)))")
-            }
+            var origin = CGPoint(x: rx, y: ry)
+            let pos = AXValueCreate(.cgPoint, &origin)!
+            AXUIElementSetAttributeValue(targetWindow, kAXPositionAttribute as CFString, pos)
+            var size = CGSize(width: rw, height: rh)
+            let sz = AXValueCreate(.cgSize, &size)!
+            AXUIElementSetAttributeValue(targetWindow, kAXSizeAttribute as CFString, sz)
+            print("Snapped \(self.app) to \(self.position) on \(screen.localizedName): \(Int(rw))×\(Int(rh)) at (\(Int(rx)),\(Int(ry)))")
         }
     }
 }

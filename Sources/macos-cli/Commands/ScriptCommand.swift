@@ -47,15 +47,22 @@ struct ScriptCommand: ParsableCommand {
                 throw ValidationError("Specify --jxa, --applescript, or --file.")
             }
 
-            let result = Process.capture(args: args, timeout: TimeInterval(timeout), fallback: "")
-            let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+            let (out, err, code) = Process.captureWithStderr(args: args, timeout: TimeInterval(timeout))
+            let stdoutTrim = out.trimmingCharacters(in: .whitespacesAndNewlines)
+            let stderrTrim = err.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if trimmed.lowercased().hasPrefix("error:") || trimmed.lowercased().hasPrefix("execution error:") {
-                throw ValidationError("Script error: \(trimmed)")
+            if code == -1 {
+                throw ValidationError("Script timed out after \(timeout)s")
+            }
+
+            if code != 0 {
+                let detail = stderrTrim.isEmpty ? stdoutTrim : stderrTrim
+                throw ValidationError("Script exited \(code): \(detail)")
             }
 
             if !silent {
-                print(trimmed)
+                if !stdoutTrim.isEmpty { print(stdoutTrim) }
+                if !stderrTrim.isEmpty { fputs(stderrTrim + "\n", stderr) }
             }
         }
     }

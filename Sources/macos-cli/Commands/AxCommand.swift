@@ -27,14 +27,22 @@ struct AxCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let escaped = name.replacingOccurrences(of: "\"", with: "\\\"")
-            let procExpr = app == nil
-                ? "se.applicationProcesses()[0]"
-                : "se.applicationProcesses.whose({name: \"\(app!.replacingOccurrences(of: "\"", with: "\\\""))\"})(  )[0]"
+            let escaped = jxaEscape(name)
+            let resolvedApp: String
+            if let app = app {
+                resolvedApp = app
+            } else {
+                resolvedApp = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
+            }
+            guard !resolvedApp.isEmpty else {
+                throw ValidationError("No frontmost application — pass --app <name>")
+            }
+            let procExpr = "se.applicationProcesses.whose({name: \"\(jxaEscape(resolvedApp))\"})[0]"
             let script = """
+            try {
             const se = Application('System Events');
             const proc = \(procExpr);
-            if (!proc) { JSON.stringify([]); }
+            if (!proc) { JSON.stringify({ok:true, result:[]}); }
             else {
                 const found = [];
                 function search(el) {
@@ -51,16 +59,19 @@ struct AxCommand: ParsableCommand {
                     } catch(e) {}
                 }
                 try { proc.windows().slice(0, 3).forEach(w => search(w)); } catch(e) {}
-                JSON.stringify(found.slice(0, 20));
+                JSON.stringify({ok:true, result:found.slice(0, 20)});
             }
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
+            guard let env = parseJXAEnvelope(raw) else {
+                throw ValidationError("AX access failed — grant Accessibility to Terminal in System Settings\n\(raw.prefix(200))")
+            }
+            if !env.ok {
+                throw ValidationError("AX access failed — grant Accessibility to Terminal in System Settings\n\(env.error)")
+            }
+            guard let data = env.resultJSON.data(using: .utf8),
                   let elements = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                if raw.lowercased().contains("error") {
-                    throw ValidationError("AX access failed — grant Accessibility to Terminal in System Settings\n\(raw.prefix(200))")
-                }
                 print("No elements found matching '\(name)'")
                 return
             }
@@ -90,14 +101,21 @@ struct AxCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("ax.write")
-            let appName = app ?? ""
-            let appSelector = appName.isEmpty
-                ? "se.applicationProcesses()[0]"
-                : "se.applicationProcesses.whose({name: \"\(appName)\"})()"
-            let escaped = name.replacingOccurrences(of: "\"", with: "\\\"")
+            let resolvedApp: String
+            if let app = app {
+                resolvedApp = app
+            } else {
+                resolvedApp = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
+            }
+            guard !resolvedApp.isEmpty else {
+                throw ValidationError("No frontmost application — pass --app <name>")
+            }
+            let escaped = jxaEscape(name)
+            let procExpr = "se.applicationProcesses.whose({name: \"\(jxaEscape(resolvedApp))\"})[0]"
             let script = """
+            try {
             const se = Application('System Events');
-            const procs = \(appName.isEmpty ? "[se.applicationProcesses()[0]]" : "se.applicationProcesses.whose({name: \"\(appName)\"})()");
+            const procs = [\(procExpr)];
             let clicked = false;
             function tryClick(el) {
                 if (clicked) return;
@@ -117,16 +135,19 @@ struct AxCommand: ParsableCommand {
             procs.slice(0, 1).forEach(p => {
                 try { p.windows().slice(0, 3).forEach(w => tryClick(w)); } catch(e) {}
             });
-            clicked ? 'clicked' : 'not found';
+            clicked ? JSON.stringify({ok:true, result:'clicked'}) : JSON.stringify({ok:false, error:'not-found'});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if result == "clicked" {
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            guard let env = parseJXAEnvelope(raw) else {
+                throw ValidationError("AX click failed — grant Accessibility to Terminal\n\(raw.prefix(200))")
+            }
+            if env.ok {
                 print("Clicked '\(name)'")
-            } else if result.lowercased().contains("error") {
-                throw ValidationError("AX click failed — grant Accessibility to Terminal\n\(result.prefix(200))")
+            } else if env.error == "not-found" {
+                throw ValidationError("Element '\(name)' not found in \(resolvedApp)")
             } else {
-                throw ValidationError("Element '\(name)' not found in \(appName.isEmpty ? "frontmost app" : appName)")
+                throw ValidationError("AX click failed — grant Accessibility to Terminal\n\(env.error)")
             }
         }
     }
@@ -140,13 +161,21 @@ struct AxCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let appName = app ?? ""
+            let resolvedApp: String
+            if let app = app {
+                resolvedApp = app
+            } else {
+                resolvedApp = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
+            }
+            guard !resolvedApp.isEmpty else {
+                throw ValidationError("No frontmost application — pass --app <name>")
+            }
+            let procExpr = "se.applicationProcesses.whose({name: \"\(jxaEscape(resolvedApp))\"})[0]"
             let script = """
+            try {
             const se = Application('System Events');
-            const proc = \(appName.isEmpty
-                ? "se.applicationProcesses()[0]"
-                : "se.applicationProcesses.whose({name: \"\(appName)\"})()" + "[0]");
-            if (!proc) { JSON.stringify(null); }
+            const proc = \(procExpr);
+            if (!proc) { JSON.stringify({ok:false, error:'not-found'}); }
             else {
                 function dump(el, depth) {
                     const node = {};
@@ -161,17 +190,20 @@ struct AxCommand: ParsableCommand {
                 }
                 const wins = [];
                 try { proc.windows().slice(0, 3).forEach(w => wins.push(dump(w, 0))); } catch {}
-                JSON.stringify({app: proc.name(), windows: wins});
+                JSON.stringify({ok:true, result:{app: proc.name(), windows: wins}});
             }
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard raw != "null", !raw.isEmpty, let data = raw.data(using: .utf8),
+            guard let env = parseJXAEnvelope(raw) else {
+                throw ValidationError("AX read failed — grant Accessibility to Terminal\n\(raw.prefix(200))")
+            }
+            if !env.ok {
+                throw ValidationError("Could not read UI tree for \(resolvedApp)\n\(env.error)")
+            }
+            guard !env.resultJSON.isEmpty, let data = env.resultJSON.data(using: .utf8),
                   let tree = try? JSONSerialization.jsonObject(with: data) else {
-                if raw.lowercased().contains("error") {
-                    throw ValidationError("AX read failed — grant Accessibility to Terminal\n\(raw.prefix(200))")
-                }
-                throw ValidationError("Could not read UI tree for \(appName.isEmpty ? "frontmost app" : appName)")
+                throw ValidationError("Could not read UI tree for \(resolvedApp)")
             }
             if json {
                 printJSON(tree)

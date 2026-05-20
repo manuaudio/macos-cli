@@ -88,6 +88,9 @@ struct AudioDeviceCommand: ParsableCommand {
         }
     }
 
+    // M8 — when the user passes a numeric device ID, we still verify that the
+    // device has the requested scope (input vs output). This prevents using a
+    // pure-output device as an input by ID and getting silent CoreAudio errors.
     // Match device by name substring or by numeric ID string
     private static func findDevice(_ query: String, input: Bool) throws -> AudioDeviceID {
         let ids = try allDeviceIDs()

@@ -106,7 +106,11 @@ struct SpacesCommand: ParsableCommand {
             let conn = CGSMainConnectionID()
 
             guard let changeSpaces = resolvedCGSChangeSpaces() else {
-                throw ValidationError("CGSChangeSpaces not available on this macOS version — cannot switch spaces.")
+                throw ValidationError(
+                    "CGSChangeSpaces symbol not found via dlsym. This is a private CoreGraphics API; " +
+                    "Apple may have removed or renamed it on your macOS build. " +
+                    "Workaround: use Mission Control gesture/keyboard shortcut to switch spaces manually."
+                )
             }
             let result = changeSpaces(conn, [targetID] as CFArray, 0)
             if result != 0 {

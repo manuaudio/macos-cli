@@ -35,6 +35,10 @@ struct TimeMachineCommand: ParsableCommand {
             try Auth.check("timemachine.read")
             let raw = Process.capture(args: ["/usr/bin/tmutil", "status"], timeout: 15, fallback: "")
 
+            // NOTE: tmutil status emits NeXTSTEP-style "key = value;" plist-fragment
+            // output on Ventura (macOS 13) and Sonoma (macOS 14). If Apple switches
+            // tmutil to XML or JSON, this parser needs a rewrite — detect by sampling
+            // the first non-whitespace char: '{' = NeXTSTEP, '<' = XML.
             let running  = parseStatusField(raw, key: "Running") == "1"
             let phase    = parseStatusField(raw, key: "BackupPhase") ?? "Idle"
             let percentStr = parseStatusField(raw, key: "Percent") ?? "0"

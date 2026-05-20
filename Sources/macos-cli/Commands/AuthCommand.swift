@@ -75,10 +75,21 @@ struct AuthCommand: ParsableCommand {
 
     struct Setup: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Interactive onboarding wizard — configure all capabilities")
-        @Flag(name: .long, help: "Grant all capabilities without prompting (agent use)") var all = false
+        @Flag(name: .long, help: "Grant all capabilities without prompting (agent use; requires --yes to skip confirmation)") var all = false
+        @Flag(name: .long, help: "Skip confirmation prompt when using --all") var yes = false
 
         func run() throws {
             if all {
+                if !yes {
+                    let granting = Auth.allCapabilities.map { "  \($0.id)" }.joined(separator: "\n")
+                    print("This will GRANT every capability:\n\(granting)\n")
+                    print("Continue? (y/N): ", terminator: "")
+                    let input = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
+                    guard input == "y" || input == "yes" else {
+                        print("Cancelled.")
+                        return
+                    }
+                }
                 var caps = Auth.defaultCapabilities
                 for entry in Auth.allCapabilities { caps[entry.id] = true }
                 try Auth.save(caps)

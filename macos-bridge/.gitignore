@@ -1,0 +1,4 @@
+node_modules/
+dist/
+macos-bridge
+bun.lockb

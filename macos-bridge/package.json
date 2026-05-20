@@ -1,0 +1,15 @@
+{
+  "name": "macos-bridge",
+  "version": "0.6.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run index.ts",
+    "build": "bun build --compile --minify --target=bun-darwin-x64 ./index.ts --outfile macos-bridge",
+    "build:arm": "bun build --compile --minify --target=bun-darwin-arm64 ./index.ts --outfile macos-bridge"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.4.0"
+  }
+}

@@ -89,6 +89,7 @@ struct AxCommand: ParsableCommand {
         @Option(name: .long, help: "App name") var app: String?
 
         func run() throws {
+            try Auth.check("ax.write")
             let appName = app ?? ""
             let appSelector = appName.isEmpty
                 ? "se.applicationProcesses()[0]"
@@ -213,6 +214,7 @@ struct AxCommand: ParsableCommand {
             let elements = try collectHints(appName: appName)
 
             if let n = click {
+                try Auth.check("ax.write")
                 guard n >= 1 && n <= elements.count else {
                     throw ValidationError("Hint \(n) out of range (1–\(elements.count))")
                 }

@@ -87,6 +87,7 @@ struct AudioCommand: ParsableCommand {
 
         func run() throws {
             if let level = level {
+                try Auth.check("audio.write")
                 guard level >= 0 && level <= 100 else { throw ValidationError("Volume must be 0–100") }
                 let script = "set volume output volume \(level)"
                 Process.run(args: ["/usr/bin/osascript", "-e", script])
@@ -108,6 +109,7 @@ struct AudioCommand: ParsableCommand {
 
         func run() throws {
             if let state = state {
+                try Auth.check("audio.write")
                 guard state == "on" || state == "off" else { throw ValidationError("State must be 'on' or 'off'") }
                 let muted = state == "on"
                 Process.run(args: ["/usr/bin/osascript", "-e",
@@ -284,6 +286,7 @@ struct WifiCommand: ParsableCommand {
         @Option(name: .long, help: "Password (omit for open networks)") var password: String?
 
         func run() throws {
+            try Auth.check("wifi.write")
             var args = ["/usr/sbin/networksetup", "-setairportnetwork", "en0", ssid]
             if let pw = password { args.append(pw) }
             let code = Process.run(args: args)
@@ -298,6 +301,7 @@ struct WifiCommand: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "leave", abstract: "Disconnect from current Wi-Fi network")
 
         func run() throws {
+            try Auth.check("wifi.write")
             _ = Process.run(args: ["/usr/sbin/networksetup", "-setairportpower", "en0", "off"])
             usleep(500_000)
             _ = Process.run(args: ["/usr/sbin/networksetup", "-setairportpower", "en0", "on"])
@@ -359,6 +363,7 @@ struct DisplayCommand: ParsableCommand {
 
         func run() throws {
             if let level = level {
+                try Auth.check("display.write")
                 guard level >= 0 && level <= 1 else { throw ValidationError("Brightness must be 0.0–1.0") }
                 // Use brightness CLI if available, else osascript
                 let script = "tell application \"System Events\" to key code 144"  // F15 as fallback
@@ -393,6 +398,7 @@ struct DisplayCommand: ParsableCommand {
 
         func run() throws {
             if let state = state {
+                try Auth.check("display.write")
                 guard state == "on" || state == "off" else { throw ValidationError("State must be 'on' or 'off'") }
                 let script = """
                 tell application "System Events"
@@ -446,6 +452,7 @@ struct DisplayCommand: ParsableCommand {
             @Flag(name: .long, help: "Output JSON") var json = false
 
             func run() throws {
+                try Auth.check("display.write")
                 let expanded = (path as NSString).expandingTildeInPath
                 guard FileManager.default.fileExists(atPath: expanded) else {
                     throw ValidationError("Image file not found: \(path)")
@@ -473,6 +480,7 @@ struct LockCommand: ParsableCommand {
     @Flag(name: .long, help: "Output JSON") var json = false
 
     func run() throws {
+        try Auth.check("system.lock")
         // Primary: CGSession -suspend (fast, instant lock)
         let cgSession = "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession"
         var code = Process.run(args: [cgSession, "-suspend"])
@@ -495,6 +503,7 @@ struct SleepCommand: ParsableCommand {
     @Flag(name: .long, help: "Output JSON") var json = false
 
     func run() throws {
+        try Auth.check("system.sleep")
         if json { printJSON(["sleeping": true]) } else { print("Going to sleep...") }
         // pmset sleepnow returns immediately before the Mac actually sleeps, so flush stdout first
         fflush(stdout)
@@ -556,6 +565,7 @@ struct VPNCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("vpn.write")
             let result = Process.run(args: ["/usr/sbin/scutil", "--nc", "start", name])
             guard result == 0 else {
                 throw ValidationError("Failed to start VPN '\(name)'. Check name with 'system vpn status'.")
@@ -574,6 +584,7 @@ struct VPNCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("vpn.write")
             let result = Process.run(args: ["/usr/sbin/scutil", "--nc", "stop", name])
             guard result == 0 else {
                 throw ValidationError("Failed to stop VPN '\(name)'.")

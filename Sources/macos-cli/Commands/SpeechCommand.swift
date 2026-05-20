@@ -17,6 +17,7 @@ struct SpeechCommand: ParsableCommand {
         @Option(name: .long, help: "Output audio file path (e.g. /tmp/speech.aiff)") var output: String?
 
         func run() throws {
+            try Auth.check("speech.speak")
             var args = ["/usr/bin/say"]
             if let v = voice { args += ["-v", v] }
             if let r = rate { args += ["-r", String(r)] }

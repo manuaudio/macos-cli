@@ -13,6 +13,7 @@ struct StorageCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("storage.read")
             let fm = FileManager.default
             let vols = fm.mountedVolumeURLs(includingResourceValuesForKeys: [
                 .volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey,
@@ -58,6 +59,7 @@ struct StorageCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("storage.read")
             let target = path ?? FileManager.default.homeDirectoryForCurrentUser.path
             let result = Process.capture(args: ["/usr/bin/du", "-sh", target], timeout: 30, fallback: "")
             let parts = result.trimmingCharacters(in: .whitespacesAndNewlines)

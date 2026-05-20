@@ -60,6 +60,7 @@ struct LoginItemsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("login-items.write")
             let expanded = (path as NSString).expandingTildeInPath
             guard FileManager.default.fileExists(atPath: expanded) else {
                 throw ValidationError("Path not found: \(path)")
@@ -88,6 +89,7 @@ struct LoginItemsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("login-items.write")
             let script = """
             tell application "System Events"
                 delete (first login item whose name is "\(name)")

@@ -72,6 +72,7 @@ struct AppsCommand: ParsableCommand {
         @Flag(name: .long, help: "Force quit (SIGKILL)") var force = false
 
         func run() throws {
+            try Auth.check("apps.quit")
             let ws = NSWorkspace.shared
             let running = ws.runningApplications
             let match = running.first {

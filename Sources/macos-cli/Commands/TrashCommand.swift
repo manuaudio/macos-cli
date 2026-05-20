@@ -35,6 +35,7 @@ struct TrashCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("trash.empty")
             let script = "tell application \"Finder\" to empty trash"
             let result = Process.capture(args: ["/usr/bin/osascript", "-e", script], timeout: 30)
             if result == nil {

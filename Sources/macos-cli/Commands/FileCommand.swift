@@ -15,6 +15,7 @@ struct FileCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("file.read")
             let expanded = (path as NSString).expandingTildeInPath
             let url = URL(fileURLWithPath: expanded)
             var isDir: ObjCBool = false
@@ -62,6 +63,7 @@ struct FileCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("file.write")
             let srcURL = URL(fileURLWithPath: (src as NSString).expandingTildeInPath)
             let dstURL = URL(fileURLWithPath: (dst as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: srcURL.path) else {
@@ -90,6 +92,7 @@ struct FileCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("file.write")
             let srcURL = URL(fileURLWithPath: (src as NSString).expandingTildeInPath)
             let dstURL = URL(fileURLWithPath: (dst as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: srcURL.path) else {
@@ -117,6 +120,7 @@ struct FileCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("file.delete")
             let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: url.path) else {
                 throw ValidationError("Path not found: \(path)")
@@ -136,6 +140,7 @@ struct FileCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("file.read")
             let expanded = (path as NSString).expandingTildeInPath
             let url = URL(fileURLWithPath: expanded)
             guard FileManager.default.fileExists(atPath: expanded) else {
@@ -180,6 +185,7 @@ struct FileCommand: ParsableCommand {
         @Option(name: .long, help: "Max bytes to read (default: 102400)") var maxBytes: Int = 102_400
 
         func run() throws {
+            try Auth.check("file.read")
             let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: url.path) else {
                 throw ValidationError("File not found: \(path)")

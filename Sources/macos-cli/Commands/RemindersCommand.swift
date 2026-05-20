@@ -163,6 +163,7 @@ struct RemindersCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("reminders.write")
             let store = try EventKitStore.authorized(for: .reminder)
             let pred = store.predicateForReminders(in: nil)
             var found: EKReminder?
@@ -336,6 +337,7 @@ struct RemindersCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("reminders.write")
             let store = try EventKitStore.authorized(for: .reminder)
             let pred = store.predicateForReminders(in: nil)
             var found: EKReminder?

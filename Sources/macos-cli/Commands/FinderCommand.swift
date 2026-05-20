@@ -60,6 +60,7 @@ struct FinderCommand: ParsableCommand {
         @Argument(help: "Path to reveal") var path: String
 
         func run() throws {
+            try Auth.check("finder.write")
             let expanded = (path as NSString).expandingTildeInPath
             let escaped = expanded.replacingOccurrences(of: "\\", with: "\\\\")
                                   .replacingOccurrences(of: "'", with: "\\'")
@@ -85,6 +86,7 @@ struct FinderCommand: ParsableCommand {
         @Argument(help: "Path to open") var path: String
 
         func run() throws {
+            try Auth.check("finder.write")
             let expanded = (path as NSString).expandingTildeInPath
             // Use macOS open command — works for any path
             let result = Process.run(args: ["/usr/bin/open", expanded])
@@ -140,6 +142,7 @@ struct FinderCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("finder.write")
             let expanded = (path as NSString).expandingTildeInPath
             do {
                 try FileManager.default.createDirectory(atPath: expanded,
@@ -178,6 +181,7 @@ struct FinderCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("finder.write")
             let fromExpanded = (from as NSString).expandingTildeInPath
             guard FileManager.default.fileExists(atPath: fromExpanded) else {
                 throw ValidationError("Source not found: \(fromExpanded)")
@@ -220,6 +224,7 @@ struct FinderCommand: ParsableCommand {
         private static let colorNames = ["gray", "green", "purple", "blue", "yellow", "red", "orange"]
 
         func run() throws {
+            try Auth.check("finder.write")
             let expanded = (path as NSString).expandingTildeInPath
             guard FileManager.default.fileExists(atPath: expanded) else {
                 throw ValidationError("Path not found: \(expanded)")
@@ -306,6 +311,7 @@ struct FinderCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("finder.write")
             let expanded = (path as NSString).expandingTildeInPath
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir), isDir.boolValue else {
@@ -362,6 +368,7 @@ struct FinderCommand: ParsableCommand {
                 }
                 return
             }
+            try Auth.check("finder.write")
             if on && off { throw ValidationError("Specify either --on or --off, not both") }
 
             let value = on ? "YES" : "NO"

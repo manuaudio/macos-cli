@@ -22,6 +22,7 @@ struct MessagesCommand: ParsableCommand {
         var text: String
 
         func run() throws {
+            try Auth.check("messages.send")
             let escapedTo   = to.replacingOccurrences(of: "'", with: "\\'")
             let escapedText = text
                 .replacingOccurrences(of: "\\", with: "\\\\")
@@ -142,6 +143,7 @@ struct MessagesCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("messages.delete")
             let escapedWith = with.replacingOccurrences(of: "'", with: "\\'")
             let script = """
             const Messages = Application('Messages');

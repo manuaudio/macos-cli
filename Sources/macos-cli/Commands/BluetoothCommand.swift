@@ -14,6 +14,7 @@ struct BluetoothCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("bluetooth.read")
             let rawDevices = IOBluetoothDevice.pairedDevices() ?? []
             let devices = rawDevices.compactMap { $0 as? IOBluetoothDevice }
             let items: [[String: Any]] = devices.map { device in
@@ -47,6 +48,7 @@ struct BluetoothCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("bluetooth.write")
             guard let device = bluetoothFindDevice(nameOrAddress) else {
                 throw ValidationError("Device not found: \(nameOrAddress). Use 'bluetooth list' to see paired devices.")
             }
@@ -68,6 +70,7 @@ struct BluetoothCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("bluetooth.write")
             guard let device = bluetoothFindDevice(nameOrAddress) else {
                 throw ValidationError("Device not found: \(nameOrAddress). Use 'bluetooth list' to see paired devices.")
             }

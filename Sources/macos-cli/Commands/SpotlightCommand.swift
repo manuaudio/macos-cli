@@ -18,6 +18,7 @@ struct SpotlightCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("spotlight.search")
             var args = ["/usr/bin/mdfind"]
 
             if let kindFilter = kind {

@@ -19,6 +19,7 @@ struct OcrCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON array of text lines") var json = false
 
         func run() throws {
+            try Auth.check("ocr.capture")
             guard let img = captureScreen() else {
                 fputs("Error: Could not capture screen — check Screen Recording permission\n", stderr)
                 throw ExitCode.failure
@@ -45,6 +46,7 @@ struct OcrCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON array of text lines") var json = false
 
         func run() throws {
+            try Auth.check("ocr.capture")
             guard let full = captureScreen() else {
                 fputs("Error: Could not capture screen — check Screen Recording permission\n", stderr)
                 throw ExitCode.failure
@@ -72,6 +74,7 @@ struct OcrCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON array of text lines") var json = false
 
         func run() throws {
+            try Auth.check("ocr.capture")
             let url = URL(fileURLWithPath: path)
             guard let data = try? Data(contentsOf: url),
                   let src = CGImageSourceCreateWithData(data as CFData, nil),

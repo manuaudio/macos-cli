@@ -47,6 +47,7 @@ struct ShortcutsCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("shortcuts.run")
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
             proc.arguments = ["run", name]

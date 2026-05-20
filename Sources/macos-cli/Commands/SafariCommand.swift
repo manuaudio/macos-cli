@@ -67,6 +67,7 @@ struct SafariCommand: ParsableCommand {
         @Flag(name: .long, help: "Open in new tab (default: new tab)") var newTab = false
 
         func run() throws {
+            try Auth.check("safari.execute")
             let escaped = url.replacingOccurrences(of: "'", with: "\\'")
             let script = """
             const Safari = Application('Safari');
@@ -131,6 +132,7 @@ struct SafariCommand: ParsableCommand {
         @Option(name: .long, help: "Window index (default: 0)") var window: Int = 0
 
         func run() throws {
+            try Auth.check("safari.execute")
             let escaped = js.replacingOccurrences(of: "\\", with: "\\\\")
                             .replacingOccurrences(of: "'", with: "\\'")
             let script = """
@@ -157,6 +159,7 @@ struct SafariCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("safari.execute")
             let escaped = url.replacingOccurrences(of: "\\", with: "\\\\")
                              .replacingOccurrences(of: "'", with: "\\'")
             let script = """
@@ -195,6 +198,7 @@ struct SafariCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("safari.execute")
             let script: String
             if current {
                 script = """
@@ -263,6 +267,7 @@ struct SafariCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("safari.execute")
             let script: String
             if let urlSubstr = url {
                 let escaped = urlSubstr.replacingOccurrences(of: "\\", with: "\\\\")

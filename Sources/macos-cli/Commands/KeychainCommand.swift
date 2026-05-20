@@ -104,6 +104,7 @@ struct KeychainCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("keychain.list")
             // dump-keychain outputs metadata only; grep for service (svce) and account (acct) attributes
             let output = Process.capture(args: ["/usr/bin/security", "dump-keychain"], timeout: 15, fallback: "")
             var items: [[String: String]] = []

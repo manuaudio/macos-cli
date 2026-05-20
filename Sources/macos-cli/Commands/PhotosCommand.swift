@@ -217,6 +217,7 @@ struct PhotosCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("photos.delete")
             let escapedName = name.replacingOccurrences(of: "'", with: "\\'")
             let script = """
             const Photos = Application('Photos');

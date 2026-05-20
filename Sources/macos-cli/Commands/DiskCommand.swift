@@ -103,6 +103,7 @@ struct DiskCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("disk.write")
             let code = Process.run(args: ["/usr/sbin/diskutil", "eject", path])
             if json {
                 printJSON(["ejected": code == 0, "path": path])
@@ -128,6 +129,7 @@ struct DiskCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("disk.write")
             var args = ["/usr/sbin/diskutil", "unmount"]
             if force { args.append("force") }
             args.append(path)
@@ -153,6 +155,7 @@ struct DiskCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("disk.write")
             let expanded = (path as NSString).expandingTildeInPath
             let isDmg = expanded.hasSuffix(".dmg") || expanded.hasSuffix(".iso")
             let args: [String]

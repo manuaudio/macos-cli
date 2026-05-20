@@ -23,6 +23,7 @@ struct KeyboardCommand: ParsableCommand {
         var delay: Int = 0
 
         func run() throws {
+            try Auth.check("keyboard.write")
             let escaped = text
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "\"", with: "\\\"")
@@ -75,6 +76,7 @@ struct KeyboardCommand: ParsableCommand {
         var combo: String
 
         func run() throws {
+            try Auth.check("keyboard.write")
             let parts = combo.lowercased().split(separator: "+").map(String.init)
             let key = parts.last ?? combo
             let mods = parts.dropLast()

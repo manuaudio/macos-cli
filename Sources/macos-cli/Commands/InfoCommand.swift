@@ -15,6 +15,7 @@ struct InfoCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("info.read")
             let os = ProcessInfo.processInfo
             let cpuCount = os.processorCount
             let memGB = Double(os.physicalMemory) / 1_073_741_824
@@ -54,6 +55,7 @@ struct InfoCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("info.read")
             let result = Process.capture(args: ["/sbin/ifconfig", "-a"], timeout: 5, fallback: "")
             if json {
                 // Parse ifconfig output — consistent shape: name always present, ipv4/mac null when absent
@@ -103,6 +105,7 @@ struct InfoCommand: ParsableCommand {
         struct SleepCmd: ParsableCommand {
             static let configuration = CommandConfiguration(commandName: "sleep", abstract: "Put Mac to sleep")
             func run() throws {
+                try Auth.check("system.sleep")
                 Process.run(args: ["/usr/bin/pmset", "sleepnow"])
                 print("Sleeping...")
             }
@@ -113,6 +116,7 @@ struct InfoCommand: ParsableCommand {
             @Argument(help: "Duration in seconds (0 = indefinite, Ctrl-C to stop)") var seconds: Int = 0
 
             func run() throws {
+                try Auth.check("system.sleep")
                 var args = ["/usr/bin/caffeinate", "-d"]  // -d = prevent display sleep
                 if seconds > 0 { args += ["-t", String(seconds)] }
                 print(seconds > 0 ? "Caffeinating for \(seconds)s..." : "Caffeinating indefinitely (Ctrl-C to stop)...")
@@ -125,6 +129,7 @@ struct InfoCommand: ParsableCommand {
             @Flag(name: .long, help: "Output JSON") var json = false
 
             func run() throws {
+                try Auth.check("info.read")
                 let result = Process.capture(args: ["/usr/bin/pmset", "-g"], timeout: 5, fallback: "")
                 if json {
                     // Parse pmset -g key-value output into structured JSON

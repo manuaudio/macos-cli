@@ -20,6 +20,7 @@ struct LocationCommand: ParsableCommand {
         var timeout: Double = 15
 
         func run() throws {
+            try Auth.check("location.read")
             let locator = OneShot()
             let result = locator.locate(timeout: timeout)
 

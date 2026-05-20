@@ -166,6 +166,12 @@ struct Auth {
         ("storage.read",       true,  "List volumes / disk usage"),
         // Location
         ("location.read",      false, "Read the Mac's location"),
+        // Wi-Fi
+        ("wifi.write",         false, "Join or leave Wi-Fi networks"),
+        // Display
+        ("display.write",      false, "Set brightness, dark mode, wallpaper"),
+        // VPN
+        ("vpn.write",          false, "Connect to or disconnect VPN"),
         // Network
         ("network.read",       true,  "Ping, DNS, port check, traceroute, interfaces"),
         // Info

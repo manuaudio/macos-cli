@@ -97,6 +97,7 @@ struct ProcessCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("process.kill")
             guard pid != nil || name != nil else {
                 throw ValidationError("Provide --pid or --name")
             }

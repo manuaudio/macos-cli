@@ -18,6 +18,7 @@ struct NotifyCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("notify.send")
             var script = "display notification \"\(body.escaped)\""
             script += " with title \"\(title.escaped)\""
             if let sub = subtitle { script += " subtitle \"\(sub.escaped)\"" }

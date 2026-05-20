@@ -53,6 +53,7 @@ struct DefaultsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("defaults.write")
             let allowedTypes = ["string", "bool", "int", "float"]
             guard allowedTypes.contains(type) else {
                 throw ValidationError("--type must be one of: string, bool, int, float")
@@ -80,6 +81,7 @@ struct DefaultsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("defaults.delete")
             let args = ["/usr/bin/defaults", "delete", domain, key]
             let code = Process.run(args: args)
             guard code == 0 else {

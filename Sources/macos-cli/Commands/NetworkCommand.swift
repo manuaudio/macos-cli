@@ -20,6 +20,7 @@ struct NetworkCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("network.read")
             guard count > 0 && count <= 100 else { throw ValidationError("--count must be 1–100") }
             let output = Process.capture(args: ["/sbin/ping", "-c", "\(count)", host], timeout: 30, fallback: "")
             if json {
@@ -63,6 +64,7 @@ struct NetworkCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("network.read")
             // Try dig first; fall back to host command
             var output: String
             let digPath = "/usr/bin/dig"
@@ -108,6 +110,7 @@ struct NetworkCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("network.read")
             guard port > 0 && port <= 65535 else { throw ValidationError("--port must be 1–65535") }
             guard timeout > 0 && timeout <= 60 else { throw ValidationError("--timeout must be 1–60") }
             // nc -zv -w <timeout> <host> <port>: exits 0 if open, non-zero if closed/refused
@@ -132,6 +135,7 @@ struct NetworkCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("network.read")
             guard maxHops > 0 && maxHops <= 64 else { throw ValidationError("--max-hops must be 1–64") }
             let output = Process.capture(
                 args: ["/usr/sbin/traceroute", "-m", "\(maxHops)", host],
@@ -171,6 +175,7 @@ struct NetworkCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("network.read")
             let output = Process.capture(args: ["/sbin/ifconfig"], timeout: 5, fallback: "")
             var interfaces: [[String: Any]] = []
             var currentName = ""

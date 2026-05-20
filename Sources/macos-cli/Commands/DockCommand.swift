@@ -61,6 +61,7 @@ struct DockCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("dock.write")
             let expanded = (path as NSString).expandingTildeInPath
             guard FileManager.default.fileExists(atPath: expanded) else {
                 throw ValidationError("App not found: \(path)")
@@ -89,6 +90,7 @@ struct DockCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("dock.write")
             let plistPath = NSHomeDirectory() + "/Library/Preferences/com.apple.dock.plist"
             guard let appsOutput = Process.capture(
                 args: ["/usr/bin/defaults", "read", "com.apple.dock", "persistent-apps"],
@@ -146,6 +148,7 @@ struct DockCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("dock.write")
             Process.run(args: ["/usr/bin/killall", "Dock"])
             if json {
                 print("{\"restarted\": true}")

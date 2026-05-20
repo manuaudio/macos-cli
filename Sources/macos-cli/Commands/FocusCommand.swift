@@ -67,6 +67,7 @@ struct FocusCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("focus.write")
             let ok = FocusDB.setAssertion(modeIdentifier: mode, enable: true)
             let status = FocusDB.currentState()
             if json {
@@ -89,6 +90,7 @@ struct FocusCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("focus.write")
             let ok = FocusDB.setAssertion(modeIdentifier: nil, enable: false)
             let status = FocusDB.currentState()
             if json {

@@ -63,6 +63,7 @@ struct MusicCommand: ParsableCommand {
     struct Play: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "play", abstract: "Play or resume")
         func run() throws {
+            try Auth.check("music.write")
             guard jxa("Application('Music').play(); 'ok'") != nil else { throw ExitCode.failure }
             print("Playing")
         }
@@ -71,6 +72,7 @@ struct MusicCommand: ParsableCommand {
     struct Pause: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "pause", abstract: "Pause playback")
         func run() throws {
+            try Auth.check("music.write")
             guard jxa("Application('Music').pause(); 'ok'") != nil else { throw ExitCode.failure }
             print("Paused")
         }
@@ -79,6 +81,7 @@ struct MusicCommand: ParsableCommand {
     struct Next: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "next", abstract: "Skip to next track")
         func run() throws {
+            try Auth.check("music.write")
             guard jxa("Application('Music').nextTrack(); 'ok'") != nil else { throw ExitCode.failure }
             print("Skipped to next track")
         }
@@ -87,6 +90,7 @@ struct MusicCommand: ParsableCommand {
     struct Previous: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "prev", abstract: "Go to previous track")
         func run() throws {
+            try Auth.check("music.write")
             guard jxa("Application('Music').previousTrack(); 'ok'") != nil else { throw ExitCode.failure }
             print("Went to previous track")
         }
@@ -98,6 +102,7 @@ struct MusicCommand: ParsableCommand {
 
         func run() throws {
             if let v = level {
+                try Auth.check("music.write")
                 let clamped = max(0, min(100, v))
                 guard jxa("Application('Music').soundVolume = \(clamped); 'ok'") != nil else { throw ExitCode.failure }
                 print("Volume set to \(clamped)%")
@@ -114,6 +119,7 @@ struct MusicCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("music.write")
             let q = query.replacingOccurrences(of: "'", with: "\\'").lowercased()
             let script = """
             (function() {
@@ -196,6 +202,7 @@ struct MusicCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("music.write")
             let qTrack    = track.replacingOccurrences(of: "'", with: "\\'").lowercased()
             let qPlaylist = playlist.replacingOccurrences(of: "'", with: "\\'").lowercased()
             let script = """

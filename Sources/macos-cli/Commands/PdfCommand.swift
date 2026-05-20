@@ -23,6 +23,7 @@ struct PdfCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("pdf.read")
             let expanded = (path as NSString).expandingTildeInPath
             let url = URL(fileURLWithPath: expanded)
             guard let doc = PDFDocument(url: url) else {
@@ -67,6 +68,7 @@ struct PdfCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("pdf.read")
             let expanded = (path as NSString).expandingTildeInPath
             let url = URL(fileURLWithPath: expanded)
             guard let doc = PDFDocument(url: url) else {

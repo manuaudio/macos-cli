@@ -36,6 +36,7 @@ struct MouseCommand: ParsableCommand {
         @Option(help: "Y coordinate") var y: Int
 
         func run() throws {
+            try Auth.check("mouse.write")
             try MouseCommand.checkAccessibility()
             let point = CGPoint(x: x, y: y)
             guard let ev = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
@@ -57,6 +58,7 @@ struct MouseCommand: ParsableCommand {
         @Flag(name: .long, help: "Double-click") var double = false
 
         func run() throws {
+            try Auth.check("mouse.write")
             try MouseCommand.checkAccessibility()
             let point = CGPoint(x: x, y: y)
             let button: CGMouseButton = right ? .right : .left
@@ -99,6 +101,7 @@ struct MouseCommand: ParsableCommand {
         @Option(name: .customLong("to-y"),   help: "End Y")   var toY: Int
 
         func run() throws {
+            try Auth.check("mouse.write")
             try MouseCommand.checkAccessibility()
             let start = CGPoint(x: fromX, y: fromY)
             let end   = CGPoint(x: toX,   y: toY)
@@ -128,6 +131,7 @@ struct MouseCommand: ParsableCommand {
         @Option(help: "Amount (positive = up, negative = down)") var amount: Int = -3
 
         func run() throws {
+            try Auth.check("mouse.write")
             try MouseCommand.checkAccessibility()
             // Move to position first
             let point = CGPoint(x: x, y: y)

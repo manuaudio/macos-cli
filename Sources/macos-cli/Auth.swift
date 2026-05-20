@@ -183,6 +183,8 @@ struct Auth {
         ("clipboard.write",    true,  "Write to the system clipboard"),
         // Apps (launch)
         ("apps.launch",        true,  "Launch applications"),
+        // Voice Memos
+        ("voicememos.read",    false, "List and export Voice Memo recordings"),
     ]
 
     static var defaultCapabilities: [String: Bool] {

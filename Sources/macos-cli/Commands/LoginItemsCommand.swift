@@ -68,7 +68,7 @@ struct LoginItemsCommand: ParsableCommand {
             let hiddenStr = hidden ? "true" : "false"
             let script = """
             tell application "System Events"
-                make new login item at end with properties {hidden:\(hiddenStr), path:"\(jxaEscape(expanded))"}
+                make new login item at end with properties {hidden:\(hiddenStr), path:"\(appleScriptEscape(expanded))"}
             end tell
             """
             guard Process.capture(args: ["/usr/bin/osascript", "-e", script], timeout: 10) != nil else {
@@ -92,7 +92,7 @@ struct LoginItemsCommand: ParsableCommand {
             try Auth.check("login-items.write")
             let script = """
             tell application "System Events"
-                delete (first login item whose name is "\(jxaEscape(name))")
+                delete (first login item whose name is "\(appleScriptEscape(name))")
             end tell
             """
             let exitCode = Process.run(args: ["/usr/bin/osascript", "-e", script])

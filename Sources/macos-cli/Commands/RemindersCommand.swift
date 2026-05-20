@@ -38,6 +38,7 @@ struct RemindersCommand: ParsableCommand {
 
             if let due = due {
                 let fmts = ["yyyy-MM-dd HH:mm", "yyyy-MM-dd"]
+                var parsed = false
                 for fmt in fmts {
                     let df = DateFormatter()
                     df.dateFormat = fmt
@@ -45,8 +46,12 @@ struct RemindersCommand: ParsableCommand {
                         let comps = Calendar.current.dateComponents(
                             [.year, .month, .day, .hour, .minute], from: d)
                         reminder.dueDateComponents = comps
+                        parsed = true
                         break
                     }
+                }
+                if !parsed {
+                    throw ValidationError("Invalid date format for --due: use YYYY-MM-DD or 'YYYY-MM-DD HH:MM'")
                 }
             }
 
@@ -201,7 +206,7 @@ struct RemindersCommand: ParsableCommand {
     struct Delete: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Delete a reminder by ID")
 
-        @Option(name: .long, help: "Reminder calendarItemIdentifier")
+        @Argument(help: "Reminder calendarItemIdentifier")
         var id: String
 
         @Flag(name: .long, help: "Output JSON")
@@ -239,7 +244,7 @@ struct RemindersCommand: ParsableCommand {
     struct Update: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Update a reminder by ID")
 
-        @Option(name: .long, help: "Reminder calendarItemIdentifier")
+        @Argument(help: "Reminder calendarItemIdentifier")
         var id: String
 
         @Option(name: .long, help: "New title")
@@ -331,7 +336,7 @@ struct RemindersCommand: ParsableCommand {
     struct Uncomplete: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Mark a reminder as not complete")
 
-        @Option(name: .long, help: "Reminder calendarItemIdentifier")
+        @Argument(help: "Reminder calendarItemIdentifier")
         var id: String
 
         @Flag(name: .long, help: "Output JSON")

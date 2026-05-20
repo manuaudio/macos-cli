@@ -158,6 +158,15 @@ extension Process {
 
 // MARK: - JXA helpers
 
+/// Escape a Swift string for safe interpolation inside an AppleScript double-quoted string.
+/// Only backslash and double-quote need escaping in AppleScript.
+/// Order matters: backslash MUST be escaped first.
+func appleScriptEscape(_ s: String) -> String {
+    return s
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\"", with: "\\\"")
+}
+
 /// Escape a Swift string for safe interpolation inside a single-quoted JXA string literal.
 /// Order matters: backslash MUST be escaped first.
 func jxaEscape(_ s: String) -> String {

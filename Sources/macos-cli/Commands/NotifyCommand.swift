@@ -19,10 +19,10 @@ struct NotifyCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("notify.send")
-            var script = "display notification \"\(jxaEscape(body))\""
-            script += " with title \"\(jxaEscape(title))\""
-            if let sub = subtitle { script += " subtitle \"\(jxaEscape(sub))\"" }
-            if sound != "none" { script += " sound name \"\(jxaEscape(sound))\"" }
+            var script = "display notification \"\(appleScriptEscape(body))\""
+            script += " with title \"\(appleScriptEscape(title))\""
+            if let sub = subtitle { script += " subtitle \"\(appleScriptEscape(sub))\"" }
+            if sound != "none" { script += " sound name \"\(appleScriptEscape(sound))\"" }
 
             let result = Process.run(args: ["/usr/bin/osascript", "-e", script])
             if result != 0 {

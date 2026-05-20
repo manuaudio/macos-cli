@@ -118,7 +118,7 @@ struct MailCommand: ParsableCommand {
                 try {
                     acct.mailboxes().forEach(mb => {
                         try {
-                            mb.messages().slice(0, 200).forEach(m => {
+                            mb.messages().slice(0, 500).forEach(m => {
                                 try {
                                     const subj = (m.subject() || '').toLowerCase();
                                     const from = (m.sender() || '').toLowerCase();
@@ -239,7 +239,7 @@ struct MailCommand: ParsableCommand {
                 try {
                     acct.mailboxes().forEach(mb => {
                         try {
-                            mb.messages().slice(0, 200).forEach(m => {
+                            mb.messages().slice(0, 500).forEach(m => {
                                 try {
                                     const subj = (m.subject() || '').toLowerCase();
                                     const from = (m.sender() || '').toLowerCase();
@@ -312,7 +312,7 @@ struct MailCommand: ParsableCommand {
                 try {
                     acct.mailboxes().forEach(mb => {
                         try {
-                            mb.messages().slice(0, 200).forEach(m => {
+                            mb.messages().slice(0, 500).forEach(m => {
                                 try {
                                     const subj = (m.subject() || '').toLowerCase();
                                     const from = (m.sender() || '').toLowerCase();
@@ -356,6 +356,7 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Mark as flagged")  var flagged  = false
         @Flag(name: .long, help: "Remove flag")      var unflagged = false
 
+        @Option(name: .long, help: "Max messages to mark (default: 500)") var limit: Int = 500
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
@@ -379,7 +380,7 @@ struct MailCommand: ParsableCommand {
                 try {
                     acct.mailboxes().forEach(mb => {
                         try {
-                            mb.messages().slice(0, 200).forEach(m => {
+                            mb.messages().slice(0, \(limit)).forEach(m => {
                                 try {
                                     const subj = (m.subject() || '').toLowerCase();
                                     const from = (m.sender() || '').toLowerCase();
@@ -480,6 +481,7 @@ struct MailCommand: ParsableCommand {
         @Option(name: .long, help: "Search query to find the original message") var query: String
         @Option(name: .long, help: "Reply body text") var body: String
 
+        @Option(name: .long, help: "Max messages to scan when searching (default: 500)") var limit: Int = 500
         @Flag(name: .long, help: "Reply-all") var all = false
         @Flag(name: .long, help: "Output JSON") var json = false
 
@@ -496,7 +498,7 @@ struct MailCommand: ParsableCommand {
                 try {
                     for (const mb of acct.mailboxes()) {
                         try {
-                            for (const m of mb.messages().slice(0, 200)) {
+                            for (const m of mb.messages().slice(0, \(limit))) {
                                 try {
                                     const subj = (m.subject() || '').toLowerCase();
                                     const from = (m.sender() || '').toLowerCase();

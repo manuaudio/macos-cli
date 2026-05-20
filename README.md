@@ -21,12 +21,47 @@ Builds from source, installs to `/usr/local/bin/macos`, and runs a permission ch
 
 If you don't have Xcode CLT yet: `xcode-select --install`, then re-run the curl command.
 
+> If [`bun`](https://bun.sh) is installed, `install.sh` also builds and installs `macos-mcp` (MCP server for Claude) and `macos-bridge` (HTTP bridge for Ollama/LM Studio). Run `brew install oven-sh/bun/bun` first to enable this.
+
 ### Verify
 
 ```bash
 macos --version   # 0.6.2
 macos setup       # check all permissions — green checkmark per capability
 ```
+
+---
+
+## Use with Claude Desktop / Claude Code
+
+After install, add one entry to `~/Library/Application Support/Claude/claude_desktop_config.json` (Claude Desktop) or `~/.claude.json` (Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "macos": {
+      "command": "/usr/local/bin/macos-mcp"
+    }
+  }
+}
+```
+
+Claude can now call 204 tools to control your Mac — read your calendar, send messages, manage windows, capture screenshots, and more. Capabilities are gated by `~/.config/macos-cli/auth.json`; run `macos auth setup` to configure what's allowed.
+
+## Use with Ollama / LM Studio / Open WebUI
+
+The HTTP bridge exposes the same 204 tools at `http://localhost:2772`:
+
+```
+GET  /v1/tools        → full tool list (OpenAI function-calling schema)
+POST /v1/tool_calls   → execute tools, returns results
+GET  /v1/health       → status check
+```
+
+Start it: `macos-bridge --port 2772`  
+Or load the included LaunchAgent to auto-start on login.
+
+Configure your model to call `http://localhost:2772/v1/tools` for tool definitions and `http://localhost:2772/v1/tool_calls` to invoke them.
 
 ---
 
@@ -89,6 +124,9 @@ macos ax click "OK"
 ---
 
 ## Command reference
+
+<details>
+<summary>Command reference (40+ command groups, 204 tools)</summary>
 
 ### `reminders` — Apple Reminders
 
@@ -612,7 +650,7 @@ Requires Location Services permission. macOS will show "Command Line Tool" in Sy
 
 ---
 
-### `contacts` — Apple Contacts (write operations)
+### `contacts` — write operations
 
 ```bash
 # Create a contact
@@ -702,6 +740,8 @@ macos setup
 
 Checks every capability and prints a green checkmark or red X. Run after install or after granting new permissions.
 
+</details>
+
 ---
 
 ## Permissions
@@ -716,12 +756,9 @@ macOS will prompt on first use for each protected API. Grant in advance at **Sys
 | Screen Recording | `macos screenshot window` |
 | Accessibility | `macos mouse` `macos keyboard` `macos ax` |
 | Automation | `macos messages` `macos mail` `macos photos` `macos music` `macos safari` `macos finder` |
+| Location Services | `macos location get` |
 
 No permissions required: `system` `apps` `storage` `notify` `speech` `info` `notes` `ocr full/file` `screenshot full/region` `pdf` `process` `disk` `focus` `shortcuts`
-
-| Permission | Required for |
-|---|---|
-| Location Services | `macos location get` |
 
 ---
 

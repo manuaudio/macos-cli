@@ -126,6 +126,7 @@ struct ContactsCommand: ParsableCommand {
         var limit: Int = 20
 
         func run() throws {
+            try Auth.check("contacts.read")
             let store = CNContactStore()
 
             let sema = DispatchSemaphore(value: 0)
@@ -186,6 +187,7 @@ struct ContactsCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("contacts.read")
             let store = CNContactStore()
 
             let sema = DispatchSemaphore(value: 0)

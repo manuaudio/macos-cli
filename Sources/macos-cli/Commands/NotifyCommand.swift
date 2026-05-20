@@ -19,10 +19,10 @@ struct NotifyCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("notify.send")
-            var script = "display notification \"\(body.escaped)\""
-            script += " with title \"\(title.escaped)\""
-            if let sub = subtitle { script += " subtitle \"\(sub.escaped)\"" }
-            if sound != "none" { script += " sound name \"\(sound.escaped)\"" }
+            var script = "display notification \"\(jxaEscape(body))\""
+            script += " with title \"\(jxaEscape(title))\""
+            if let sub = subtitle { script += " subtitle \"\(jxaEscape(sub))\"" }
+            if sound != "none" { script += " sound name \"\(jxaEscape(sound))\"" }
 
             let result = Process.run(args: ["/usr/bin/osascript", "-e", script])
             if result != 0 {
@@ -39,6 +39,3 @@ struct NotifyCommand: ParsableCommand {
     }
 }
 
-private extension String {
-    var escaped: String { replacingOccurrences(of: "\"", with: "\\\"") }
-}

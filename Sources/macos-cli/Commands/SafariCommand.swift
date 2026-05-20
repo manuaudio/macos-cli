@@ -18,6 +18,7 @@ struct SafariCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("safari.read")
             let script = """
             try {
             const Safari = Application('Safari');
@@ -101,6 +102,7 @@ struct SafariCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("safari.read")
             let tabSelector = tab >= 0 ? ".tabs()[\(tab)]" : ".currentTab()"
             let script = """
             try {
@@ -351,6 +353,7 @@ struct SafariCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("safari.read")
             let dbPath = (NSHomeDirectory() as NSString).appendingPathComponent("Library/Safari/History.db")
             guard FileManager.default.fileExists(atPath: dbPath) else {
                 throw ValidationError("Safari History.db not found at \(dbPath)")
@@ -418,6 +421,7 @@ struct SafariCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("safari.read")
             let plistPath = (NSHomeDirectory() as NSString).appendingPathComponent("Library/Safari/Bookmarks.plist")
             guard FileManager.default.fileExists(atPath: plistPath) else {
                 throw ValidationError("Bookmarks.plist not found at \(plistPath)")

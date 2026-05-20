@@ -20,6 +20,7 @@ struct MailCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("mail.read")
             // Mail.app exposes no direct EventKit-style API; AppleScript is the
             // only path. We wrap it inside the CLI so callers don't have to
             // construct an osascript shell command themselves.
@@ -97,7 +98,8 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let escaped = query.replacingOccurrences(of: "'", with: "\\'")
+            try Auth.check("mail.read")
+            let escaped = jxaEscape(query)
             let script = """
             const Mail = Application('Mail');
             const q = '\(escaped)'.toLowerCase();
@@ -217,7 +219,8 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let escaped = query.replacingOccurrences(of: "'", with: "\\'")
+            try Auth.check("mail.read")
+            let escaped = jxaEscape(query)
             let script = """
             const Mail = Application('Mail');
             const q = '\(escaped)'.toLowerCase();
@@ -290,7 +293,7 @@ struct MailCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("mail.delete")
-            let escaped = query.replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(query)
             let script = """
             const Mail = Application('Mail');
             const q = '\(escaped)'.toLowerCase();
@@ -349,7 +352,7 @@ struct MailCommand: ParsableCommand {
             guard read || unread || flagged || unflagged else {
                 throw ValidationError("Specify at least one of: --read, --unread, --flagged, --unflagged")
             }
-            let escaped = query.replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(query)
             // Build the property-set lines
             var sets: [String] = []
             if read     { sets.append("m.read = true;") }
@@ -406,8 +409,9 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("mail.read")
             let filterAccount = account ?? ""
-            let escaped = filterAccount.replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(filterAccount)
             let script = """
             const Mail = Application('Mail');
             const filter = '\(escaped)'.toLowerCase();
@@ -470,9 +474,8 @@ struct MailCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("mail.send")
-            let escaped     = query.replacingOccurrences(of: "'", with: "\\'")
-            let escapedBody = body.replacingOccurrences(of: "'", with: "\\'")
-                                   .replacingOccurrences(of: "\\n", with: "\\\\n")
+            let escaped     = jxaEscape(query)
+            let escapedBody = jxaEscape(body)
             let replyAll = all ? "true" : "false"
             let script = """
             const Mail = Application('Mail');
@@ -535,6 +538,7 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("mail.read")
             let script = """
             const Mail = Application('Mail');
             const out = Mail.accounts().map(a => {

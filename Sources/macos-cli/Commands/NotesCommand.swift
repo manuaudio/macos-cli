@@ -33,6 +33,7 @@ struct NotesCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("notes.read")
             let db = notesDBPath()
             let sql = "SELECT ZTITLE1, ZMODIFICATIONDATE1 FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL ORDER BY ZMODIFICATIONDATE1 DESC;"
             let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", db, sql], timeout: 5, fallback: "")
@@ -70,6 +71,7 @@ struct NotesCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("notes.read")
             let db = notesDBPath()
             let q = query.lowercased().replacingOccurrences(of: "'", with: "''")
             let sql = "SELECT ZTITLE1, ZMODIFICATIONDATE1 FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL AND LOWER(ZTITLE1) LIKE '%\(q)%' ORDER BY ZMODIFICATIONDATE1 DESC;"
@@ -102,6 +104,7 @@ struct NotesCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("notes.read")
             let db = notesDBPath().replacingOccurrences(of: "'", with: "\\'")
             let q = title.lowercased()
                          .replacingOccurrences(of: "'", with: "\\'")
@@ -223,14 +226,13 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
             guard newTitle != nil || body != nil else {
                 throw ValidationError("Specify at least --new-title or --body to update")
             }
-            let escaped = title.replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(title)
             let titleUpdate = newTitle.map { t -> String in
-                let et = t.replacingOccurrences(of: "'", with: "\\'")
+                let et = jxaEscape(t)
                 return "note.name = '\(et)';"
             } ?? ""
             let bodyUpdate = body.map { b -> String in
-                let eb = b.replacingOccurrences(of: "'", with: "\\'")
-                              .replacingOccurrences(of: "\\n", with: "\\\\n")
+                let eb = jxaEscape(b)
                 return "note.body = '\(eb)';"
             } ?? ""
             let script = """
@@ -271,6 +273,7 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
         var json = false
 
         func run() throws {
+            try Auth.check("notes.read")
             let script = """
             const Notes = Application('Notes');
             const folders = Notes.folders().map(f => {
@@ -354,13 +357,11 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
 
         func run() throws {
             try Auth.check("notes.write")
-            let escapedTitle = title.replacingOccurrences(of: "'", with: "\\'")
-                                   .replacingOccurrences(of: "\\n", with: "\\\\n")
-            let escapedBody  = body.replacingOccurrences(of: "'", with: "\\'")
-                                   .replacingOccurrences(of: "\\n", with: "\\\\n")
+            let escapedTitle = jxaEscape(title)
+            let escapedBody  = jxaEscape(body)
             let folderPart: String
             if let f = folder {
-                let ef = f.replacingOccurrences(of: "'", with: "\\'")
+                let ef = jxaEscape(f)
                 folderPart = "at Notes.folders.whose({name: '\(ef)'})[0]"
             } else {
                 folderPart = ""

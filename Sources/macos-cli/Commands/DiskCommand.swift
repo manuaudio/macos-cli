@@ -16,6 +16,7 @@ struct DiskCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("disk.read")
             guard let plist = Process.capture(args: ["/usr/sbin/diskutil", "list", "-plist"], timeout: 10),
                   let data = plist.data(using: .utf8),
                   let obj = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
@@ -60,6 +61,7 @@ struct DiskCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("disk.read")
             guard let plist = Process.capture(args: ["/usr/sbin/diskutil", "info", "-plist", path], timeout: 10),
                   let data = plist.data(using: .utf8),
                   let obj = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {

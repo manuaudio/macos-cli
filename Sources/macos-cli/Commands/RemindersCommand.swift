@@ -99,6 +99,7 @@ struct RemindersCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("reminders.read")
             let store = try EventKitStore.authorized(for: .reminder)
             let lists = store.calendars(for: .reminder)
 
@@ -377,6 +378,7 @@ struct RemindersCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("reminders.read")
             let store = try EventKitStore.authorized(for: .reminder)
             let lists = store.calendars(for: .reminder)
             if json {

@@ -46,6 +46,7 @@ struct CalendarCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("calendar.read")
             let store = try EventKitStore.authorized(for: .event)
 
             let df = DateFormatter()
@@ -372,6 +373,7 @@ struct CalendarCommand: ParsableCommand {
         var json = false
 
         func run() throws {
+            try Auth.check("calendar.read")
             let store = try EventKitStore.authorized(for: .event)
             let cals = store.calendars(for: .event)
             if json {

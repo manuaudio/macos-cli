@@ -132,6 +132,7 @@ struct Auth {
         ("safari.execute",     false, "Open URLs, execute JS, close/reload tabs"),
         // Photos
         ("photos.read",        true,  "List/search/export photos"),
+        ("photos.write",       false, "Add photos to albums or modify library"),
         ("photos.delete",      false, "Delete photos from the library"),
         // Finder
         ("finder.read",        true,  "Read Finder selection / cwd / hidden state"),
@@ -176,6 +177,10 @@ struct Auth {
         ("network.read",       true,  "Ping, DNS, port check, traceroute, interfaces"),
         // Info
         ("info.read",          true,  "Read system, network, power info"),
+        // Clipboard
+        ("clipboard.write",    true,  "Write to the system clipboard"),
+        // Apps (launch)
+        ("apps.launch",        true,  "Launch applications"),
     ]
 
     static var defaultCapabilities: [String: Bool] {

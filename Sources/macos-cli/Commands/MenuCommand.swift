@@ -21,8 +21,7 @@ struct MenuCommand: ParsableCommand {
 
             let procClause: String
             if let app = app {
-                let escaped = app.replacingOccurrences(of: "\"", with: "\\\"")
-                procClause = "se.applicationProcesses.whose({name: \"\(escaped)\"})[0]"
+                procClause = "se.applicationProcesses.whose({name: \"\(jxaEscape(app))\"})[0]"
             } else {
                 procClause = "se.applicationProcesses.whose({frontmost: true})[0]"
             }

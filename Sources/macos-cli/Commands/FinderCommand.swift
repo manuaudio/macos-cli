@@ -18,6 +18,7 @@ struct FinderCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON array") var json = false
 
         func run() throws {
+            try Auth.check("finder.read")
             let script = """
             var finder = Application("Finder");
             var sel = finder.selection();
@@ -62,8 +63,7 @@ struct FinderCommand: ParsableCommand {
         func run() throws {
             try Auth.check("finder.write")
             let expanded = (path as NSString).expandingTildeInPath
-            let escaped = expanded.replacingOccurrences(of: "\\", with: "\\\\")
-                                  .replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(expanded)
             let script = """
             var finder = Application("Finder");
             finder.activate();
@@ -106,6 +106,7 @@ struct FinderCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("finder.read")
             let script = """
             var finder = Application("Finder");
             var win = finder.windows()[0];
@@ -152,8 +153,7 @@ struct FinderCommand: ParsableCommand {
                 throw ValidationError("Could not create folder '\(expanded)': \(error.localizedDescription)")
             }
             // Reveal in Finder
-            let escaped = expanded.replacingOccurrences(of: "\\", with: "\\\\")
-                                  .replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(expanded)
             let script = """
             var finder = Application("Finder");
             finder.activate();
@@ -281,8 +281,7 @@ struct FinderCommand: ParsableCommand {
                     }
                 } else { colorIndex = 0 }
 
-                let escaped = expanded.replacingOccurrences(of: "\\", with: "\\\\")
-                                      .replacingOccurrences(of: "'", with: "\\'")
+                let escaped = jxaEscape(expanded)
                 let setIndex = remove != nil ? 0 : colorIndex
                 let script = """
                 var finder = Application("Finder");
@@ -317,8 +316,7 @@ struct FinderCommand: ParsableCommand {
             guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir), isDir.boolValue else {
                 throw ValidationError("Not a directory: \(expanded)")
             }
-            let escaped = expanded.replacingOccurrences(of: "\\", with: "\\\\")
-                                  .replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(expanded)
             let script = """
             var finder = Application("Finder");
             finder.activate();

@@ -46,9 +46,7 @@ struct ScreenshotCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("screen.capture")
-            let escapedApp = app
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "'", with: "\\'")
+            let escapedApp = jxaEscape(app)
             // Get the window ID via CGWindowList
             let py = """
 import subprocess, json, sys

@@ -120,7 +120,7 @@ struct MusicCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("music.write")
-            let q = query.replacingOccurrences(of: "'", with: "\\'").lowercased()
+            let q = jxaEscape(query).lowercased()
             let script = """
             (function() {
               var music = Application("Music");
@@ -203,8 +203,8 @@ struct MusicCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("music.write")
-            let qTrack    = track.replacingOccurrences(of: "'", with: "\\'").lowercased()
-            let qPlaylist = playlist.replacingOccurrences(of: "'", with: "\\'").lowercased()
+            let qTrack    = jxaEscape(track).lowercased()
+            let qPlaylist = jxaEscape(playlist).lowercased()
             let script = """
             (function() {
               var music = Application("Music");

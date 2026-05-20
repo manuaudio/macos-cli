@@ -95,10 +95,8 @@ struct LoginItemsCommand: ParsableCommand {
                 delete (first login item whose name is "\(jxaEscape(name))")
             end tell
             """
-            guard let result = Process.capture(args: ["/usr/bin/osascript", "-e", script], timeout: 10) else {
-                throw ValidationError("Remove login item timed out.")
-            }
-            if result.lowercased().contains("error") {
+            let exitCode = Process.run(args: ["/usr/bin/osascript", "-e", script])
+            if exitCode != 0 {
                 throw ValidationError("Login item not found: \(name)")
             }
             if json {

@@ -7,7 +7,7 @@ struct WindowCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "window",
         abstract: "List and control application windows",
-        subcommands: [List.self, Move.self, Resize.self, Focus.self, Minimize.self]
+        subcommands: [List.self, Move.self, Resize.self, Focus.self, Minimize.self, Fullscreen.self, Maximize.self, Snap.self]
     )
 
     struct List: ParsableCommand {
@@ -146,6 +146,94 @@ struct WindowCommand: ParsableCommand {
             try axWindow(app: app, title: title) { win in
                 AXUIElementSetAttributeValue(win, kAXMinimizedAttribute as CFString, true as CFTypeRef)
                 print("Minimized \(app)")
+            }
+        }
+    }
+
+    struct Fullscreen: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "fullscreen", abstract: "Toggle fullscreen for an app window")
+        @Argument(help: "App name") var app: String
+        @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
+
+        func run() throws {
+            try axWindow(app: app, title: title) { win in
+                var currentRef: CFTypeRef?
+                AXUIElementCopyAttributeValue(win, "AXFullScreen" as CFString, &currentRef)
+                let current = (currentRef as? Bool) ?? false
+                AXUIElementSetAttributeValue(win, "AXFullScreen" as CFString, (!current) as CFTypeRef)
+                print("\(self.app) \(!current ? "entered" : "exited") fullscreen")
+            }
+        }
+    }
+
+    struct Maximize: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "maximize", abstract: "Expand a window to fill the visible screen area")
+        @Argument(help: "App name") var app: String
+        @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
+
+        func run() throws {
+            guard let screen = NSScreen.main else {
+                throw ValidationError("Could not determine main screen.")
+            }
+            let vf = screen.visibleFrame
+            let sf = screen.frame
+            // AX position uses top-left origin; NSScreen uses bottom-left. Convert.
+            let axY = sf.height - vf.origin.y - vf.height
+            try axWindow(app: app, title: title) { win in
+                var origin = CGPoint(x: vf.origin.x, y: axY)
+                let pos = AXValueCreate(.cgPoint, &origin)!
+                AXUIElementSetAttributeValue(win, kAXPositionAttribute as CFString, pos)
+                var size = CGSize(width: vf.width, height: vf.height)
+                let sz = AXValueCreate(.cgSize, &size)!
+                AXUIElementSetAttributeValue(win, kAXSizeAttribute as CFString, sz)
+                print("Maximized \(self.app): \(Int(vf.width))×\(Int(vf.height))")
+            }
+        }
+    }
+
+    struct Snap: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "snap", abstract: "Snap a window to a screen region")
+        @Argument(help: "App name") var app: String
+        @Argument(help: "Position: left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|left-third|center-third|right-third") var position: String
+        @Option(name: .long, help: "Window title (if multiple windows)") var title: String?
+
+        func run() throws {
+            guard let screen = NSScreen.main else {
+                throw ValidationError("Could not determine main screen.")
+            }
+            let vf = screen.visibleFrame
+            let sf = screen.frame
+            let W = vf.width, H = vf.height
+            let ox = vf.origin.x
+            let baseY = sf.height - vf.origin.y - vf.height
+
+            let (rx, ry, rw, rh): (CGFloat, CGFloat, CGFloat, CGFloat)
+            switch position {
+            case "left":          (rx, ry, rw, rh) = (ox,         baseY,       W/2, H)
+            case "right":         (rx, ry, rw, rh) = (ox + W/2,   baseY,       W/2, H)
+            case "top":           (rx, ry, rw, rh) = (ox,         baseY,       W,   H/2)
+            case "bottom":        (rx, ry, rw, rh) = (ox,         baseY + H/2, W,   H/2)
+            case "top-left":      (rx, ry, rw, rh) = (ox,         baseY,       W/2, H/2)
+            case "top-right":     (rx, ry, rw, rh) = (ox + W/2,   baseY,       W/2, H/2)
+            case "bottom-left":   (rx, ry, rw, rh) = (ox,         baseY + H/2, W/2, H/2)
+            case "bottom-right":  (rx, ry, rw, rh) = (ox + W/2,   baseY + H/2, W/2, H/2)
+            case "left-third":    (rx, ry, rw, rh) = (ox,         baseY,       W/3, H)
+            case "center-third":  (rx, ry, rw, rh) = (ox + W/3,   baseY,       W/3, H)
+            case "right-third":   (rx, ry, rw, rh) = (ox + 2*W/3, baseY,       W/3, H)
+            default:
+                throw ValidationError(
+                    "Unknown position '\(position)'. Valid: left, right, top, bottom, top-left, top-right, bottom-left, bottom-right, left-third, center-third, right-third"
+                )
+            }
+
+            try axWindow(app: app, title: title) { win in
+                var origin = CGPoint(x: rx, y: ry)
+                let pos = AXValueCreate(.cgPoint, &origin)!
+                AXUIElementSetAttributeValue(win, kAXPositionAttribute as CFString, pos)
+                var size = CGSize(width: rw, height: rh)
+                let sz = AXValueCreate(.cgSize, &size)!
+                AXUIElementSetAttributeValue(win, kAXSizeAttribute as CFString, sz)
+                print("Snapped \(self.app) to \(self.position): \(Int(rw))×\(Int(rh)) at (\(Int(rx)),\(Int(ry)))")
             }
         }
     }

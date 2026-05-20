@@ -25,6 +25,7 @@ struct MacOSCLI: ParsableCommand {
             SpacesCommand.self,
             AudioDeviceCommand.self,
             ScriptCommand.self,
+            TimeMachineCommand.self,
             MouseCommand.self,
             KeyboardCommand.self,
             AxCommand.self,

@@ -115,7 +115,17 @@ private func recognizeText(in image: CGImage) -> [String] {
     }
     request.recognitionLevel = .accurate
     request.usesLanguageCorrection = true
-    try? VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+    let handler = VNImageRequestHandler(cgImage: image, options: [:])
+    var performError: Error? = nil
+    do {
+        try handler.perform([request])
+    } catch {
+        performError = error
+        sem.signal()
+    }
     sem.wait()
+    if let e = performError {
+        fputs("OCR warning: \(e.localizedDescription)\n", stderr)
+    }
     return lines
 }

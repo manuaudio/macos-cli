@@ -299,7 +299,9 @@ struct ContactsCommand: ParsableCommand {
         @Option(name: .long, help: "Label for --add-phone (default: mobile)") var addPhoneLabel: String = "mobile"
         @Option(name: .long, help: "Add email address") var addEmail: String?
         @Option(name: .long, help: "Label for --add-email (default: work)") var addEmailLabel: String = "work"
-        @Option(name: .long, help: "Note") var note: String?
+        // --note intentionally absent: CNContactNoteKey requires the
+        // com.apple.developer.contacts.notes entitlement (macOS 13+). Writing to
+        // an unfetched note key throws NSException. Use `macos contacts set-note` instead.
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
@@ -326,7 +328,6 @@ struct ContactsCommand: ParsableCommand {
             if let v = lastName      { mutable.familyName       = v }
             if let v = organization  { mutable.organizationName = v }
             if let v = jobTitle      { mutable.jobTitle         = v }
-            if let v = note          { mutable.note             = v }
 
             if let p = addPhone {
                 var phones = mutable.phoneNumbers

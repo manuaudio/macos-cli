@@ -142,12 +142,10 @@ struct SetupCommand: ParsableCommand {
         if !ok { failures.append(label) }
     }
 
-    // Test actual macOS CLI subcommand (self-call)
+    // Test actual macOS CLI subcommand (self-call) — check exit code, not stdout content
     private func cliOK(_ args: [String]) -> Bool {
         let selfPath = CommandLine.arguments[0]
-        guard let raw = Process.capture(args: [selfPath] + args, timeout: 5) else { return false }
-        let r = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !r.lowercased().contains("error") && !r.lowercased().contains("permission denied") && !r.isEmpty
+        return Process.run(args: [selfPath] + args) == 0
     }
 
     private func jxaOK(_ expr: String) -> Bool {
@@ -183,6 +181,6 @@ struct SetupCommand: ParsableCommand {
     }
 
     private func speechOK() -> Bool {
-        Process.run(args: ["/usr/bin/say", "-v", "?", ""]) == 0
+        Process.run(args: ["/usr/bin/say", "-v", "?"]) == 0
     }
 }

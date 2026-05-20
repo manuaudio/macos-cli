@@ -128,7 +128,11 @@ body = ''
 if blob:
     try:
         raw = gzip.decompress(bytes(blob))
-        body = re.sub(rb'[^\\x20-\\x7E\\n\\t]+', b' ', raw).decode('utf-8', errors='replace').strip()
+        try:
+            body = raw.decode('utf-8', errors='ignore').strip()
+        except Exception:
+            body = raw.decode('ascii', errors='replace').strip()
+        body = re.sub(r'[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]', '', body).strip()
     except Exception:
         pass
 modified = ''

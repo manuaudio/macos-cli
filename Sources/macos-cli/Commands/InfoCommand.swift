@@ -141,10 +141,12 @@ struct InfoCommand: ParsableCommand {
                         guard parts.count >= 2 else { continue }
                         let key = parts[0]
                         let val = parts[1]
-                        if let intVal = Int(val) {
-                            parsed[key] = intVal
-                        } else if val == "1" || val == "0" {
+                        if val == "1" || val == "0" {
                             parsed[key] = val == "1"
+                        } else if let intVal = Int(val) {
+                            parsed[key] = intVal
+                        } else if let floatVal = Double(val) {
+                            parsed[key] = floatVal
                         } else {
                             parsed[key] = val
                         }

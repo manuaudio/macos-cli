@@ -24,13 +24,22 @@ struct MailCommand: ParsableCommand {
             // Mail.app exposes no direct EventKit-style API; AppleScript is the
             // only path. We wrap it inside the CLI so callers don't have to
             // construct an osascript shell command themselves.
-            let script = "tell application \"Mail\" to check for new mail"
-            let result = Process.capture(args: ["/usr/bin/osascript", "-e", script],
-                                         timeout: 30, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            // osascript returns empty on success; non-empty usually signals an error.
-            if !result.isEmpty && result.lowercased().contains("error") {
-                throw ValidationError("Mail refresh failed: \(result.prefix(200))")
+            let script = """
+            (function() {
+              try {
+                const Mail = Application('Mail');
+                Mail.checkForNewMail();
+                return JSON.stringify({ok: true, result: "refreshed", error: ""});
+              } catch(e) {
+                return JSON.stringify({ok: false, result: "", error: e.toString()});
+              }
+            })()
+            """
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script],
+                                      timeout: 30, fallback: "")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Mail refresh failed: \(errMsg.prefix(200))")
             }
             if json {
                 printJSON(["refresh_requested": true])
@@ -53,6 +62,7 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Open the draft in Mail after creating") var open = false
 
         func run() throws {
+            try Auth.check("mail.send")
             let escapedTo      = jxaEscape(to)
             let escapedSubject = jxaEscape(subject)
             let escapedBody    = jxaEscape(body)
@@ -349,6 +359,7 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("mail.write")
             guard read || unread || flagged || unflagged else {
                 throw ValidationError("Specify at least one of: --read, --unread, --flagged, --unflagged")
             }

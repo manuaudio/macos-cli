@@ -20,6 +20,7 @@ struct DefaultsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("defaults.read")
             var args = ["/usr/bin/defaults", "read", domain]
             if let k = key { args.append(k) }
             guard let output = Process.capture(args: args, timeout: 5) else {
@@ -103,6 +104,7 @@ struct DefaultsCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("defaults.read")
             let output = Process.capture(args: ["/usr/bin/defaults", "domains"], timeout: 10, fallback: "")
             // Output is comma-separated on a single line
             let domains = output

@@ -72,6 +72,7 @@ struct MessagesCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("messages.read")
             let escapedWith = jxaEscape(with)
             let script = """
             try {
@@ -204,6 +205,7 @@ struct MessagesCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("messages.read")
             let script = """
             try {
             const Messages = Application('Messages');

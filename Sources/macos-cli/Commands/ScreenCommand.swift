@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import CoreGraphics
+import AppKit
 
 struct ScreenCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -33,7 +34,11 @@ struct ScreenCommand: ParsableCommand {
                     "origin_x": Int(bounds.origin.x),
                     "origin_y": Int(bounds.origin.y),
                     "rotation": Int(rotation),
-                    "retina": CGDisplayUsesOpenGLAcceleration(dId) == 1,
+                    "retina": {
+                        let key = NSDeviceDescriptionKey("NSScreenNumber")
+                        return NSScreen.screens.first { ($0.deviceDescription[key] as? CGDirectDisplayID) == dId }
+                            .map { $0.backingScaleFactor > 1.0 } ?? false
+                    }(),
                 ])
             }
 

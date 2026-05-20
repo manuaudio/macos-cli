@@ -44,6 +44,9 @@ struct ScreenshotCommand: ParsableCommand {
         var output: String = "/tmp/screenshot.png"
 
         func run() throws {
+            let escapedApp = app
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
             // Get the window ID via CGWindowList
             let py = """
 import subprocess, json, sys
@@ -58,7 +61,7 @@ if match:
     print(match["kCGWindowNumber"])
 else:
     print("")
-''', '\(app.replacingOccurrences(of: "'", with: "\\'"))'],
+''', '\(escapedApp)'],
     capture_output=True, text=True
 )
 print(result.stdout.strip())
@@ -66,12 +69,12 @@ print(result.stdout.strip())
             // Simpler: use screencapture -l with window list from osascript
             let windowScript = """
             const se = Application('System Events');
-            const procs = se.applicationProcesses.whose({name: '\(app.replacingOccurrences(of: "'", with: "\\'"))'})(  );
+            const procs = se.applicationProcesses.whose({name: '\(escapedApp)'})(  );
             procs.length > 0 ? 'found' : 'not found';
             """
             // Use screencapture interactive window selection for the named app
             // Focus the app first, then capture its frontmost window
-            let focusScript = "Application('\(app.replacingOccurrences(of: "'", with: "\\'"))').activate()"
+            let focusScript = "Application('\(escapedApp)').activate()"
             _ = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", focusScript], timeout: 10, fallback: "")
             usleep(300_000)  // wait for focus
 
@@ -84,7 +87,7 @@ try:
     import objc
     windows = Quartz.CGWindowListCopyWindowInfo(
         Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
-    app = '\(app.replacingOccurrences(of: "'", with: "\\'"))'
+    app = '\(escapedApp)'
     match = None
     for w in windows:
         name = w.get('kCGWindowOwnerName', '')

@@ -23,8 +23,11 @@ struct MessagesCommand: ParsableCommand {
 
         func run() throws {
             let escapedTo   = to.replacingOccurrences(of: "'", with: "\\'")
-            let escapedText = text.replacingOccurrences(of: "'", with: "\\'")
-                                   .replacingOccurrences(of: "\\n", with: "\\\\n")
+            let escapedText = text
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .replacingOccurrences(of: "\r", with: "\\r")
             let script = """
             const Messages = Application('Messages');
             const buddy = Messages.buddies.whose({name: '\(escapedTo)'})(  )[0]

@@ -5,7 +5,7 @@ A native macOS command-line tool that gives your terminal and your AI agent firs
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](#requirements)
 [![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange?logo=swift)](https://swift.org)
-[![Version](https://img.shields.io/badge/version-0.5.8-blue)](#install)
+[![Version](https://img.shields.io/badge/version-0.6.2-blue)](#install)
 
 ---
 
@@ -24,7 +24,7 @@ If you don't have Xcode CLT yet: `xcode-select --install`, then re-run the curl 
 ### Verify
 
 ```bash
-macos --version   # 0.5.8
+macos --version   # 0.6.2
 macos setup       # check all permissions — green checkmark per capability
 ```
 
@@ -783,6 +783,51 @@ swift build              # debug build
 swift build -c release   # release build
 make install             # release build + install to /usr/local/bin
 ```
+
+---
+
+## Personal install — make this your assistant layer
+
+macOS CLI ships with two wrapper layers that let your favorite AI tools drive the Mac through the same 200+ tools. Both are optional and skip cleanly if [bun](https://bun.sh) is not installed.
+
+### Claude Desktop / Claude Code (MCP)
+
+```bash
+# `install.sh` builds and installs this automatically if `bun` is present.
+# To wire it into Claude Desktop, add to
+# ~/Library/Application Support/Claude/claude_desktop_config.json :
+
+{
+  "mcpServers": {
+    "macos": { "command": "/usr/local/bin/macos-mcp" }
+  }
+}
+```
+
+Restart Claude Desktop. Every `macos` command (calendar, mail, screenshot, OCR, mouse, keyboard, ...) appears as a tool the model can call.
+
+For Claude Code, add the same `mcpServers` block to `~/.claude.json`.
+
+### Ollama / LM Studio / Open WebUI (HTTP)
+
+```bash
+# `install.sh` also installs `macos-bridge` if `bun` is present, and
+# optionally enables a per-user LaunchAgent that keeps it running on port 2772.
+
+# Manually:
+/usr/local/bin/macos-bridge --port 2772
+
+# Endpoints:
+#   GET  http://localhost:2772/v1/tools           — OpenAI function-calling tool catalog
+#   POST http://localhost:2772/v1/tool_calls      — [{name, arguments}] → [{name, result|error}]
+#   GET  http://localhost:2772/v1/health
+```
+
+Point your local LLM stack at these URLs as its tool source.
+
+### How the layers share state
+
+`tool-definitions/tools.json` is the single source of truth. Both wrappers read from it at build time. To add a new tool, add it once to `tools.json` and rebuild both wrappers — there is no duplication.
 
 ---
 

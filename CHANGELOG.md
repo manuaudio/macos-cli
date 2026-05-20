@@ -1,3 +1,20 @@
+## 0.6.2 — 2026-05-20
+
+Personal-install wrapper layer.
+
+### Added
+- `tool-definitions/tools.json` — canonical machine-readable catalog of every CLI command, in OpenAI function-calling schema with extra `command` and `flags` routing fields.
+- `macos-mcp/` — Bun/TypeScript MCP server exposing every tool to Claude Desktop and Claude Code over stdio. Compiles to a single `/usr/local/bin/macos-mcp` binary via `bun build --compile`.
+- `macos-bridge/` — Bun/TypeScript HTTP server exposing the same tools at `http://localhost:2772/v1/tools` and `/v1/tool_calls` in OpenAI function-calling format. Drop-in for Ollama, LM Studio, Open WebUI, llama.cpp server. Ships with a user-level `com.macos-cli.bridge` LaunchAgent template.
+- `install.sh` now optionally builds both wrappers when `bun` is available and (with a y/N prompt) enables the LaunchAgent. Silently skips when `bun` is absent — vanilla CLI install always succeeds.
+
+### Notes
+- Auth-denied results from the binary surface as structured tool errors in both wrappers (`isError: true` for MCP, `{"error": "capability denied: ..."}` inside the tool-call response for the bridge) — never as transport-level failures.
+- The wrappers are wholly additive — the Swift CLI itself is unchanged in this release (apart from the version string).
+- v0.6.1 was skipped — it was used as a working version during scaffolding.
+
+---
+
 ## [0.5.7] — 2026-05-19
 
 ### Renamed

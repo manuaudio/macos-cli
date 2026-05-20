@@ -15,6 +15,7 @@ struct TrashCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("file.write")
             let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: url.path) else {
                 throw ValidationError("Path not found: \(path)")
@@ -23,7 +24,7 @@ struct TrashCommand: ParsableCommand {
             try FileManager.default.trashItem(at: url, resultingItemURL: &resultURL)
             let trashPath = resultURL?.path ?? "~/.Trash/"
             if json {
-                print("{\"trashed\": true, \"original\": \"\(url.path)\", \"trash_path\": \"\(trashPath)\"}")
+                printJSON(["trashed": true, "original": url.path, "trash_path": trashPath] as [String: Any])
             } else {
                 print("Moved to Trash: \(url.path)")
             }

@@ -76,7 +76,7 @@ struct LoginItemsCommand: ParsableCommand {
             }
             let name = URL(fileURLWithPath: expanded).deletingPathExtension().lastPathComponent
             if json {
-                print("{\"added\": true, \"name\": \"\(name)\", \"path\": \"\(expanded)\"}")
+                printJSON(["added": true, "name": name, "path": expanded] as [String: Any])
             } else {
                 print("Added login item: \(name)")
             }
@@ -100,7 +100,7 @@ struct LoginItemsCommand: ParsableCommand {
                 throw ValidationError("Login item not found: \(name)")
             }
             if json {
-                print("{\"removed\": true, \"name\": \"\(name)\"}")
+                printJSON(["removed": true, "name": name] as [String: Any])
             } else {
                 print("Removed login item: \(name)")
             }

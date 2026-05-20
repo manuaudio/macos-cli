@@ -29,8 +29,8 @@ struct ContactsCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("contacts.read")
-            // AppleScript escape the id (single-quote-safe).
-            let safeId = id.replacingOccurrences(of: "\"", with: "\\\"")
+            // AppleScript escape the id — jxaEscape handles \, ', ", \n, \r.
+            let safeId = jxaEscape(id)
             let script = """
             tell application "Contacts"
               try
@@ -69,7 +69,7 @@ struct ContactsCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("contacts.write")
-            let safeId = id.replacingOccurrences(of: "\"", with: "\\\"")
+            let safeId = jxaEscape(id)
             // Escape backslashes first, then double-quotes, then encode literal
             // newlines as AppleScript "\n" (which is the linefeed escape inside
             // a string literal in AppleScript).

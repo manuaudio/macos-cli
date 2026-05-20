@@ -78,7 +78,7 @@ struct FileCommand: ParsableCommand {
             }
             try FileManager.default.copyItem(at: srcURL, to: finalDst)
             if json {
-                print("{\"copied\": true, \"src\": \"\(srcURL.path)\", \"dst\": \"\(finalDst.path)\"}")
+                printJSON(["copied": true, "src": srcURL.path, "dst": finalDst.path] as [String: Any])
             } else {
                 print("Copied: \(srcURL.path) → \(finalDst.path)")
             }
@@ -107,7 +107,7 @@ struct FileCommand: ParsableCommand {
             }
             try FileManager.default.moveItem(at: srcURL, to: finalDst)
             if json {
-                print("{\"moved\": true, \"src\": \"\(srcURL.path)\", \"dst\": \"\(finalDst.path)\"}")
+                printJSON(["moved": true, "src": srcURL.path, "dst": finalDst.path] as [String: Any])
             } else {
                 print("Moved: \(srcURL.path) → \(finalDst.path)")
             }
@@ -127,7 +127,7 @@ struct FileCommand: ParsableCommand {
             }
             try FileManager.default.removeItem(at: url)
             if json {
-                print("{\"deleted\": true, \"path\": \"\(url.path)\"}")
+                printJSON(["deleted": true, "path": url.path] as [String: Any])
             } else {
                 print("Deleted: \(url.path)")
             }

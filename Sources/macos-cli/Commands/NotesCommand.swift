@@ -313,6 +313,7 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
         var json = false
 
         func run() throws {
+            try Auth.check("notes.write")
             let escaped = jxaEscape(name)
             let script = """
             try {

@@ -57,7 +57,7 @@ struct BluetoothCommand: ParsableCommand {
                 throw ValidationError("Failed to connect '\(device.name ?? nameOrAddress)': IOReturn 0x\(String(result, radix: 16))")
             }
             if json {
-                print("{\"connected\": true, \"name\": \"\(device.name ?? nameOrAddress)\"}")
+                printJSON(["connected": true, "name": device.name ?? nameOrAddress] as [String: Any])
             } else {
                 print("Connected: \(device.name ?? nameOrAddress)")
             }
@@ -79,7 +79,7 @@ struct BluetoothCommand: ParsableCommand {
                 throw ValidationError("Failed to disconnect '\(device.name ?? nameOrAddress)': IOReturn 0x\(String(result, radix: 16))")
             }
             if json {
-                print("{\"disconnected\": true, \"name\": \"\(device.name ?? nameOrAddress)\"}")
+                printJSON(["disconnected": true, "name": device.name ?? nameOrAddress] as [String: Any])
             } else {
                 print("Disconnected: \(device.name ?? nameOrAddress)")
             }

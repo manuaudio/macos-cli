@@ -65,6 +65,7 @@ struct Auth {
         // Mail
         ("mail.read",          true,  "Read emails"),
         ("mail.send",          false, "Send emails"),
+        ("mail.write",         false, "Move, mark, or modify emails"),
         ("mail.delete",        false, "Delete emails"),
         // Contacts
         ("contacts.read",      true,  "Read contacts"),
@@ -104,6 +105,7 @@ struct Auth {
         ("system.lock",        true,  "Lock the Mac immediately"),
         ("system.sleep",       false, "Put the Mac to sleep"),
         // Messages
+        ("messages.read",      false, "Read iMessage conversations"),
         ("messages.send",      false, "Send iMessages"),
         ("messages.delete",    false, "Delete iMessage conversations"),
         // Mouse / Keyboard

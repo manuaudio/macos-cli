@@ -17,6 +17,7 @@ struct PhotosCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("photos.read")
             let script = """
             const Photos = Application('Photos');
             const out = Photos.albums().map(a => {
@@ -56,7 +57,8 @@ struct PhotosCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let escaped = query.replacingOccurrences(of: "'", with: "\\'")
+            try Auth.check("photos.read")
+            let escaped = jxaEscape(query)
             let script = """
             const Photos = Application('Photos');
             const q = '\(escaped)'.toLowerCase();
@@ -113,9 +115,10 @@ struct PhotosCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let escapedName = name.replacingOccurrences(of: "'", with: "\\'")
+            try Auth.check("photos.read")
+            let escapedName = jxaEscape(name)
             let destDir = (to as NSString).expandingTildeInPath
-            let escapedDir = destDir.replacingOccurrences(of: "'", with: "\\'")
+            let escapedDir = jxaEscape(destDir)
             let script = """
             const Photos = Application('Photos');
             const q = '\(escapedName)'.toLowerCase();
@@ -224,7 +227,7 @@ struct PhotosCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("photos.delete")
-            let escapedName = name.replacingOccurrences(of: "'", with: "\\'")
+            let escapedName = jxaEscape(name)
             let script = """
             const Photos = Application('Photos');
             const q = '\(escapedName)'.toLowerCase();
@@ -268,6 +271,7 @@ struct PhotosCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
+            try Auth.check("photos.read")
             let script = """
             const Photos = Application('Photos');
             const items = Photos.mediaItems().slice(-\(limit)).reverse();

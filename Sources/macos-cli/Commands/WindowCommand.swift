@@ -121,7 +121,7 @@ struct WindowCommand: ParsableCommand {
             let _ = runningApps  // unused — use osascript activate instead
             guard let raw = Process.capture(
                 args: ["/usr/bin/osascript", "-l", "JavaScript", "-e",
-                       "Application('\(app)').activate()"],
+                       "Application('\(jxaEscape(app))').activate()"],
                 timeout: 5
             ) else {
                 fputs("Error: Could not activate \(app)\n", stderr)

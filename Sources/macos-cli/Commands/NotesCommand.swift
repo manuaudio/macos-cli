@@ -166,26 +166,30 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
 
         func run() throws {
             try Auth.check("notes.delete")
-            let escaped = title.replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(title)
             let script = """
+            try {
             const Notes = Application('Notes');
             const matches = Notes.notes.whose({name: {_contains: '\(escaped)'}});
             if (!matches || matches.length === 0) {
-                JSON.stringify({deleted: false, error: 'No matching note found'});
+                JSON.stringify({ok:false, error: 'No matching note found'});
             } else {
                 const noteTitle = matches[0].name();
                 matches[0].delete();
-                JSON.stringify({deleted: true, title: noteTitle});
+                JSON.stringify({ok:true, result:{deleted: true, title: noteTitle}});
             }
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
-                  let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            guard let env = parseJXAEnvelope(raw) else {
                 throw ValidationError("Could not delete note — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
             }
-            if raw.lowercased().contains("error") && result["deleted"] as? Bool != true {
-                throw ValidationError("Delete failed: \(result["error"] as? String ?? raw)")
+            if !env.ok {
+                throw ValidationError("Delete failed: \(env.error)")
+            }
+            guard let data = env.resultJSON.data(using: .utf8),
+                  let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ValidationError("Unexpected response from Notes: \(env.resultJSON.prefix(200))")
             }
             if json {
                 printJSON(result)
@@ -306,20 +310,22 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
         var json = false
 
         func run() throws {
-            let escaped = name.replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(name)
             let script = """
+            try {
             const Notes = Application('Notes');
             Notes.make({new: 'folder', withProperties: {name: '\(escaped)'}});
-            JSON.stringify({created: true, name: '\(escaped)'});
+            JSON.stringify({ok:true, result:{created: true, name: '\(escaped)'}});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if raw.lowercased().contains("error") || raw.isEmpty {
-                throw ValidationError("Could not create folder — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Could not create folder — check Automation permission for Notes in System Settings\n\(errMsg.prefix(200))")
             }
-            guard let data = raw.data(using: .utf8),
+            guard let data = env.resultJSON.data(using: .utf8),
                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Unexpected response from Notes: \(raw.prefix(200))")
+                throw ValidationError("Unexpected response from Notes: \(env.resultJSON.prefix(200))")
             }
             if json {
                 printJSON(result)

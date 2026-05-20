@@ -23,13 +23,10 @@ struct MessagesCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("messages.send")
-            let escapedTo   = to.replacingOccurrences(of: "'", with: "\\'")
-            let escapedText = text
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "'", with: "\\'")
-                .replacingOccurrences(of: "\n", with: "\\n")
-                .replacingOccurrences(of: "\r", with: "\\r")
+            let escapedTo   = jxaEscape(to)
+            let escapedText = jxaEscape(text)
             let script = """
+            try {
             const Messages = Application('Messages');
             const buddy = Messages.buddies.whose({name: '\(escapedTo)'})(  )[0]
                        || Messages.buddies.whose({handle: '\(escapedTo)'})(  )[0];
@@ -39,24 +36,27 @@ struct MessagesCommand: ParsableCommand {
                 const participant = targetService.participants.whose({handle: '\(escapedTo)'})(  )[0];
                 if (participant) {
                     Messages.send('\(escapedText)', {to: participant});
-                    'sent-participant';
+                    JSON.stringify({ok:true, result:'sent-participant'});
                 } else {
-                    'not-found';
+                    JSON.stringify({ok:false, error:'not-found'});
                 }
             } else {
                 Messages.send('\(escapedText)', {to: buddy});
-                'sent-buddy';
+                JSON.stringify({ok:true, result:'sent-buddy'});
             }
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if result == "not-found" {
-                throw ValidationError("Recipient '\(to)' not found in Messages contacts")
-            } else if result.lowercased().contains("error") {
-                throw ValidationError("Could not send — check Automation permission for Messages\n\(result.prefix(200))")
-            } else {
-                print("Sent to \(to): \(text.prefix(60))\(text.count > 60 ? "..." : "")")
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            guard let env = parseJXAEnvelope(raw) else {
+                throw ValidationError("Could not send — check Automation permission for Messages\n\(raw.prefix(200))")
             }
+            if !env.ok {
+                if env.error == "not-found" {
+                    throw ValidationError("Recipient '\(to)' not found in Messages contacts")
+                }
+                throw ValidationError("Could not send — check Automation permission for Messages\n\(env.error)")
+            }
+            print("Sent to \(to): \(text.prefix(60))\(text.count > 60 ? "..." : "")")
         }
     }
 
@@ -72,8 +72,9 @@ struct MessagesCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let escapedWith = with.replacingOccurrences(of: "'", with: "\\'")
+            let escapedWith = jxaEscape(with)
             let script = """
+            try {
             const Messages = Application('Messages');
             const q = '\(escapedWith)'.toLowerCase();
             let found = null;
@@ -93,7 +94,7 @@ struct MessagesCommand: ParsableCommand {
                     if (nameMatch || partMatch) { found = c; break; }
                 } catch(e) {}
             }
-            if (!found) { JSON.stringify([]); }
+            if (!found) { JSON.stringify({ok:true, result:[]}); }
             else {
                 const msgs = found.messages().slice(-\(limit)).map(m => {
                     try {
@@ -104,14 +105,20 @@ struct MessagesCommand: ParsableCommand {
                         };
                     } catch(e) { return null; }
                 }).filter(Boolean);
-                JSON.stringify(msgs);
+                JSON.stringify({ok:true, result:msgs});
             }
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
-                  let msgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            guard let env = parseJXAEnvelope(raw) else {
                 throw ValidationError("Could not read Messages — check Automation permission\n\(raw.prefix(200))")
+            }
+            if !env.ok {
+                throw ValidationError("Could not read Messages — check Automation permission\n\(env.error)")
+            }
+            guard let data = env.resultJSON.data(using: .utf8),
+                  let msgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                throw ValidationError("Could not read Messages — check Automation permission\n\(env.resultJSON.prefix(200))")
             }
             if msgs.isEmpty {
                 throw ValidationError("No conversation found matching '\(with)'")
@@ -144,8 +151,9 @@ struct MessagesCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("messages.delete")
-            let escapedWith = with.replacingOccurrences(of: "'", with: "\\'")
+            let escapedWith = jxaEscape(with)
             let script = """
+            try {
             const Messages = Application('Messages');
             const q = '\(escapedWith)'.toLowerCase();
             let found = null;
@@ -165,15 +173,19 @@ struct MessagesCommand: ParsableCommand {
                     if (nameMatch || partMatch) { found = c; break; }
                 } catch(e) {}
             }
-            if (!found) { 'not-found'; }
-            else { found.delete(); 'deleted'; }
+            if (!found) { JSON.stringify({ok:false, error:'not-found'}); }
+            else { found.delete(); JSON.stringify({ok:true, result:'deleted'}); }
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if result == "not-found" {
-                throw ValidationError("No conversation found matching '\(with)'")
-            } else if result.lowercased().contains("error") {
-                throw ValidationError("Could not delete conversation\n\(result.prefix(200))")
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            guard let env = parseJXAEnvelope(raw) else {
+                throw ValidationError("Could not delete conversation\n\(raw.prefix(200))")
+            }
+            if !env.ok {
+                if env.error == "not-found" {
+                    throw ValidationError("No conversation found matching '\(with)'")
+                }
+                throw ValidationError("Could not delete conversation\n\(env.error)")
             }
             if json {
                 printJSON(["deleted": true])
@@ -193,6 +205,7 @@ struct MessagesCommand: ParsableCommand {
 
         func run() throws {
             let script = """
+            try {
             const Messages = Application('Messages');
             const chats = Messages.chats().slice(0, \(limit)).map(c => {
                 try {
@@ -207,13 +220,19 @@ struct MessagesCommand: ParsableCommand {
                     return { id: c.id(), name: name, participants: parts };
                 } catch(e) { return null; }
             }).filter(Boolean);
-            JSON.stringify(chats);
+            JSON.stringify({ok:true, result:chats});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
-                  let chats = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            guard let env = parseJXAEnvelope(raw) else {
                 throw ValidationError("Could not read Messages — check Automation permission\n\(raw.prefix(200))")
+            }
+            if !env.ok {
+                throw ValidationError("Could not read Messages — check Automation permission\n\(env.error)")
+            }
+            guard let data = env.resultJSON.data(using: .utf8),
+                  let chats = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                throw ValidationError("Could not read Messages — check Automation permission\n\(env.resultJSON.prefix(200))")
             }
             if json {
                 printJSON(chats)

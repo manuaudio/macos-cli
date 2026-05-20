@@ -165,9 +165,10 @@ struct PhotosCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let escapedName  = name.replacingOccurrences(of: "'", with: "\\'")
-            let escapedAlbum = album.replacingOccurrences(of: "'", with: "\\'")
+            let escapedName  = jxaEscape(name)
+            let escapedAlbum = jxaEscape(album)
             let script = """
+            try {
             const Photos = Application('Photos');
             const qPhoto = '\(escapedName)'.toLowerCase();
             const qAlbum = '\(escapedAlbum)'.toLowerCase();
@@ -175,27 +176,31 @@ struct PhotosCommand: ParsableCommand {
                 try { return (item.filename() || '').toLowerCase().includes(qPhoto); }
                 catch(e) { return false; }
             });
-            if (!photo) { 'no-photo'; }
+            if (!photo) { JSON.stringify({ok:false, error:'no-photo'}); }
             else {
                 const targetAlbum = Photos.albums().find(a => {
                     try { return (a.name() || '').toLowerCase().includes(qAlbum); }
                     catch(e) { return false; }
                 });
-                if (!targetAlbum) { 'no-album'; }
+                if (!targetAlbum) { JSON.stringify({ok:false, error:'no-album'}); }
                 else {
                     Photos.add([photo], {to: targetAlbum});
-                    'added';
+                    JSON.stringify({ok:true, result:'added'});
                 }
             }
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 15, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if result == "no-photo" {
-                throw ValidationError("No photo found matching '\(name)'")
-            } else if result == "no-album" {
-                throw ValidationError("No album found matching '\(album)'")
-            } else if result.lowercased().contains("error") {
-                throw ValidationError("Could not add photo to album\n\(result.prefix(200))")
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 15, fallback: "")
+            guard let env = parseJXAEnvelope(raw) else {
+                throw ValidationError("Could not add photo to album\n\(raw.prefix(200))")
+            }
+            if !env.ok {
+                if env.error == "no-photo" {
+                    throw ValidationError("No photo found matching '\(name)'")
+                } else if env.error == "no-album" {
+                    throw ValidationError("No album found matching '\(album)'")
+                }
+                throw ValidationError("Could not add photo to album\n\(env.error)")
             }
             if json {
                 printJSON(["added": true])

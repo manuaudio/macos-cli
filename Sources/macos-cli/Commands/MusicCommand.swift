@@ -310,8 +310,9 @@ private func jxa(_ expr: String) -> String? {
         timeout: 8
     ) else { return nil }
     let r = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    // Only filter on definitive permission-denial prefix, not generic "error" substring
+    // (which would false-positive on track titles, album names, etc. containing "error").
     guard !r.isEmpty,
-          !r.lowercased().contains("not allowed"),
-          !r.lowercased().contains("error") else { return nil }
+          !r.lowercased().hasPrefix("not allowed") else { return nil }
     return r
 }

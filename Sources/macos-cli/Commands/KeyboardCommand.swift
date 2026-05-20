@@ -24,25 +24,23 @@ struct KeyboardCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("keyboard.write")
-            let escaped = text
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "\"", with: "\\\"")
+            let escaped = jxaEscape(text)
             let script: String
             if delay > 0 {
                 // Type char by char with delay
                 let chars = text.map { String($0) }
                 let stmts = chars.map { c -> String in
-                    let ce = c.replacingOccurrences(of: "\\", with: "\\\\")
-                               .replacingOccurrences(of: "\"", with: "\\\"")
-                    return "se.keystroke(\"\(ce)\"); delay(\(Double(delay) / 1000.0))"
+                    let ce = jxaEscape(c)
+                    return "se.keystroke('\(ce)'); delay(\(Double(delay) / 1000.0))"
                 }.joined(separator: "; ")
-                script = "const se = Application('System Events'); \(stmts)"
+                script = "try { const se = Application('System Events'); \(stmts); JSON.stringify({ok:true,result:'typed'}); } catch(e) { JSON.stringify({ok:false,error:String(e&&e.message?e.message:e)}); }"
             } else {
-                script = "Application('System Events').keystroke(\"\(escaped)\")"
+                script = "try { Application('System Events').keystroke('\(escaped)'); JSON.stringify({ok:true,result:'typed'}); } catch(e) { JSON.stringify({ok:false,error:String(e&&e.message?e.message:e)}); }"
             }
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-            if result.lowercased().contains("error") {
-                throw ValidationError("Type failed — grant Accessibility permission to Terminal in System Settings → Privacy → Accessibility\n\(result)")
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Type failed — grant Accessibility permission to Terminal in System Settings → Privacy → Accessibility\n\(errMsg)")
             }
             print("Typed: \(text.prefix(50))\(text.count > 50 ? "..." : "")")
         }
@@ -87,24 +85,25 @@ struct KeyboardCommand: ParsableCommand {
             let script: String
             if let code = KeyboardCommand.keyCodes[key] {
                 if modStr.isEmpty {
-                    script = "Application('System Events').keyCode(\(code))"
+                    script = "try { Application('System Events').keyCode(\(code)); JSON.stringify({ok:true,result:'key'}); } catch(e) { JSON.stringify({ok:false,error:String(e&&e.message?e.message:e)}); }"
                 } else {
-                    script = "Application('System Events').keyCode(\(code), {\(modStr)})"
+                    script = "try { Application('System Events').keyCode(\(code), {\(modStr)}); JSON.stringify({ok:true,result:'key'}); } catch(e) { JSON.stringify({ok:false,error:String(e&&e.message?e.message:e)}); }"
                 }
             } else if key.count == 1 {
-                let escaped = key.replacingOccurrences(of: "\"", with: "\\\"")
+                let escaped = jxaEscape(key)
                 if modStr.isEmpty {
-                    script = "Application('System Events').keystroke(\"\(escaped)\")"
+                    script = "try { Application('System Events').keystroke('\(escaped)'); JSON.stringify({ok:true,result:'key'}); } catch(e) { JSON.stringify({ok:false,error:String(e&&e.message?e.message:e)}); }"
                 } else {
-                    script = "Application('System Events').keystroke(\"\(escaped)\", {\(modStr)})"
+                    script = "try { Application('System Events').keystroke('\(escaped)', {\(modStr)}); JSON.stringify({ok:true,result:'key'}); } catch(e) { JSON.stringify({ok:false,error:String(e&&e.message?e.message:e)}); }"
                 }
             } else {
                 throw ValidationError("Unknown key: '\(key)'. Use single chars or: return, tab, space, escape, delete, arrow keys, f1-f12")
             }
 
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-            if result.lowercased().contains("error") {
-                throw ValidationError("Key failed — grant Accessibility permission to Terminal in System Settings\n\(result)")
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Key failed — grant Accessibility permission to Terminal in System Settings\n\(errMsg)")
             }
             print("Key: \(combo)")
         }

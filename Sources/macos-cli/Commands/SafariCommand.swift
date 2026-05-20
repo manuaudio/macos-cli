@@ -19,6 +19,7 @@ struct SafariCommand: ParsableCommand {
 
         func run() throws {
             let script = """
+            try {
             const Safari = Application('Safari');
             const out = [];
             Safari.windows().forEach((w, wi) => {
@@ -31,11 +32,15 @@ struct SafariCommand: ParsableCommand {
                     });
                 } catch(e) {}
             });
-            JSON.stringify(out);
+            JSON.stringify({ok:true, result:out});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Could not read Safari tabs — check Automation permission for Safari in System Settings\n\(errMsg.prefix(200))")
+            }
+            guard let data = env.resultJSON.data(using: .utf8),
                   let tabs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 throw ValidationError("Could not read Safari tabs — check Automation permission for Safari in System Settings")
             }
@@ -68,16 +73,19 @@ struct SafariCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("safari.execute")
-            let escaped = url.replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(url)
             let script = """
+            try {
             const Safari = Application('Safari');
             Safari.activate();
             Safari.openLocation('\(escaped)');
-            'ok';
+            JSON.stringify({ok:true, result:'opened'});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-            if result.lowercased().contains("error") {
-                throw ValidationError("Could not open URL — check Automation permission for Safari\n\(result.prefix(200))")
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Could not open URL — check Automation permission for Safari\n\(errMsg.prefix(200))")
             }
             print("Opened: \(url)")
         }
@@ -95,6 +103,7 @@ struct SafariCommand: ParsableCommand {
         func run() throws {
             let tabSelector = tab >= 0 ? ".tabs()[\(tab)]" : ".currentTab()"
             let script = """
+            try {
             const Safari = Application('Safari');
             const w = Safari.windows()[\(window)];
             const t = w\(tabSelector);
@@ -102,13 +111,17 @@ struct SafariCommand: ParsableCommand {
             const url = t.url();
             // Execute JS to get innerText
             const body = Safari.doJavaScript('document.body ? document.body.innerText.substring(0, 5000) : ""', {in: t});
-            JSON.stringify({title, url, body});
+            JSON.stringify({ok:true, result:{title, url, body}});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Could not read Safari tab — check Automation permission\n\(errMsg.prefix(200))")
+            }
+            guard let data = env.resultJSON.data(using: .utf8),
                   let page = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not read Safari tab — check Automation permission\n\(raw.prefix(200))")
+                throw ValidationError("Could not read Safari tab — check Automation permission\n\(env.resultJSON.prefix(200))")
             }
             if json {
                 printJSON(page)
@@ -133,20 +146,28 @@ struct SafariCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("safari.execute")
-            let escaped = js.replacingOccurrences(of: "\\", with: "\\\\")
-                            .replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(js)
             let script = """
+            try {
             const Safari = Application('Safari');
             const w = Safari.windows()[\(window)];
             const t = w.currentTab();
-            String(Safari.doJavaScript('\(escaped)', {in: t}));
+            const jsResult = String(Safari.doJavaScript('\(escaped)', {in: t}));
+            JSON.stringify({ok:true, result:jsResult});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if result.lowercased().contains("error") {
-                throw ValidationError("JS execution failed\n\(result.prefix(200))")
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("JS execution failed\n\(errMsg.prefix(200))")
             }
-            print(result)
+            // env.resultJSON is a JSON-encoded string; decode it to get the actual JS result
+            if let data = env.resultJSON.data(using: .utf8),
+               let jsResult = try? JSONSerialization.jsonObject(with: data) as? String {
+                print(jsResult)
+            } else {
+                print(env.resultJSON)
+            }
         }
     }
 
@@ -160,9 +181,9 @@ struct SafariCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("safari.execute")
-            let escaped = url.replacingOccurrences(of: "\\", with: "\\\\")
-                             .replacingOccurrences(of: "'", with: "\\'")
+            let escaped = jxaEscape(url)
             let script = """
+            try {
             const Safari = Application('Safari');
             Safari.activate();
             const wins = Safari.windows();
@@ -173,11 +194,13 @@ struct SafariCommand: ParsableCommand {
                 wins[0].tabs.push(tab);
                 wins[0].currentTab = tab;
             }
-            'ok';
+            JSON.stringify({ok:true, result:'opened'});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
-            let result = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-            if result.lowercased().contains("error") {
-                throw ValidationError("Could not open new tab — check Automation permission for Safari\n\(result.prefix(200))")
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Could not open new tab — check Automation permission for Safari\n\(errMsg.prefix(200))")
             }
             if json {
                 printJSON(["opened": url])
@@ -202,25 +225,29 @@ struct SafariCommand: ParsableCommand {
             let script: String
             if current {
                 script = """
+                try {
                 const Safari = Application('Safari');
                 const w = Safari.windows()[0];
                 const t = w.currentTab();
                 t.close();
-                JSON.stringify({closed: 1});
+                JSON.stringify({ok:true, result:{closed: 1}});
+                } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
                 """
             } else if let idx = index {
                 let parts = idx.split(separator: ":").map { Int($0) ?? 0 }
                 guard parts.count == 2 else { throw ValidationError("--index must be in format window:tab (e.g. 0:1)") }
                 let wi = parts[0], ti = parts[1]
                 script = """
+                try {
                 const Safari = Application('Safari');
                 Safari.windows()[\(wi)].tabs()[\(ti)].close();
-                JSON.stringify({closed: 1});
+                JSON.stringify({ok:true, result:{closed: 1}});
+                } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
                 """
             } else if let urlSubstr = url {
-                let escaped = urlSubstr.replacingOccurrences(of: "\\", with: "\\\\")
-                                       .replacingOccurrences(of: "'", with: "\\'")
+                let escaped = jxaEscape(urlSubstr)
                 script = """
+                try {
                 const Safari = Application('Safari');
                 let closed = 0;
                 Safari.windows().forEach(w => {
@@ -233,21 +260,22 @@ struct SafariCommand: ParsableCommand {
                         } catch(e) {}
                     });
                 });
-                JSON.stringify({closed});
+                JSON.stringify({ok:true, result:{closed}});
+                } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
                 """
             } else {
                 throw ValidationError("Specify --url, --index, or --current")
             }
 
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if raw.lowercased().contains("error") {
-                throw ValidationError("Could not close tab\n\(raw.prefix(200))")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Could not close tab\n\(errMsg.prefix(200))")
             }
             if json {
-                print(raw.isEmpty ? "{\"closed\":0}" : raw)
+                print(env.resultJSON.isEmpty ? "{\"closed\":0}" : env.resultJSON)
             } else {
-                if let data = raw.data(using: .utf8),
+                if let data = env.resultJSON.data(using: .utf8),
                    let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let n = obj["closed"] as? Int {
                     print("Closed \(n) tab(s)")
@@ -270,9 +298,9 @@ struct SafariCommand: ParsableCommand {
             try Auth.check("safari.execute")
             let script: String
             if let urlSubstr = url {
-                let escaped = urlSubstr.replacingOccurrences(of: "\\", with: "\\\\")
-                                       .replacingOccurrences(of: "'", with: "\\'")
+                let escaped = jxaEscape(urlSubstr)
                 script = """
+                try {
                 const Safari = Application('Safari');
                 let reloaded = 0;
                 outer: for (const w of Safari.windows()) {
@@ -286,24 +314,27 @@ struct SafariCommand: ParsableCommand {
                         } catch(e) {}
                     }
                 }
-                JSON.stringify({reloaded});
+                JSON.stringify({ok:true, result:{reloaded}});
+                } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
                 """
             } else {
                 script = """
+                try {
                 const Safari = Application('Safari');
                 const t = Safari.windows()[0].currentTab();
                 Safari.doJavaScript('location.reload()', {in: t});
-                JSON.stringify({reloaded: 1, url: t.url()});
+                JSON.stringify({ok:true, result:{reloaded: 1, url: t.url()}});
+                } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
                 """
             }
 
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if raw.lowercased().contains("error") {
-                throw ValidationError("Could not reload tab\n\(raw.prefix(200))")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Could not reload tab\n\(errMsg.prefix(200))")
             }
             if json {
-                print(raw.isEmpty ? "{\"reloaded\":0}" : raw)
+                print(env.resultJSON.isEmpty ? "{\"reloaded\":0}" : env.resultJSON)
             } else {
                 print("Reloaded")
             }

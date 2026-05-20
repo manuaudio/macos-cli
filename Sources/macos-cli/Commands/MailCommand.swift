@@ -52,14 +52,16 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Open the draft in Mail after creating") var open = false
 
         func run() throws {
-            let escapedTo      = to.replacingOccurrences(of: "'", with: "\\'")
-            let escapedSubject = subject.replacingOccurrences(of: "'", with: "\\'")
-                                        .replacingOccurrences(of: "\\n", with: "\\\\n")
-            let escapedBody    = body.replacingOccurrences(of: "'", with: "\\'")
-                                      .replacingOccurrences(of: "\\n", with: "\\\\n")
-            let ccPart = cc.map { "cc: [{ address: '\($0.replacingOccurrences(of: "'", with: "\\'"))' }]," } ?? ""
+            let escapedTo      = jxaEscape(to)
+            let escapedSubject = jxaEscape(subject)
+            let escapedBody    = jxaEscape(body)
+            let ccLine = cc.map { addr -> String in
+                let ea = jxaEscape(addr)
+                return "const ccR = Mail.CcRecipient({address: '\(ea)'}); msg.ccRecipients.push(ccR);"
+            } ?? ""
 
             let script = """
+            try {
             const Mail = Application('Mail');
             const msg = Mail.OutgoingMessage({
                 subject: '\(escapedSubject)',
@@ -69,14 +71,15 @@ struct MailCommand: ParsableCommand {
             Mail.outgoingMessages.push(msg);
             const rec = Mail.Recipient({address: '\(escapedTo)'});
             msg.toRecipients.push(rec);
-            \(cc != nil ? "const cc = Mail.CcRecipient({address: '\(cc!.replacingOccurrences(of: "'", with: "\\'"))'}); msg.ccRecipients.push(cc);" : "")
+            \(ccLine)
             \(open ? "Mail.activate();" : "")
-            JSON.stringify({to: '\(escapedTo)', subject: '\(escapedSubject)'});
+            JSON.stringify({ok:true, result:{to: '\(escapedTo)', subject: '\(escapedSubject)'}});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if raw.lowercased().contains("error") || raw.isEmpty {
-                throw ValidationError("Could not create draft — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Could not create draft — check Automation permission for Mail in System Settings\n\(errMsg.prefix(200))")
             }
             print("Draft created: to=\(to) subject='\(subject)'")
         }
@@ -162,16 +165,15 @@ struct MailCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("mail.send")
-            let escapedTo      = to.replacingOccurrences(of: "'", with: "\\'")
-            let escapedSubject = subject.replacingOccurrences(of: "'", with: "\\'")
-                                        .replacingOccurrences(of: "\\n", with: "\\\\n")
-            let escapedBody    = body.replacingOccurrences(of: "'", with: "\\'")
-                                      .replacingOccurrences(of: "\\n", with: "\\\\n")
+            let escapedTo      = jxaEscape(to)
+            let escapedSubject = jxaEscape(subject)
+            let escapedBody    = jxaEscape(body)
             let ccLine = cc.map { addr -> String in
-                let ea = addr.replacingOccurrences(of: "'", with: "\\'")
+                let ea = jxaEscape(addr)
                 return "const ccR = Mail.CcRecipient({address: '\(ea)'}); msg.ccRecipients.push(ccR);"
             } ?? ""
             let script = """
+            try {
             const Mail = Application('Mail');
             const msg = Mail.OutgoingMessage({
                 subject: '\(escapedSubject)',
@@ -183,15 +185,16 @@ struct MailCommand: ParsableCommand {
             msg.toRecipients.push(rec);
             \(ccLine)
             msg.send();
-            JSON.stringify({sent: true, to: '\(escapedTo)', subject: '\(escapedSubject)'});
+            JSON.stringify({ok:true, result:{sent: true, to: '\(escapedTo)', subject: '\(escapedSubject)'}});
+            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if raw.lowercased().contains("error") || raw.isEmpty {
-                throw ValidationError("Could not send email — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
+            guard let env = parseJXAEnvelope(raw), env.ok else {
+                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
+                throw ValidationError("Could not send email — check Automation permission for Mail in System Settings\n\(errMsg.prefix(200))")
             }
             if json {
-                if let data = raw.data(using: .utf8),
+                if let data = env.resultJSON.data(using: .utf8),
                    let result = try? JSONSerialization.jsonObject(with: data) {
                     printJSON(result)
                 } else {

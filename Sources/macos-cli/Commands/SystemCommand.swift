@@ -384,11 +384,7 @@ struct DisplayCommand: ParsableCommand {
             if let level = level {
                 try Auth.check("display.write")
                 guard level >= 0 && level <= 1 else { throw ValidationError("Brightness must be 0.0–1.0") }
-                // Use brightness CLI if available, else osascript
-                let script = "tell application \"System Events\" to key code 144"  // F15 as fallback
-                _ = Process.capture(args: ["/usr/bin/osascript", "-e",
-                    "tell application \"System Preferences\" to quit"], timeout: 10, fallback: "")  // close if open
-                // Use private IOKit call via command line brightness tool
+                // Use the `brightness` CLI if installed (private IOKit calls); else advise install.
                 if FileManager.default.fileExists(atPath: "/usr/local/bin/brightness") {
                     Process.run(args: ["/usr/local/bin/brightness", String(level)])
                 } else {

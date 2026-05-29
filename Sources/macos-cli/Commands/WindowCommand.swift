@@ -53,10 +53,10 @@ struct WindowCommand: ParsableCommand {
             } else {
                 if windows.isEmpty { print("No windows found"); return }
                 for w in windows {
-                    let app   = w["app"] as! String
-                    let title = w["title"] as! String
-                    let x = w["x"] as! Int; let y = w["y"] as! Int
-                    let width = w["width"] as! Int; let height = w["height"] as! Int
+                    let app   = w["app"] as? String ?? ""
+                    let title = w["title"] as? String ?? ""
+                    let x = w["x"] as? Int ?? 0; let y = w["y"] as? Int ?? 0
+                    let width = w["width"] as? Int ?? 0; let height = w["height"] as? Int ?? 0
                     let label = title.isEmpty ? app : "\(app) — \(title)"
                     print("\(label): \(x),\(y) \(width)×\(height)")
                 }
@@ -116,18 +116,12 @@ struct WindowCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("window.write")
-            // Activate via NSRunningApplication first
-            let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "")
-            let _ = runningApps  // unused — use osascript activate instead
-            guard let raw = Process.capture(
+            // Bring the app to the foreground, then raise its window via AX.
+            _ = Process.capture(
                 args: ["/usr/bin/osascript", "-l", "JavaScript", "-e",
                        "Application('\(jxaEscape(app))').activate()"],
                 timeout: 5
-            ) else {
-                fputs("Error: Could not activate \(app)\n", stderr)
-                throw ExitCode.failure
-            }
-            let _ = raw
+            )
             // Also raise via AX
             try axWindow(app: app, title: title) { win in
                 AXUIElementSetAttributeValue(win, kAXMainAttribute as CFString, true as CFTypeRef)

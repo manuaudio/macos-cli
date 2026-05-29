@@ -34,10 +34,11 @@ struct AudioDeviceCommand: ParsableCommand {
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        var name = "" as CFString
-        var size = UInt32(MemoryLayout<CFString>.size)
-        AudioObjectGetPropertyData(id, &address, 0, nil, &size, &name)
-        return name as String
+        var name: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        let status = AudioObjectGetPropertyData(id, &address, 0, nil, &size, &name)
+        guard status == noErr, let cf = name?.takeRetainedValue() else { return "" }
+        return cf as String
     }
 
     private static func hasScope(_ id: AudioDeviceID, input: Bool) -> Bool {

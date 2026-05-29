@@ -1,3 +1,29 @@
+## 0.6.3 — 2026-05-28
+
+Correctness pass — fixed broken human-readable output and removed all compiler warnings.
+
+### Fixed
+- **`file list`, `bluetooth list`, `trash list`, `login-items list` printed nothing in non-`--json` mode.** Their table renderers used `String(format: "%s", swiftString)`, but the C `%s` conversion expects a C string pointer, not a Swift `String` — so the formatted output came out empty. Rewrote all four to use new `padRight`/`padLeft` column helpers in `Helpers.swift`. (`--json` output was always correct and is unchanged.)
+- **`process list` header was misaligned** with its data rows — the header used `%-8@` width specifiers (ignored by `%@`) while data rows used `%-8d` (honored). Both now use the shared padding helpers, so columns line up.
+- **`system audio` / `audio list` device-name read** used `var name = "" as CFString` with `&name`, which raised a "forming UnsafeMutableRawPointer to a CFString" warning and was technically unsound. Reworked to `Unmanaged<CFString>?` with a `noErr` guard.
+
+### Removed (dead code / warnings)
+- Unused `displays` throwaway call in `screen info` (`ScreenCommand`).
+- Two unused scaffolding blocks (`py`, `windowScript`) in `screenshot window` (`ScreenshotCommand`).
+- Unused `script` variable and a misplaced "quit System Preferences" call in `system display brightness` (`SystemCommand`).
+- Unused `runningApps` / `raw` bindings in `window focus` (`WindowCommand`).
+- Replaced two crash-prone `as!` force-casts in `window list` with safe optional casts.
+
+### Added
+- `--json` flag on `mail draft` and `messages send` for parity with every other subcommand.
+- `LICENSE` file (MIT) — the README badge and link previously pointed at a file that did not exist.
+
+### Notes
+- `swift build -c release` now completes with **zero warnings** (was 5).
+- No `--json` field names changed; this release is output-compatible with 0.6.2.
+
+---
+
 ## 0.6.2 — 2026-05-20
 
 Personal-install wrapper layer.

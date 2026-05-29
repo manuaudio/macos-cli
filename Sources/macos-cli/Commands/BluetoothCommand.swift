@@ -29,14 +29,11 @@ struct BluetoothCommand: ParsableCommand {
                 print(String(data: data, encoding: .utf8)!)
             } else {
                 if items.isEmpty { print("No paired Bluetooth devices."); return }
-                print(String(format: "%-30s %-20s %s", "NAME", "ADDRESS", "CONNECTED"))
+                print("\(padRight("NAME", 30)) \(padRight("ADDRESS", 20)) CONNECTED")
                 print(String(repeating: "-", count: 60))
                 for item in items {
                     let connected = (item["connected"] as? Bool == true) ? "yes" : "no"
-                    print(String(format: "%-30s %-20s %s",
-                        String((item["name"] as? String ?? "").prefix(28)),
-                        String((item["address"] as? String ?? "").prefix(18)),
-                        connected))
+                    print("\(padRight(item["name"] as? String ?? "", 30)) \(padRight(item["address"] as? String ?? "", 20)) \(connected)")
                 }
             }
         }

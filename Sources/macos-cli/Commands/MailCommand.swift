@@ -60,6 +60,7 @@ struct MailCommand: ParsableCommand {
         @Option(name: .long, help: "CC address (optional)") var cc: String?
 
         @Flag(name: .long, help: "Open the draft in Mail after creating") var open = false
+        @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
             try Auth.check("mail.send")
@@ -92,7 +93,11 @@ struct MailCommand: ParsableCommand {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
                 throw ValidationError("Could not create draft — check Automation permission for Mail in System Settings\n\(errMsg.prefix(200))")
             }
-            print("Draft created: to=\(to) subject='\(subject)'")
+            if json {
+                printJSON(["draft_created": true, "to": to, "subject": subject])
+            } else {
+                print("Draft created: to=\(to) subject='\(subject)'")
+            }
         }
     }
 

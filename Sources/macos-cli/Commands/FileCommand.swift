@@ -43,14 +43,14 @@ struct FileCommand: ParsableCommand {
                 let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted])
                 print(String(data: data, encoding: .utf8)!)
             } else {
-                print(String(format: "%-8s %-12s %s", "TYPE", "SIZE", "NAME"))
+                print("\(padRight("TYPE", 8)) \(padRight("SIZE", 12)) NAME")
                 print(String(repeating: "-", count: 60))
                 for itemURL in items {
                     let resources = try? itemURL.resourceValues(forKeys: Set(keys))
                     let isDirectory = resources?.isDirectory ?? false
                     let typeLabel = isDirectory ? "DIR" : "FILE"
                     let size = isDirectory ? "-" : (resources?.fileSize.map { fileFormatBytes($0) } ?? "-")
-                    print(String(format: "%-8s %-12s %s", typeLabel, size, itemURL.lastPathComponent))
+                    print("\(padRight(typeLabel, 8)) \(padRight(size, 12)) \(itemURL.lastPathComponent)")
                 }
             }
         }

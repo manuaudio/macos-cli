@@ -21,6 +21,8 @@ struct MessagesCommand: ParsableCommand {
         @Option(name: .long, help: "Message text")
         var text: String
 
+        @Flag(name: .long, help: "Output JSON") var json = false
+
         func run() throws {
             try Auth.check("messages.send")
             let escapedTo   = jxaEscape(to)
@@ -56,7 +58,11 @@ struct MessagesCommand: ParsableCommand {
                 }
                 throw ValidationError("Could not send — check Automation permission for Messages\n\(env.error)")
             }
-            print("Sent to \(to): \(text.prefix(60))\(text.count > 60 ? "..." : "")")
+            if json {
+                printJSON(["sent": true, "to": to])
+            } else {
+                print("Sent to \(to): \(text.prefix(60))\(text.count > 60 ? "..." : "")")
+            }
         }
     }
 

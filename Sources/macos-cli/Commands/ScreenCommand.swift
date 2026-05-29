@@ -15,7 +15,6 @@ struct ScreenCommand: ParsableCommand {
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
-            let displays = CGGetActiveDisplayList(10, nil, nil)
             var ids = [CGDirectDisplayID](repeating: 0, count: 10)
             var count: UInt32 = 0
             CGGetActiveDisplayList(10, &ids, &count)

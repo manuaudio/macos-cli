@@ -45,33 +45,7 @@ struct ScreenshotCommand: ParsableCommand {
         func run() throws {
             try Auth.check("screen.capture")
             let escapedApp = jxaEscape(app)
-            // Get the window ID via CGWindowList
-            let py = """
-import subprocess, json, sys
-result = subprocess.run(
-    ['python3', '-c', '''
-import Quartz
-windows = Quartz.CGWindowListCopyWindowInfo(
-    Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements, 0)
-app = sys.argv[1]
-match = next((w for w in windows if app.lower() in (w.get("kCGWindowOwnerName") or "").lower()), None)
-if match:
-    print(match["kCGWindowNumber"])
-else:
-    print("")
-''', '\(escapedApp)'],
-    capture_output=True, text=True
-)
-print(result.stdout.strip())
-"""
-            // Simpler: use screencapture -l with window list from osascript
-            let windowScript = """
-            const se = Application('System Events');
-            const procs = se.applicationProcesses.whose({name: '\(escapedApp)'})(  );
-            procs.length > 0 ? 'found' : 'not found';
-            """
-            // Use screencapture interactive window selection for the named app
-            // Focus the app first, then capture its frontmost window
+            // Focus the app first, then resolve its frontmost window ID and capture it.
             let focusScript = "Application('\(escapedApp)').activate()"
             _ = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", focusScript], timeout: 10, fallback: "")
             usleep(300_000)  // wait for focus

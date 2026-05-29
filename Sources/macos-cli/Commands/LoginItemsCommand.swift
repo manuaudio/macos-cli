@@ -42,12 +42,10 @@ struct LoginItemsCommand: ParsableCommand {
                 print(String(data: data, encoding: .utf8)!)
             } else {
                 if items.isEmpty { print("No login items."); return }
-                print(String(format: "%-30s %s", "NAME", "PATH"))
+                print("\(padRight("NAME", 30)) PATH")
                 print(String(repeating: "-", count: 70))
                 for item in items {
-                    print(String(format: "%-30s %s",
-                        String((item["name"] as? String ?? "").prefix(28)),
-                        item["path"] as? String ?? ""))
+                    print("\(padRight(item["name"] as? String ?? "", 30)) \(item["path"] as? String ?? "")")
                 }
             }
         }

@@ -1,11 +1,35 @@
-# macOS CLI
+<h1 align="center">macOS CLI</h1>
 
-A native macOS command-line tool that gives your terminal and your AI agent first-class access to Apple APIs. Reminders, Calendar, Contacts, Messages, Mail, Photos, Music, Safari, screenshots, OCR, mouse/keyboard automation, and more. One binary. Zero AppleScript.
+<p align="center">
+  <b>Drive your entire Mac from one command — and hand that same power to your AI agent.</b><br>
+  Calendar, Contacts, Mail, Messages, Notes, Reminders, Photos, Music, Safari,
+  screenshots, OCR, windows, mouse &amp; keyboard, the Accessibility tree, and 40+ more.<br>
+  One native Swift binary. Every command speaks <code>--json</code>.
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](#requirements)
-[![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange?logo=swift)](https://swift.org)
-[![Version](https://img.shields.io/badge/version-0.6.2-blue)](#install)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="#requirements"><img src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple" alt="macOS 13+"></a>
+  <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9%2B-orange?logo=swift" alt="Swift 5.9+"></a>
+  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/release-v0.6.3-blue" alt="Release v0.6.3"></a>
+  <a href="#use-with-claude-desktop--claude-code"><img src="https://img.shields.io/badge/MCP-204_tools-8A2BE2" alt="204 MCP tools"></a>
+</p>
+
+---
+
+## Why this exists
+
+macOS hides its best features behind GUI apps and brittle AppleScript. This tool turns
+all of it into clean, scriptable, `--json`-emitting commands — so you can wire your Mac
+into shell scripts, cron jobs, and (especially) LLM agents. Point Claude, Ollama, or any
+tool-calling model at it and your assistant can read your calendar, triage your inbox,
+move windows, and click buttons by name. No coordinates, no AppleScript, no glue code.
+
+```bash
+macos calendar events --json          # what's on today
+macos mail search "invoice" --json    # find that email
+macos ax click "Sign In"              # click a button by its label
+```
 
 ---
 
@@ -26,7 +50,7 @@ If you don't have Xcode CLT yet: `xcode-select --install`, then re-run the curl 
 ### Verify
 
 ```bash
-macos --version   # 0.6.2
+macos --version   # 0.6.3
 macos setup       # check all permissions — green checkmark per capability
 ```
 
@@ -412,7 +436,7 @@ macos ax read "Finder"
 
 **`find --json` returns:**
 ```json
-[{"role": "AXButton", "name": "OK", "x": 845, "y": 512}]
+[{"role": "AXButton", "title": "OK", "value": "", "description": "OK button"}]
 ```
 
 ---
@@ -451,14 +475,22 @@ macos finder open ~/Desktop/folder       # open in Finder
 macos system battery --json
 # {"level": 87, "charging": false, "plugged_in": true}
 
-macos system audio volume            # get current volume
-macos system audio mute              # toggle mute
-macos system audio devices --json
+macos system audio volume            # get current volume (0–100)
+macos system audio volume 50         # set volume to 50
+macos system audio mute on           # mute on / off (omit to read)
+macos system audio devices --json    # list input/output devices
 macos system audio now-playing --json
 
 macos system wifi status --json      # SSID, channel, security
-macos system clipboard               # read clipboard to stdout
-macos system display --json
+macos system clipboard get           # read clipboard to stdout
+macos system clipboard set "text"    # write to clipboard
+
+macos system display brightness 0.7  # 0.0–1.0 (needs `brew install brightness`)
+macos system display dark-mode on    # on / off (omit to read)
+macos system display wallpaper get --json
+
+macos system lock                    # lock the screen now
+macos system vpn status --json       # list VPN configs + state
 ```
 
 ---
@@ -513,11 +545,9 @@ macos speech voices --json           # list all available voices
 ### `info` — System diagnostics
 
 ```bash
-macos info system --json             # macOS version, hardware model
+macos info system --json             # macOS version, hardware model, CPU, RAM, uptime
 macos info network --json            # interfaces and IP addresses
 macos info power                     # sleep and power settings
-macos info spotlight                 # Spotlight index status
-macos info keychain                  # Keychain summary
 ```
 
 ---
@@ -711,6 +741,17 @@ macos keychain list --query "aura" --json
 
 ---
 
+### `spotlight` — Spotlight file search
+
+```bash
+# Search files and folders by name/content
+macos spotlight search "Package.swift" --limit 10
+macos spotlight search "invoice" --kind pdf --json
+macos spotlight search "logo" --kind image --in-dir ~/Desktop --json
+```
+
+---
+
 ### `network` — Network diagnostics
 
 ```bash
@@ -872,9 +913,10 @@ Point your local LLM stack at these URLs as its tool source.
 
 Pull requests welcome.
 
-1. Add a test in `Tests/` for any new behavior
-2. `--json` output shapes are part of the public API — don't change field names without a version bump
-3. New top-level commands: open an issue first to align on the interface
+1. Build clean — `swift build -c release` must finish with **zero warnings**.
+2. Behaviorally verify any change against the real binary (a clean build is not a passing test). Confirm both the human-readable and `--json` output paths.
+3. `--json` output shapes are part of the public API — don't rename fields without a version bump.
+4. New top-level commands: open an issue first to align on the interface, then add the matching entry to `tool-definitions/tools.json` so the MCP server and HTTP bridge pick it up.
 
 ---
 

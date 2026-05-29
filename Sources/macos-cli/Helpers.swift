@@ -178,6 +178,23 @@ func jxaEscape(_ s: String) -> String {
         .replacingOccurrences(of: "\r", with: "\\r")
 }
 
+// MARK: - Column formatting
+
+/// Left-pad/truncate a string to an exact display width for aligned table columns.
+/// Use this instead of `String(format: "%-8s", swiftString)` — the C `%s`
+/// conversion expects a C string pointer, not a Swift `String`, and silently
+/// produces garbage/empty output on macOS.
+func padRight(_ s: String, _ width: Int) -> String {
+    if s.count >= width { return String(s.prefix(width)) }
+    return s + String(repeating: " ", count: width - s.count)
+}
+
+/// Right-align/truncate a string to an exact display width (for numeric columns).
+func padLeft(_ s: String, _ width: Int) -> String {
+    if s.count >= width { return String(s.suffix(width)) }
+    return String(repeating: " ", count: width - s.count) + s
+}
+
 /// Result returned by a JXA script that uses the structured envelope pattern.
 struct JXAEnvelope {
     let ok: Bool

@@ -78,12 +78,12 @@ struct TrashCommand: ParsableCommand {
                 print(String(data: data, encoding: .utf8)!)
             } else {
                 if items.isEmpty { print("Trash is empty."); return }
-                print(String(format: "%-40s %10s", "NAME", "SIZE"))
+                print("\(padRight("NAME", 40)) \(padLeft("SIZE", 10))")
                 print(String(repeating: "-", count: 52))
                 for url in items.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
                     let resources = try? url.resourceValues(forKeys: Set(keys))
                     let size = resources?.fileSize.map { trashFormatBytes($0) } ?? "-"
-                    print(String(format: "%-40s %10s", String(url.lastPathComponent.prefix(38)), size))
+                    print("\(padRight(url.lastPathComponent, 40)) \(padLeft(size, 10))")
                 }
             }
         }

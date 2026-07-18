@@ -14,8 +14,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="#install"><img src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple&logoColor=white" alt="macOS 13+"></a>
   <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"></a>
-  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/release-v0.6.3-blue" alt="Release"></a>
-  <a href="#-use-it-with-ai-agents"><img src="https://img.shields.io/badge/MCP-204_tools-8A2BE2?logo=anthropic&logoColor=white" alt="204 MCP tools"></a>
+  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/release-v0.7.0-blue" alt="Release"></a>
+  <a href="#-use-it-with-ai-agents"><img src="https://img.shields.io/badge/agent--ready-JSON-8A2BE2?logo=anthropic&logoColor=white" alt="Agent-ready JSON"></a>
   <img src="https://img.shields.io/badge/runtime_deps-0-brightgreen" alt="Zero runtime deps">
 </p>
 
@@ -47,13 +47,22 @@ macOS hides its best features behind GUI apps and brittle AppleScript. **macOS C
 curl -sSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
 ```
 
-Builds from source, installs to `/usr/local/bin/macos`, and runs a permission check. ~30 seconds.
+Builds from source and installs exactly **one** binary — `macos` — to `$HOME/.local/bin/macos`. No sudo, no background service, no second executable. ~30 seconds.
+
+Install somewhere else on your `PATH`:
+
+```bash
+MACOS_CLI_INSTALL_DIR="$HOME/bin" ./install.sh
+```
+
+The installer does **not** grant any macOS privacy permission for you — it prints guidance and leaves you in control (see [Permissions](#permissions)).
 
 > **Requirements:** macOS 13 (Ventura)+ and Swift 5.9+ (ships with Xcode Command Line Tools).
 > No CLT yet? `xcode-select --install`, then re-run the command above.
+> Make sure `$HOME/.local/bin` is on your `PATH` (the installer reminds you if it isn't).
 
 ```bash
-macos --version   # 0.6.3
+macos --version   # 0.7.0
 macos setup       # checks every permission — a green ✓ per capability
 ```
 
@@ -113,32 +122,35 @@ macos battery --json
 
 ## 🤖 Use it with AI agents
 
-This is where macOS CLI shines. Two ready-made adapters ship in the repo:
+macOS CLI is **one binary and nothing else** — no MCP server, no HTTP bridge, no daemon. An agent drives it exactly the way you do: it runs `macos <area> <action> --json` as a subprocess and parses the result. That is the whole integration. Point your agent framework's shell/exec tool at `$HOME/.local/bin/macos` and it can read your calendar, triage your inbox, move windows, and click buttons by name.
 
-### Claude Desktop / Claude Code (MCP)
-
-`install.sh` builds **`macos-mcp`** automatically if [`bun`](https://bun.sh) is present (`brew install oven-sh/bun/bun`). Then add it to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "macos": { "command": "macos-mcp" }
-  }
-}
+```bash
+# Whatever your agent can shell out to, it can call:
+"$HOME/.local/bin/macos" reminders export --json
+"$HOME/.local/bin/macos" calendar events --json
 ```
 
-Restart Claude and it gains **204 tools** — your assistant can now manage your calendar, inbox, reminders, and screen.
+### Agent-safe surfaces (0.7.0)
 
-### Ollama / LM Studio / Open WebUI (HTTP bridge)
+These commands are built for unattended, read-mostly automation — stable JSON, fail-closed filters, and a machine-readable error contract:
 
-`macos-bridge` exposes an OpenAI-style function-calling endpoint on `localhost:2772`:
+| Command | What it guarantees |
+|---|---|
+| `macos reminders status --json` | Reports the Reminders authorization state **without prompting** — safe to poll. |
+| `macos reminders export --json` | Rich read-only export. `--list NAME` is **fail-closed**: an unknown list yields zero rows, never all of them. |
+| `macos reminders export --timeout N` | A fetch timeout is a **hard error** — prints `{"status":"error","error":"fetch_timeout",…}` on stdout and exits `1`, so a hang can never be mistaken for "zero reminders." |
+| `macos reminders complete --id ID` | The **only** way to complete a reminder. Defaults to a **dry run**; it writes only when `--approve` exactly matches a non-empty `APPLE_EVENTKIT_APPROVE_TOKEN` environment variable. `complete-safe` is a kept alias. |
+| `macos notes export --json` | Read-only Notes export straight from the local store (Unicode-preserving), with a fail-closed `--folder` filter. |
 
+The old `reminders done` command is **retired** — it was an ungated write. It now performs no writes and prints a one-line pointer to `reminders complete`.
+
+Example — let an agent complete a reminder only after you've set the approval token in its environment:
+
+```bash
+export APPLE_EVENTKIT_APPROVE_TOKEN="$(openssl rand -hex 16)"   # you set this, once
+macos reminders complete --id "$ID"                 # dry run — no token passed, nothing changes
+macos reminders complete --id "$ID" --approve "$APPLE_EVENTKIT_APPROVE_TOKEN"   # writes
 ```
-GET  /v1/tools        → tool catalog for any function-calling model
-POST /v1/tool_calls   → [{name, arguments}] → [{name, result}]
-```
-
-Point your local model's tool layer at it and you get the same powers, no cloud required.
 
 ## Permissions
 

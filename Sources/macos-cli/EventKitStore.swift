@@ -61,6 +61,31 @@ enum EventKitStore {
         }
         return store
     }
+
+    /// Outcome of a bounded reminder fetch. `.timedOut` is distinct from
+    /// `.success([])`: an empty result means "no matching reminders", a timeout
+    /// means "the async callback never fired" — callers must not conflate them.
+    enum FetchOutcome {
+        case success([EKReminder])
+        case timedOut
+    }
+
+    /// Fetch reminders with a hard timeout, distinguishing a genuine empty result
+    /// from the callback never returning.
+    static func fetchReminders(_ store: EKEventStore,
+                               matching predicate: NSPredicate,
+                               timeout seconds: Double = 25) -> FetchOutcome {
+        let sema = DispatchSemaphore(value: 0)
+        var fetched: [EKReminder] = []
+        store.fetchReminders(matching: predicate) { reminders in
+            fetched = reminders ?? []
+            sema.signal()
+        }
+        if sema.wait(timeout: .now() + seconds) == .timedOut {
+            return .timedOut
+        }
+        return .success(fetched)
+    }
 }
 
 enum CLIError: LocalizedError {

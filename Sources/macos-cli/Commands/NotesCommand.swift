@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MacCLICore
 
 // Apple Notes SQLite store — no Automation TCC permission required.
 // ZTEXT body is gzip+protobuf; we use a Python one-liner to decompress.
@@ -17,12 +18,109 @@ private func cdateToISO(_ seconds: Double) -> String {
     return fmt.string(from: date)
 }
 
+// Full ISO-8601 datetime from a Core Data (2001-epoch) timestamp.
+private func cdateToISODateTime(_ seconds: Double) -> String {
+    let date = Date(timeIntervalSince1970: seconds + 978307200)
+    let fmt = ISO8601DateFormatter()
+    fmt.formatOptions = [.withInternetDateTime]
+    return fmt.string(from: date)
+}
+
 struct NotesCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "notes",
         abstract: "Read and create Apple Notes",
-        subcommands: [List.self, Search.self, Read.self, Create.self, Delete.self, Update.self, Folders.self, CreateFolder.self]
+        subcommands: [List.self, Search.self, Read.self, Export.self, Create.self, Delete.self, Update.self, Folders.self, CreateFolder.self]
     )
+
+    // MARK: - Export
+    //
+    // Rich, read-only export for ingestion. Reads the Notes SQLite store directly
+    // and decodes each note's gzip+protobuf body natively (no Python, no
+    // AppleScript), preserving Unicode. AppleScript/JXA is deliberately avoided
+    // here: on Ventura it cannot reliably return full plain-text bodies with
+    // correct Unicode and it prompts for Automation permission. Bodies that fail
+    // to decode are emitted with a null `body` and a `body_error` flag rather than
+    // dropping the note. `--folder` is fail-closed (unknown folder → zero rows).
+    struct Export: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Export notes with full Unicode bodies as JSON for ingestion (read-only)")
+
+        @Option(name: .long, help: "Exact folder-name filter (fail-closed: unknown folder → zero rows)")
+        var folder: String?
+
+        @Option(name: .long, help: "Max notes to export (default: all)")
+        var limit: Int?
+
+        @Flag(name: .customLong("include-deleted"), help: "Include notes in Recently Deleted")
+        var includeDeleted = false
+
+        func run() throws {
+            try Auth.check("notes.read")
+            let db = notesDBPath()
+            // hex(ZDATA) keeps the blob ASCII-safe; JSON mode preserves Unicode text.
+            let sql = """
+            SELECT o.ZIDENTIFIER AS id, o.ZTITLE1 AS title, f.ZTITLE2 AS folder, \
+            o.ZSNIPPET AS snippet, o.ZCREATIONDATE1 AS created, o.ZMODIFICATIONDATE1 AS modified, \
+            o.ZMARKEDFORDELETION AS deleted, hex(n.ZDATA) AS blob_hex \
+            FROM ZICCLOUDSYNCINGOBJECT o \
+            LEFT JOIN ZICNOTEDATA n ON o.Z_PK = n.ZNOTE \
+            LEFT JOIN ZICCLOUDSYNCINGOBJECT f ON o.ZFOLDER = f.Z_PK \
+            WHERE o.ZTITLE1 IS NOT NULL ORDER BY o.ZMODIFICATIONDATE1 DESC;
+            """
+            let raw = Process.capture(args: ["/usr/bin/sqlite3", "-json", db, sql], timeout: 20, fallback: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let rows: [[String: Any]]
+            if raw.isEmpty {
+                rows = []
+            } else if let data = raw.data(using: .utf8),
+                      let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                rows = parsed
+            } else {
+                throw ValidationError("Could not read Notes store — unexpected sqlite3 output")
+            }
+
+            var out: [[String: Any]] = []
+            for row in rows {
+                let folderName = row["folder"] as? String ?? "(none)"
+                let isDeleted = (row["deleted"] as? Int ?? 0) != 0 || folderName == "Recently Deleted"
+                if isDeleted && !includeDeleted { continue }
+                if let want = folder, folderName != want { continue }  // fail-closed exact match
+
+                var body: Any = NSNull()
+                var bodyError = false
+                if let hex = row["blob_hex"] as? String, !hex.isEmpty,
+                   let blob = Data(hexString: hex) {
+                    if let decoded = MacCLICore.decodeNoteBody(blob) {
+                        body = decoded
+                    } else {
+                        bodyError = true
+                    }
+                }
+
+                var d: [String: Any] = [
+                    "id": row["id"] as? String ?? NSNull(),
+                    "title": row["title"] as? String ?? NSNull(),
+                    "folder": folderName,
+                    "snippet": row["snippet"] as? String ?? NSNull(),
+                    "body": body,
+                    "body_error": bodyError,
+                    "deleted": isDeleted,
+                ]
+                if let created = row["created"] as? Double { d["created"] = cdateToISODateTime(created) }
+                if let modified = row["modified"] as? Double { d["modified"] = cdateToISODateTime(modified) }
+                out.append(d)
+                if let lim = limit, out.count >= lim { break }
+            }
+
+            printJSON([
+                "notes": out,
+                "count": out.count,
+                "folder_filter": folder ?? NSNull(),
+                "include_deleted": includeDeleted,
+            ])
+        }
+    }
 
     // MARK: - List
 

@@ -6,9 +6,70 @@ struct ContactsCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "contacts",
         abstract: "Search and manage Apple Contacts",
-        subcommands: [Search.self, Get.self, Create.self, Update.self, Delete.self,
+        subcommands: [Search.self, Get.self, Export.self, Create.self, Update.self, Delete.self,
                       GetNote.self, SetNote.self]
     )
+
+    // MARK: - Export
+    //
+    // Rich, read-only bulk export for ingestion. Preserves multi-value fields
+    // (phones, emails, postal addresses, URLs, IM handles, social profiles,
+    // relations, important dates) with their labels, plus name parts, org,
+    // birthday and metadata. The note field is intentionally omitted: it requires
+    // the com.apple.developer.contacts.notes entitlement and would throw in a bulk
+    // fetch — use `contacts get-note` per-contact for that field.
+    struct Export: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Export all contacts as rich JSON for ingestion (read-only)")
+
+        @Option(name: .long, help: "Max contacts to export (default: all)")
+        var limit: Int?
+
+        func run() throws {
+            try Auth.check("contacts.read")
+            let store = CNContactStore()
+            try requestAccess(store)
+
+            let keys: [CNKeyDescriptor] = [
+                CNContactIdentifierKey as CNKeyDescriptor,
+                CNContactGivenNameKey as CNKeyDescriptor,
+                CNContactMiddleNameKey as CNKeyDescriptor,
+                CNContactFamilyNameKey as CNKeyDescriptor,
+                CNContactNicknameKey as CNKeyDescriptor,
+                CNContactOrganizationNameKey as CNKeyDescriptor,
+                CNContactDepartmentNameKey as CNKeyDescriptor,
+                CNContactJobTitleKey as CNKeyDescriptor,
+                CNContactPhoneNumbersKey as CNKeyDescriptor,
+                CNContactEmailAddressesKey as CNKeyDescriptor,
+                CNContactPostalAddressesKey as CNKeyDescriptor,
+                CNContactUrlAddressesKey as CNKeyDescriptor,
+                CNContactInstantMessageAddressesKey as CNKeyDescriptor,
+                CNContactSocialProfilesKey as CNKeyDescriptor,
+                CNContactRelationsKey as CNKeyDescriptor,
+                CNContactBirthdayKey as CNKeyDescriptor,
+                CNContactDatesKey as CNKeyDescriptor,
+                CNContactTypeKey as CNKeyDescriptor,
+            ]
+
+            let req = CNContactFetchRequest(keysToFetch: keys)
+            req.sortOrder = .userDefault
+            var out: [[String: Any]] = []
+            var reachedLimit = false
+            try store.enumerateContacts(with: req) { c, stop in
+                out.append(contactExportDict(c))
+                if let lim = limit, out.count >= lim {
+                    reachedLimit = true
+                    stop.pointee = true
+                }
+            }
+
+            printJSON([
+                "contacts": out,
+                "count": out.count,
+                "truncated": reachedLimit,
+            ])
+        }
+    }
 
     // MARK: - GetNote / SetNote (entitlement-protected note field)
     //
@@ -407,4 +468,72 @@ private func cnLabel(_ label: String) -> String {
     case "iphone":          return CNLabelPhoneNumberiPhone
     default:                return label
     }
+}
+
+// MARK: - Rich contact export
+
+/// Turn a raw CN label (e.g. `_$!<Mobile>!$_`) into a friendly lowercase string.
+private func friendlyLabel(_ raw: String?) -> Any {
+    guard let raw = raw, !raw.isEmpty else { return NSNull() }
+    return CNLabeledValue<NSString>.localizedString(forLabel: raw)
+}
+
+private func ymd(_ comps: DateComponents?) -> Any {
+    guard let c = comps, let m = c.month, let d = c.day else { return NSNull() }
+    if let y = c.year, y > 1 {
+        return "\(y)-\(String(format: "%02d", m))-\(String(format: "%02d", d))"
+    }
+    // No year (common for birthdays) — emit month/day only.
+    return "--\(String(format: "%02d", m))-\(String(format: "%02d", d))"
+}
+
+/// Build the rich export dictionary for one contact, preserving multi-value fields.
+func contactExportDict(_ c: CNContact) -> [String: Any] {
+    let phones = c.phoneNumbers.map { ["label": friendlyLabel($0.label), "value": $0.value.stringValue] }
+    let emails = c.emailAddresses.map { ["label": friendlyLabel($0.label), "value": $0.value as String] }
+    let urls = c.urlAddresses.map { ["label": friendlyLabel($0.label), "value": $0.value as String] }
+    let ims = c.instantMessageAddresses.map {
+        ["label": friendlyLabel($0.label), "service": $0.value.service, "username": $0.value.username]
+    }
+    let socials = c.socialProfiles.map {
+        ["label": friendlyLabel($0.label), "service": $0.value.service, "username": $0.value.username]
+    }
+    let relations = c.contactRelations.map { ["label": friendlyLabel($0.label), "name": $0.value.name] }
+    let postal = c.postalAddresses.map { pa -> [String: Any] in
+        let v = pa.value
+        return [
+            "label": friendlyLabel(pa.label),
+            "street": v.street,
+            "city": v.city,
+            "state": v.state,
+            "postal_code": v.postalCode,
+            "country": v.country,
+            "iso_country_code": v.isoCountryCode,
+        ]
+    }
+    let dates = c.dates.map { ["label": friendlyLabel($0.label), "date": ymd($0.value as DateComponents)] }
+
+    var d: [String: Any] = [
+        "id": c.identifier,
+        "given_name": c.givenName,
+        "middle_name": c.middleName,
+        "family_name": c.familyName,
+        "nickname": c.nickname,
+        "organization": c.organizationName,
+        "department": c.departmentName,
+        "job_title": c.jobTitle,
+        "contact_type": c.contactType == .organization ? "organization" : "person",
+        "phones": phones,
+        "emails": emails,
+        "urls": urls,
+        "instant_messages": ims,
+        "social_profiles": socials,
+        "relations": relations,
+        "postal_addresses": postal,
+        "dates": dates,
+    ]
+    d["birthday"] = ymd(c.birthday)
+    let display = "\(c.givenName) \(c.familyName)".trimmingCharacters(in: .whitespaces)
+    d["display_name"] = display.isEmpty ? (c.organizationName.isEmpty ? NSNull() : c.organizationName as Any) : display
+    return d
 }

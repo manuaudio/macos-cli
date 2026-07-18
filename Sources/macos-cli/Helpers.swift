@@ -156,6 +156,34 @@ extension Process {
     }
 }
 
+// MARK: - Data hex decoding
+
+extension Data {
+    /// Decode a hex string (e.g. sqlite3's `hex(blob)` output) into raw bytes.
+    /// Returns nil if the string has odd length or non-hex characters.
+    init?(hexString: String) {
+        let chars = Array(hexString.utf8)
+        guard chars.count % 2 == 0 else { return nil }
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(chars.count / 2)
+        func nibble(_ c: UInt8) -> UInt8? {
+            switch c {
+            case 0x30...0x39: return c - 0x30            // 0-9
+            case 0x41...0x46: return c - 0x41 + 10       // A-F
+            case 0x61...0x66: return c - 0x61 + 10       // a-f
+            default: return nil
+            }
+        }
+        var i = 0
+        while i < chars.count {
+            guard let hi = nibble(chars[i]), let lo = nibble(chars[i + 1]) else { return nil }
+            bytes.append(hi << 4 | lo)
+            i += 2
+        }
+        self.init(bytes)
+    }
+}
+
 // MARK: - JXA helpers
 
 /// Escape a Swift string for safe interpolation inside an AppleScript double-quoted string.

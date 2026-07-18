@@ -14,7 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="#install"><img src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple&logoColor=white" alt="macOS 13+"></a>
   <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"></a>
-  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/release-v0.7.0-blue" alt="Release"></a>
+  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/release-v0.8.0-blue" alt="Release"></a>
   <a href="#-use-it-with-ai-agents"><img src="https://img.shields.io/badge/agent--ready-JSON-8A2BE2?logo=anthropic&logoColor=white" alt="Agent-ready JSON"></a>
   <img src="https://img.shields.io/badge/runtime_deps-0-brightgreen" alt="Zero runtime deps">
 </p>
@@ -62,7 +62,7 @@ The installer does **not** grant any macOS privacy permission for you — it pri
 > Make sure `$HOME/.local/bin` is on your `PATH` (the installer reminds you if it isn't).
 
 ```bash
-macos --version   # 0.7.0
+macos --version   # 0.8.0
 macos setup       # checks every permission — a green ✓ per capability
 ```
 
@@ -70,7 +70,7 @@ macos setup       # checks every permission — a green ✓ per capability
 
 | | Area | Examples |
 |---|---|---|
-| 📅 | **Calendar** | list, create, update, delete events across all calendars |
+| 📅 | **Calendar** | list, rich JSON export, create (custom alarms), update, delete (by id or title) across all linked calendars |
 | ✅ | **Reminders** | create, complete, list by list, due dates |
 | 👤 | **Contacts** | search, read, create, update — by name, email, or phone |
 | 💬 | **Messages** | send iMessage/SMS, read threads, search |
@@ -130,7 +130,7 @@ macOS CLI is **one binary and nothing else** — no MCP server, no HTTP bridge, 
 "$HOME/.local/bin/macos" calendar events --json
 ```
 
-### Agent-safe surfaces (0.7.0)
+### Agent-safe surfaces (0.8.0)
 
 These commands are built for unattended, read-mostly automation — stable JSON, fail-closed filters, and a machine-readable error contract:
 
@@ -140,6 +140,8 @@ These commands are built for unattended, read-mostly automation — stable JSON,
 | `macos reminders export --json` | Rich read-only export. `--list NAME` is **fail-closed**: an unknown list yields zero rows, never all of them. |
 | `macos reminders export --timeout N` | A fetch timeout is a **hard error** — prints `{"status":"error","error":"fetch_timeout",…}` on stdout and exits `1`, so a hang can never be mistaken for "zero reminders." |
 | `macos reminders complete --id ID` | The **only** way to complete a reminder. Defaults to a **dry run**; it writes only when `--approve` exactly matches a non-empty `APPLE_EVENTKIT_APPROVE_TOKEN` environment variable. `complete-safe` is a kept alias. |
+| `macos calendar export --json` | Rich read-only export as a single envelope `{ok,status,count,filter,calendars,events}`. Enumerates **all linked calendars from all sources** by default; `--calendar NAME` is **fail-closed** (unknown name ⇒ zero events *and* zero calendars, never all). `--from`/`--to` validate `from ≤ to` and emit a structured `invalid_date_range`/`invalid_date` error + exit `1` on bad input. |
+| `macos calendar delete --id ID` | Deletes exactly one event by stable identifier (`EKSpanThisEvent`). `--id` and `--title`/`--date` are **mutually exclusive**; a missing id prints `{"error":"event_not_found",…,"deleted":false}` and exits `1`. Result carries only `id` + `deleted` — no private event content. |
 | `macos notes export --json` | Read-only Notes export straight from the local store (Unicode-preserving), with a fail-closed `--folder` filter. |
 
 The old `reminders done` command is **retired** — it was an ungated write. It now performs no writes and prints a one-line pointer to `reminders complete`.
@@ -150,6 +152,54 @@ Example — let an agent complete a reminder only after you've set the approval 
 export APPLE_EVENTKIT_APPROVE_TOKEN="$(openssl rand -hex 16)"   # you set this, once
 macos reminders complete --id "$ID"                 # dry run — no token passed, nothing changes
 macos reminders complete --id "$ID" --approve "$APPLE_EVENTKIT_APPROVE_TOKEN"   # writes
+```
+
+### Calendar JSON contract
+
+Two read shapes, chosen for compatibility:
+
+- **`calendar events --json`** returns a bare **array** (unchanged since 0.7.0). Every element still carries the six stable keys `id`, `title`, `calendar`, `start`, `end`, `all_day`; richer fields (`source`, `location`, `notes`, `url`, `timezone`, `created`, `last_modified`, `status`, `availability`, `recurring`, `organizer`, `attendees`, `alarms`) are **additive** and appear only when the event has them.
+- **`calendar export --json`** wraps those same event objects in the ingestion **envelope** (this is the shape to prefer for sync):
+
+```jsonc
+// macos calendar export --from 2026-07-01 --to 2026-07-31 --json   (fake data)
+{
+  "ok": true,
+  "status": "ok",
+  "count": 1,
+  "filter": null,                       // echoes --calendar, or null when unfiltered
+  "calendars": ["Home", "Work", "Gigs"],// exactly the resolved (never broadened) set
+  "events": [
+    {
+      "id": "F1A2B3C4-0000-0000-0000-000000000001",
+      "title": "Load-in",
+      "calendar": "Gigs",
+      "source": "iCloud",
+      "start": "2026-07-20T22:00:00Z",
+      "end": "2026-07-21T01:00:00Z",
+      "all_day": false,
+      "recurring": false,
+      "location": "The Example Room",
+      "timezone": "America/Los_Angeles",
+      "last_modified": "2026-07-10T18:04:00Z",
+      "status": "confirmed",
+      "availability": "busy",
+      "attendees": ["Stage Manager", "promoter@example.com"],
+      "alarms": [1440, 60]
+    }
+  ]
+}
+```
+
+Dates are ISO8601 UTC. `--from` is inclusive, `--to` is the exclusive upper bound; both default to a bounded ±1-year window and accept explicit multi-year ranges (a single EventKit query spans at most ~4 years — chunk beyond that). An unknown `--calendar` returns a valid envelope with `count: 0` and `calendars: []` — never all.
+
+**Create with custom alarms** (each `--alarm` is minutes-before; repeatable; overrides the default 1-day + 1-hour alerts; the result echoes the minute list, never notes):
+
+```jsonc
+// macos calendar create --title "Soundcheck" --start "2026-07-20 16:00" \
+//     --alarm 120 --alarm 30 --json   (fake data)
+{ "id": "…", "title": "Soundcheck", "calendar": "Gigs",
+  "start": "…", "end": "…", "all_day": false, "alarms": [120, 30] }
 ```
 
 ## Permissions

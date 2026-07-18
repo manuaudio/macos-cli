@@ -26,7 +26,7 @@ exact CLI calls:
 | Reminder completion| `macos reminders complete --id ID [--approve TOKEN] --json` |
 | Notes export       | `macos notes export [--folder NAME] [--limit N] [--include-deleted]` |
 | Contacts export    | `macos contacts export [--limit N]` |
-| Calendar reads     | `macos calendar events ... --json` *(unchanged — existing path stays)* |
+| Calendar reads     | `macos calendar export --from YYYY-MM-DD --to YYYY-MM-DD` *(rich envelope — see 0.8.0 section below)* |
 
 ## Invariants that must be preserved
 
@@ -82,3 +82,121 @@ by keeping two live implementations in parallel.
 TCC permissions must be granted by the **user** to the final installed
 executable. Do **not** modify `TCC.db` or disable SIP. Permission is granted
 interactively by the user against `$HOME/.local/bin/macos`.
+
+---
+
+## 0.8.0 Calendar migration
+
+macos-cli **0.8.0** brings Calendar to full CLI parity. Aura's remaining
+standalone calendar code paths — the direct `Calendar.sqlitedb` reader, the
+`scripts/calendar_write/calendar_write` helper, and `scripts/cal.py` — must all
+route through the one installed binary at `$HOME/.local/bin/macos`. No wrappers,
+no second executable.
+
+### Active ingestion — replace the direct `Calendar.sqlitedb` reader
+
+Aura's calendar ingestion must stop reading `Calendar.sqlitedb` directly and
+call the rich export envelope instead:
+
+```
+macos calendar export --from 2026-07-01 --to 2026-08-01
+```
+
+The envelope is a single JSON object with these keys:
+
+- `events` — the array of rich event dicts.
+- `count` — number of events in `events`.
+- `calendars` — the resolved target calendar names (never broadened).
+- `filter` — the exact calendar filter applied, or `null` when unfiltered.
+
+**All linked event calendars are included by default.** Passing
+`--calendar "Some Name"` applies an **exact** filter that is **fail-closed**: an
+unknown calendar name returns **zero** events with `count: 0`, never the full
+unfiltered set.
+
+### Date semantics
+
+- `--from` is **inclusive**; `--to` is **exclusive**. A single UTC day
+  `2026-07-15` is `--from 2026-07-15 --to 2026-07-16`.
+- Dates are `YYYY-MM-DD`. An invalid or reversed range is a **structured
+  validation error**, not a silent empty result.
+
+### Legacy `calendar_write` create → `macos calendar create`
+
+Replace `scripts/calendar_write/calendar_write create ...` with:
+
+```
+macos calendar create \
+  --title "Soundcheck — Example Venue" \
+  --start "2026-07-20 15:00" \
+  --end "2026-07-20 16:30" \
+  --calendar "Gigs" \
+  --alarm 1440 --alarm 60 \
+  --json
+```
+
+**Alarms are explicit and repeatable.** Each `--alarm N` adds one alert N
+minutes before start. **There is no default alarm** — a `create` with **no
+`--alarm` args yields ZERO alarms.** Callers that want the old day-before +
+hour-before alerts must pass `--alarm 1440 --alarm 60` themselves. With `--json`
+the response echoes back the resolved alarm minute list.
+
+### Legacy `cal.py delete-event` / `ekdelete` → `macos calendar delete --id`
+
+Replace `scripts/cal.py delete-event ID` (and any `ekdelete` path) with
+ID-bound deletion:
+
+```
+macos calendar delete --id "EVENT-ID-FROM-EXPORT" --json
+```
+
+`--id` mode is mutually exclusive with the existing title+date mode, which is
+preserved. `calendar.delete` is a **gated** capability — it stays off by default
+and must be enabled for the caller.
+
+### Legacy `cal.py find` / `list` → export + caller-side matching
+
+There is **no** server-side find/search. Replace `cal.py find`/`list` with an
+`export` (or `events --json`) call, then match on the returned dicts in the
+caller (by title, calendar, id, or time). Each event dict carries a stable `id`.
+
+### Legacy `cal.py` rename/replace → query IDs, then `calendar update`
+
+Replace in-place rename/replace flows with a two-step pattern: first resolve the
+target event `id` from an `export` / `events --json` read and match caller-side,
+then mutate by id:
+
+```
+macos calendar update --id "EVENT-ID-FROM-EXPORT" --title "New Title" --json
+```
+
+`update` takes at least one field (`--title`, `--start`, `--end`, `--location`,
+`--notes`, `--calendar`); supplying none is a validation error.
+
+### Optional fields and structured errors
+
+- Event dicts expose the rich optional fields (location, notes, all-day flag,
+  calendar name, timestamps) — read them; do not re-derive from a raw store.
+- All failure modes emit **stable structured JSON errors** (validation, range,
+  authorization). Authorization failures are **redacted** — no token, path, or
+  internal detail leaks into the payload.
+
+### TCC — Calendars
+
+The Calendars TCC permission is granted **by the user**, interactively, to
+`$HOME/.local/bin/macos`. It is **never** auto-granted, and `TCC.db` is never
+edited.
+
+### Staged rollout and rollback
+
+1. Keep the existing `Calendar.sqlitedb` backups and ingestion caches in place —
+   do not clear them during migration.
+2. Cut over the **read-only** `export` path first and verify parity against the
+   prior reader on real data.
+3. **Do not perform a live calendar write** (`create` / `update` / `delete`) for
+   verification without the user's **explicit authorization** — a write mutates
+   the user's real calendar.
+4. **Rollback** is by restoring the caller path to the legacy scripts and the
+   retained backups/caches — not by running two live calendar implementations in
+   parallel. Once the CLI path is proven live, the legacy scripts and wrappers
+   are retired, leaving the one executable at `$HOME/.local/bin/macos`.

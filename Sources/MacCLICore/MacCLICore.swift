@@ -112,6 +112,269 @@ public enum MacCLICore {
         return "supplied --approve token does not match APPLE_EVENTKIT_APPROVE_TOKEN"
     }
 
+    // MARK: - Calendar: fail-closed calendar filter
+
+    /// Resolve a `--calendar` filter against the titles of every linked event calendar.
+    ///
+    /// Semantics are IDENTICAL to `resolveReminderLists` and deliberately share its
+    /// fail-closed contract: a `nil` filter enumerates ALL linked calendars from ALL
+    /// sources, an exact title match selects those calendars (all duplicates), and an
+    /// unknown title selects ZERO calendars with `failClosed == true`. An unknown
+    /// filter must never broaden the ingestion surface to every calendar.
+    public static func resolveCalendarFilter(allTitles: [String], filter: String?) -> ListResolution {
+        return resolveReminderLists(allTitles: allTitles, filter: filter)
+    }
+
+    // MARK: - Calendar: date-range validation
+
+    public struct DateRangeValidation: Equatable {
+        /// True when `startEpoch <= endEpoch` (the range is inclusive of equal endpoints).
+        public let valid: Bool
+        /// Human-readable reason the range was rejected; nil when `valid`.
+        public let reason: String?
+        public init(valid: Bool, reason: String?) {
+            self.valid = valid
+            self.reason = reason
+        }
+    }
+
+    /// Validate an ingestion date range. `from == to` is accepted (inclusive lower bound);
+    /// `from > to` is rejected so a mis-ordered range fails loudly instead of scanning nothing.
+    public static func validateDateRange(startEpoch: Double, endEpoch: Double) -> DateRangeValidation {
+        if startEpoch <= endEpoch {
+            return DateRangeValidation(valid: true, reason: nil)
+        }
+        return DateRangeValidation(valid: false, reason: "from date (\(startEpoch)) is after to date (\(endEpoch))")
+    }
+
+    /// Structured error body for a mis-ordered `--from`/`--to` range. Carries NO events
+    /// array, so it can never be mistaken for an empty successful export.
+    public static func dateRangeErrorJSON(from: String, to: String) -> [String: Any] {
+        return [
+            "ok": false,
+            "status": "error",
+            "error": "invalid_date_range",
+            "from": from,
+            "to": to,
+            "message": "The --from date is after the --to date; supply a range where from <= to.",
+        ]
+    }
+
+    /// Structured error body for an unparseable date argument.
+    public static func dateParseErrorJSON(field: String, value: String) -> [String: Any] {
+        return [
+            "ok": false,
+            "status": "error",
+            "error": "invalid_date",
+            "field": field,
+            "value": value,
+            "message": "Could not parse the --\(field) value; use YYYY-MM-DD or 'YYYY-MM-DD HH:MM'.",
+        ]
+    }
+
+    /// Structured, REDACTED error body for an EventKit authorization/access failure.
+    ///
+    /// Emitted on stdout (stderr stays empty) with a non-zero exit so an ingestion
+    /// pipeline can branch on a stable machine code instead of scraping stderr. It
+    /// deliberately carries NO calendar names, NO event content, and NO raw localized
+    /// system-error string — only `entity` and a fixed, non-leaking message. Because it
+    /// carries no `events`/`calendars`/`count`, it can never be mistaken for a
+    /// successful (possibly empty) export.
+    public static func accessErrorJSON(entity: String) -> [String: Any] {
+        return [
+            "ok": false,
+            "status": "error",
+            "error": "access_denied",
+            "entity": entity,
+            "message": "EventKit access to \(entity) is not authorized for this binary. "
+                + "Grant it in System Settings › Privacy & Security, then retry.",
+        ]
+    }
+
+    // MARK: - Calendar: delete-mode resolution (exactly one of --id | --title+--date)
+
+    public enum CalendarDeleteMode: Equatable {
+        /// Delete a single event by its stable EventKit identifier.
+        case byId(String)
+        /// Delete by exact/substring title within a date window (legacy behavior).
+        case byTitleDate(title: String, date: String)
+        /// The supplied flags do not name exactly one valid mode; carries the reason.
+        case invalid(String)
+    }
+
+    /// Enforce mutually-exclusive deletion modes. `--id` may not be combined with
+    /// `--title`/`--date`; the title-mode requires BOTH `--title` and `--date`.
+    public static func resolveDeleteMode(id: String?, title: String?, date: String?) -> CalendarDeleteMode {
+        let hasId = id != nil
+        let hasTitle = title != nil
+        let hasDate = date != nil
+        if hasId {
+            if hasTitle || hasDate {
+                return .invalid("--id is mutually exclusive with --title/--date")
+            }
+            return .byId(id!)
+        }
+        if hasTitle && hasDate {
+            return .byTitleDate(title: title!, date: date!)
+        }
+        if hasTitle || hasDate {
+            return .invalid("--title and --date must be used together")
+        }
+        return .invalid("specify either --id or both --title and --date")
+    }
+
+    /// Structured error body when an `--id`-mode delete finds no such event. Non-zero
+    /// exit is the caller's responsibility; this body carries `deleted: false` and the id.
+    public static func calendarDeleteNotFoundJSON(id: String) -> [String: Any] {
+        return [
+            "ok": false,
+            "status": "error",
+            "error": "event_not_found",
+            "id": id,
+            "deleted": false,
+            "message": "No calendar event has identifier '\(id)'.",
+        ]
+    }
+
+    /// Structured success body for an `--id`-mode delete. Deliberately carries NO event
+    /// title, notes, or other private content — only the requested id and the outcome.
+    public static func calendarDeleteResultJSON(id: String, deleted: Bool) -> [String: Any] {
+        return [
+            "ok": true,
+            "status": "ok",
+            "id": id,
+            "deleted": deleted,
+        ]
+    }
+
+    /// Structured error body for an invalid delete-mode combination.
+    public static func calendarDeleteModeErrorJSON(reason: String) -> [String: Any] {
+        return [
+            "ok": false,
+            "status": "error",
+            "error": "invalid_delete_mode",
+            "message": reason,
+        ]
+    }
+
+    // MARK: - Calendar: alarm validation + offset conversion
+
+    /// Convert a "minutes before the event" alarm into an `EKAlarm.relativeOffset`
+    /// (negative seconds). Only strictly-positive minute values are valid; 0 or
+    /// negative returns nil so the caller can reject it.
+    public static func alarmOffsetSeconds(minutesBefore: Int) -> Double? {
+        guard minutesBefore > 0 else { return nil }
+        return Double(-minutesBefore * 60)
+    }
+
+    /// The subset of supplied alarm-minute values that are NOT strictly positive.
+    /// An empty result means every value is usable.
+    public static func invalidAlarmMinutes(_ minutes: [Int]) -> [Int] {
+        return minutes.filter { $0 <= 0 }
+    }
+
+    /// The alarm minutes a `calendar create` will actually apply, given the repeatable
+    /// `--alarm` values the caller supplied.
+    ///
+    /// Explicit-only by contract: an empty input yields an EMPTY result — the CLI
+    /// inserts ZERO default alarms, exactly as the pre-0.8 CLI did. There is NO silent
+    /// `[1440, 60]` default. A caller that wants the old 1-day + 1-hour alerts must pass
+    /// them itself (`--alarm 1440 --alarm 60`). The order the caller gave is preserved.
+    public static func creationAlarmMinutes(_ supplied: [Int]) -> [Int] {
+        return supplied
+    }
+
+    /// Map a list of (assumed-valid) alarm minutes to relative offsets in seconds,
+    /// preserving order. Non-positive values are skipped (validate first with
+    /// `invalidAlarmMinutes`).
+    public static func alarmOffsets(_ minutes: [Int]) -> [Double] {
+        return minutes.compactMap { alarmOffsetSeconds(minutesBefore: $0) }
+    }
+
+    /// Structured error body for one or more invalid `--alarm` values.
+    public static func alarmValidationErrorJSON(invalid: [Int]) -> [String: Any] {
+        return [
+            "ok": false,
+            "status": "error",
+            "error": "invalid_alarm",
+            "invalid": invalid,
+            "message": "Each --alarm value must be a positive integer number of minutes before the event.",
+        ]
+    }
+
+    // MARK: - Calendar: rich event serialization
+
+    /// Assemble one event's JSON object from plain (already-extracted) values.
+    ///
+    /// Backward compatibility: the six keys `id`, `title`, `calendar`, `start`, `end`,
+    /// `all_day` are ALWAYS present, exactly as the pre-0.8.0 `calendar events --json`
+    /// array emitted. Every richer field is additive and appears ONLY when it has a
+    /// value, so no consumer sees new null noise. Dates are pre-formatted ISO8601
+    /// strings supplied by the caller. `notes` is included when present (event bodies
+    /// are user content the ingestion pipeline needs); the delete/alarm result contracts
+    /// remain notes-free.
+    public static func calendarEventJSON(
+        id: String,
+        title: String,
+        calendar: String,
+        source: String?,
+        start: String,
+        end: String,
+        allDay: Bool,
+        location: String?,
+        notes: String?,
+        url: String?,
+        timeZone: String?,
+        created: String?,
+        lastModified: String?,
+        status: String?,
+        availability: String?,
+        hasRecurrence: Bool,
+        organizer: String?,
+        attendees: [String],
+        alarmsMinutes: [Int]
+    ) -> [String: Any] {
+        var d: [String: Any] = [
+            "id": id,
+            "title": title,
+            "calendar": calendar,
+            "start": start,
+            "end": end,
+            "all_day": allDay,
+            "recurring": hasRecurrence,
+        ]
+        func put(_ key: String, _ value: String?) {
+            if let v = value, !v.isEmpty { d[key] = v }
+        }
+        put("source", source)
+        put("location", location)
+        put("notes", notes)
+        put("url", url)
+        put("timezone", timeZone)
+        put("created", created)
+        put("last_modified", lastModified)
+        put("status", status)
+        put("availability", availability)
+        put("organizer", organizer)
+        if !attendees.isEmpty { d["attendees"] = attendees }
+        if !alarmsMinutes.isEmpty { d["alarms"] = alarmsMinutes }
+        return d
+    }
+
+    /// Wrap serialized events in the rich ingestion envelope. `count` always equals the
+    /// number of events, `calendars` lists exactly the resolved (never broadened) target
+    /// set, and `filter` echoes the requested filter (JSON `null` when none was given).
+    public static func calendarExportEnvelope(events: [[String: Any]], calendars: [String], filter: String?) -> [String: Any] {
+        return [
+            "ok": true,
+            "status": "ok",
+            "count": events.count,
+            "filter": filter ?? NSNull(),
+            "calendars": calendars,
+            "events": events,
+        ]
+    }
+
     // MARK: - Apple Notes body decoding (Unicode-preserving)
 
     /// If `data` starts with the gzip magic (0x1f 0x8b) decompress it; otherwise

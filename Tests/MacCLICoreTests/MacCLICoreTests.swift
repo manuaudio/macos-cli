@@ -146,6 +146,238 @@ final class FetchTimeoutEnvelopeTests: XCTestCase {
     }
 }
 
+final class CalendarFilterTests: XCTestCase {
+    let calTitles = ["Home", "Work", "Familia", "Work"]
+
+    func testNilFilterSelectsAllLinkedCalendars() {
+        let r = MacCLICore.resolveCalendarFilter(allTitles: calTitles, filter: nil)
+        XCTAssertEqual(r, MacCLICore.ListResolution(indices: [0, 1, 2, 3], failClosed: false))
+    }
+
+    func testExactCalendarMatch() {
+        let r = MacCLICore.resolveCalendarFilter(allTitles: calTitles, filter: "Familia")
+        XCTAssertEqual(r.indices, [2])
+        XCTAssertFalse(r.failClosed)
+    }
+
+    func testDuplicateCalendarTitlesSelectAllMatches() {
+        let r = MacCLICore.resolveCalendarFilter(allTitles: calTitles, filter: "Work")
+        XCTAssertEqual(r.indices, [1, 3])
+    }
+
+    // Ingestion security property: an unknown calendar must select zero, never all.
+    func testUnknownCalendarFailsClosed() {
+        let r = MacCLICore.resolveCalendarFilter(allTitles: calTitles, filter: "___NOPE___")
+        XCTAssertEqual(r.indices, [], "unknown calendar must select zero calendars")
+        XCTAssertTrue(r.failClosed, "unknown calendar must be flagged fail-closed")
+    }
+}
+
+final class CalendarDateRangeTests: XCTestCase {
+    func testInclusiveRangeIsValid() {
+        XCTAssertTrue(MacCLICore.validateDateRange(startEpoch: 1000, endEpoch: 2000).valid)
+        XCTAssertNil(MacCLICore.validateDateRange(startEpoch: 1000, endEpoch: 2000).reason)
+        XCTAssertTrue(MacCLICore.validateDateRange(startEpoch: 2000, endEpoch: 2000).valid, "from == to is inclusive")
+    }
+
+    func testMisorderedRangeIsInvalid() {
+        let v = MacCLICore.validateDateRange(startEpoch: 3000, endEpoch: 2000)
+        XCTAssertFalse(v.valid)
+        XCTAssertNotNil(v.reason)
+    }
+
+    func testRangeErrorEnvelope() {
+        let env = MacCLICore.dateRangeErrorJSON(from: "2026-07-10", to: "2026-07-01")
+        XCTAssertEqual(env["ok"] as? Bool, false)
+        XCTAssertEqual(env["status"] as? String, "error")
+        XCTAssertEqual(env["error"] as? String, "invalid_date_range")
+        XCTAssertEqual(env["from"] as? String, "2026-07-10")
+        XCTAssertEqual(env["to"] as? String, "2026-07-01")
+        XCTAssertNil(env["events"], "range error must not carry an events array")
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(env))
+    }
+
+    func testDateParseErrorEnvelope() {
+        let env = MacCLICore.dateParseErrorJSON(field: "from", value: "not-a-date")
+        XCTAssertEqual(env["error"] as? String, "invalid_date")
+        XCTAssertEqual(env["field"] as? String, "from")
+        XCTAssertEqual(env["value"] as? String, "not-a-date")
+        XCTAssertEqual(env["ok"] as? Bool, false)
+    }
+
+    // Access failures on `calendar export`/`events --json` become a stable, redacted
+    // machine error — no calendar content, no raw localized system strings, and no
+    // rows/count keys that could be mistaken for an empty successful result.
+    func testAccessErrorEnvelopeIsRedactedAndStructured() {
+        let env = MacCLICore.accessErrorJSON(entity: "calendar")
+        XCTAssertEqual(env["ok"] as? Bool, false)
+        XCTAssertEqual(env["status"] as? String, "error")
+        XCTAssertEqual(env["error"] as? String, "access_denied")
+        XCTAssertEqual(env["entity"] as? String, "calendar")
+        XCTAssertNil(env["events"], "access error must not carry an events array")
+        XCTAssertNil(env["calendars"], "access error must not carry a calendars array")
+        XCTAssertNil(env["count"], "access error must not carry a count")
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(env))
+    }
+}
+
+final class CalendarDeleteModeTests: XCTestCase {
+    func testIdOnlyIsById() {
+        XCTAssertEqual(MacCLICore.resolveDeleteMode(id: "EV-123", title: nil, date: nil), .byId("EV-123"))
+    }
+
+    func testTitleAndDateIsByTitleDate() {
+        XCTAssertEqual(
+            MacCLICore.resolveDeleteMode(id: nil, title: "Dentist", date: "2026-07-10"),
+            .byTitleDate(title: "Dentist", date: "2026-07-10"))
+    }
+
+    func testMutuallyExclusiveAndIncompleteModesAreInvalid() {
+        func isInvalid(_ m: MacCLICore.CalendarDeleteMode) -> Bool { if case .invalid = m { return true }; return false }
+        XCTAssertTrue(isInvalid(MacCLICore.resolveDeleteMode(id: "EV-1", title: "X", date: nil)))
+        XCTAssertTrue(isInvalid(MacCLICore.resolveDeleteMode(id: "EV-1", title: nil, date: "2026-07-10")))
+        XCTAssertTrue(isInvalid(MacCLICore.resolveDeleteMode(id: "EV-1", title: "X", date: "2026-07-10")))
+        XCTAssertTrue(isInvalid(MacCLICore.resolveDeleteMode(id: nil, title: "X", date: nil)))
+        XCTAssertTrue(isInvalid(MacCLICore.resolveDeleteMode(id: nil, title: nil, date: "2026-07-10")))
+        XCTAssertTrue(isInvalid(MacCLICore.resolveDeleteMode(id: nil, title: nil, date: nil)))
+    }
+
+    func testNotFoundEnvelope() {
+        let env = MacCLICore.calendarDeleteNotFoundJSON(id: "EV-404")
+        XCTAssertEqual(env["ok"] as? Bool, false)
+        XCTAssertEqual(env["error"] as? String, "event_not_found")
+        XCTAssertEqual(env["id"] as? String, "EV-404")
+        XCTAssertEqual(env["deleted"] as? Bool, false)
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(env))
+    }
+
+    func testDeleteResultCarriesNoPrivateContent() {
+        let env = MacCLICore.calendarDeleteResultJSON(id: "EV-9", deleted: true)
+        XCTAssertEqual(env["ok"] as? Bool, true)
+        XCTAssertEqual(env["id"] as? String, "EV-9")
+        XCTAssertEqual(env["deleted"] as? Bool, true)
+        XCTAssertNil(env["title"], "id-mode delete result must not carry a title")
+        XCTAssertNil(env["notes"], "id-mode delete result must not carry notes")
+    }
+}
+
+final class CalendarAlarmTests: XCTestCase {
+    func testOffsetConversion() {
+        XCTAssertEqual(MacCLICore.alarmOffsetSeconds(minutesBefore: 60), -3600)
+        XCTAssertEqual(MacCLICore.alarmOffsetSeconds(minutesBefore: 1), -60)
+        XCTAssertEqual(MacCLICore.alarmOffsetSeconds(minutesBefore: 1440), -86400)
+    }
+
+    func testNonPositiveMinutesAreInvalid() {
+        XCTAssertNil(MacCLICore.alarmOffsetSeconds(minutesBefore: 0))
+        XCTAssertNil(MacCLICore.alarmOffsetSeconds(minutesBefore: -5))
+    }
+
+    func testInvalidMinutesDetection() {
+        XCTAssertEqual(MacCLICore.invalidAlarmMinutes([15, 60, 1440]), [])
+        XCTAssertEqual(MacCLICore.invalidAlarmMinutes([15, 0, -3, 60]), [0, -3])
+    }
+
+    func testOffsetsPreserveOrder() {
+        XCTAssertEqual(MacCLICore.alarmOffsets([1440, 60]), [-86400, -3600])
+    }
+
+    // P1 #1: `calendar create` inserts ZERO default alarms. An empty --alarm yields an
+    // empty minute list AND empty offsets — never a silent [1440, 60] default.
+    func testCreationAlarmsAreExplicitOnlyNoDefault() {
+        XCTAssertEqual(MacCLICore.creationAlarmMinutes([]), [], "no --alarm must add zero alarm minutes")
+        XCTAssertEqual(MacCLICore.alarmOffsets(MacCLICore.creationAlarmMinutes([])), [],
+                       "no --alarm must produce zero alarm offsets (no default insertion)")
+    }
+
+    func testCreationAlarmsPassExplicitValuesThrough() {
+        XCTAssertEqual(MacCLICore.creationAlarmMinutes([1440, 60]), [1440, 60])
+        XCTAssertEqual(MacCLICore.alarmOffsets(MacCLICore.creationAlarmMinutes([1440, 60])), [-86400, -3600])
+        // Nonpositive validation still applies to explicit values.
+        XCTAssertEqual(MacCLICore.invalidAlarmMinutes(MacCLICore.creationAlarmMinutes([0, -3, 60])), [0, -3])
+    }
+
+    func testAlarmValidationEnvelope() {
+        let env = MacCLICore.alarmValidationErrorJSON(invalid: [0, -3])
+        XCTAssertEqual(env["ok"] as? Bool, false)
+        XCTAssertEqual(env["error"] as? String, "invalid_alarm")
+        XCTAssertEqual(env["invalid"] as? [Int], [0, -3])
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(env))
+    }
+}
+
+final class CalendarEventSerializationTests: XCTestCase {
+    func testMinimalEventKeepsCompatKeysOnly() {
+        let d = MacCLICore.calendarEventJSON(
+            id: "EV-1", title: "Standup", calendar: "Work", source: nil,
+            start: "2026-07-18T17:00:00Z", end: "2026-07-18T17:30:00Z", allDay: false,
+            location: nil, notes: nil, url: nil, timeZone: nil,
+            created: nil, lastModified: nil, status: nil, availability: nil,
+            hasRecurrence: false, organizer: nil, attendees: [], alarmsMinutes: [])
+        XCTAssertEqual(d["id"] as? String, "EV-1")
+        XCTAssertEqual(d["title"] as? String, "Standup")
+        XCTAssertEqual(d["calendar"] as? String, "Work")
+        XCTAssertEqual(d["start"] as? String, "2026-07-18T17:00:00Z")
+        XCTAssertEqual(d["end"] as? String, "2026-07-18T17:30:00Z")
+        XCTAssertEqual(d["all_day"] as? Bool, false)
+        for absent in ["location", "notes", "source", "url", "attendees", "alarms"] {
+            XCTAssertNil(d[absent], "\(absent) must be absent when not provided")
+        }
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(d))
+    }
+
+    func testRichEventFlowsThroughVerbatim() {
+        let d = MacCLICore.calendarEventJSON(
+            id: "EV-2", title: "Show", calendar: "Gigs", source: "iCloud",
+            start: "2026-07-20T02:00:00Z", end: "2026-07-20T05:00:00Z", allDay: false,
+            location: "The Fonda", notes: "load-in 3pm", url: "https://x.example/e",
+            timeZone: "America/Los_Angeles", created: "2026-07-01T00:00:00Z",
+            lastModified: "2026-07-10T00:00:00Z", status: "confirmed", availability: "busy",
+            hasRecurrence: true, organizer: "promoter@example.com",
+            attendees: ["a@example.com", "b@example.com"], alarmsMinutes: [1440, 60])
+        XCTAssertEqual(d["source"] as? String, "iCloud")
+        XCTAssertEqual(d["location"] as? String, "The Fonda")
+        XCTAssertEqual(d["notes"] as? String, "load-in 3pm")
+        XCTAssertEqual(d["url"] as? String, "https://x.example/e")
+        XCTAssertEqual(d["timezone"] as? String, "America/Los_Angeles")
+        XCTAssertEqual(d["created"] as? String, "2026-07-01T00:00:00Z")
+        XCTAssertEqual(d["last_modified"] as? String, "2026-07-10T00:00:00Z")
+        XCTAssertEqual(d["status"] as? String, "confirmed")
+        XCTAssertEqual(d["availability"] as? String, "busy")
+        XCTAssertEqual(d["recurring"] as? Bool, true)
+        XCTAssertEqual(d["organizer"] as? String, "promoter@example.com")
+        XCTAssertEqual(d["attendees"] as? [String], ["a@example.com", "b@example.com"])
+        XCTAssertEqual(d["alarms"] as? [Int], [1440, 60])
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(d))
+    }
+
+    func testExportEnvelopeShape() {
+        let e1 = MacCLICore.calendarEventJSON(
+            id: "EV-1", title: "A", calendar: "Work", source: nil,
+            start: "2026-07-18T17:00:00Z", end: "2026-07-18T18:00:00Z", allDay: false,
+            location: nil, notes: nil, url: nil, timeZone: nil, created: nil,
+            lastModified: nil, status: nil, availability: nil, hasRecurrence: false,
+            organizer: nil, attendees: [], alarmsMinutes: [])
+        let env = MacCLICore.calendarExportEnvelope(events: [e1], calendars: ["Work", "Home"], filter: nil)
+        XCTAssertEqual(env["ok"] as? Bool, true)
+        XCTAssertEqual(env["status"] as? String, "ok")
+        XCTAssertEqual(env["count"] as? Int, 1)
+        XCTAssertEqual(env["calendars"] as? [String], ["Work", "Home"])
+        XCTAssertTrue(env["filter"] is NSNull, "nil filter must serialize as JSON null")
+        XCTAssertEqual((env["events"] as? [[String: Any]])?.count, 1)
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(env))
+    }
+
+    // Fail-closed ingestion: an unknown filter yields zero events AND zero calendars.
+    func testExportEnvelopeUnknownFilterIsZeroNeverAll() {
+        let env = MacCLICore.calendarExportEnvelope(events: [], calendars: [], filter: "___NOPE___")
+        XCTAssertEqual(env["count"] as? Int, 0)
+        XCTAssertEqual(env["calendars"] as? [String], [])
+        XCTAssertEqual(env["filter"] as? String, "___NOPE___")
+        XCTAssertTrue((env["events"] as? [[String: Any]])?.isEmpty == true)
+    }
+}
+
 final class NotesDecodeTests: XCTestCase {
     /// Encode one length-delimited protobuf field (wire type 2).
     private func protoField(_ fieldNumber: Int, _ payload: Data) -> Data {

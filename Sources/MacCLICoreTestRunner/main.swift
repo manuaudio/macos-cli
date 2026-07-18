@@ -377,6 +377,94 @@ do {
     check((env["events"] as? [[String: Any]])?.isEmpty == true, "unknown filter => empty events")
 }
 
+// MARK: - Contacts: get serialization (adds job_title; special chars safe; keys preserved)
+do {
+    // Rich contact: job_title flows through alongside the pre-existing keys.
+    let d = MacCLICore.contactGetJSON(
+        id: "C-1", name: "Ada Lovelace", organization: "Analytical Engines",
+        jobTitle: "Chief Mathematician",
+        phones: [["label": "mobile", "number": "+13105550100"]],
+        emails: [["label": "work", "email": "ada@example.com"]],
+        birthday: "1815-12-10")
+    eq(d["id"] as? String, "C-1", "get id")
+    eq(d["name"] as? String, "Ada Lovelace", "get name")
+    eq(d["organization"] as? String, "Analytical Engines", "get organization")
+    eq(d["job_title"] as? String, "Chief Mathematician", "get job_title present")
+    eq(d["birthday"] as? String, "1815-12-10", "get birthday when present")
+    check(d["phones"] != nil, "get preserves phones")
+    check(d["emails"] != nil, "get preserves emails")
+    check(JSONSerialization.isValidJSONObject(d), "get dict JSON-serializable")
+}
+do {
+    // No job title: same empty-string convention as export (no null noise); birthday omitted.
+    let d = MacCLICore.contactGetJSON(
+        id: "C-2", name: "No Title", organization: "",
+        jobTitle: "", phones: [], emails: [], birthday: nil)
+    eq(d["job_title"] as? String, "", "get job_title empty-string when absent (matches export)")
+    check(d["birthday"] == nil, "get omits birthday when nil")
+    check(JSONSerialization.isValidJSONObject(d), "get dict JSON-serializable when empty")
+}
+do {
+    // Special characters (quotes, em dash, accents, emoji, CJK) survive verbatim through JSON.
+    let tricky = "V.P. \"Ops\" — Café ☕ 日本語"
+    let d = MacCLICore.contactGetJSON(
+        id: "C-3", name: "Tricky", organization: "O", jobTitle: tricky,
+        phones: [], emails: [], birthday: nil)
+    eq(d["job_title"] as? String, tricky, "get job_title preserves special chars verbatim")
+    let data = try! JSONSerialization.data(withJSONObject: d)
+    let round = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+    eq(round["job_title"] as? String, tricky, "get job_title survives JSON round-trip")
+}
+
+// MARK: - Contacts: export serialization (adds job_title; special chars safe; full key set preserved)
+let exportKeys = ["id", "given_name", "middle_name", "family_name", "nickname",
+                  "organization", "department", "job_title", "contact_type",
+                  "phones", "emails", "urls", "instant_messages", "social_profiles",
+                  "relations", "postal_addresses", "dates", "birthday", "display_name"]
+do {
+    let d = MacCLICore.contactExportJSON(
+        id: "C-9", givenName: "Ada", middleName: "", familyName: "Lovelace",
+        nickname: "", organization: "Analytical Engines", department: "R&D",
+        jobTitle: "Chief Mathematician", contactType: "person",
+        phones: [], emails: [], urls: [], instantMessages: [], socialProfiles: [],
+        relations: [], postalAddresses: [], dates: [],
+        birthday: "1815-12-10", displayName: "Ada Lovelace")
+    eq(d["id"] as? String, "C-9", "export id")
+    eq(d["given_name"] as? String, "Ada", "export given_name")
+    eq(d["job_title"] as? String, "Chief Mathematician", "export job_title present")
+    eq(d["contact_type"] as? String, "person", "export contact_type")
+    eq(d["birthday"] as? String, "1815-12-10", "export birthday")
+    eq(d["display_name"] as? String, "Ada Lovelace", "export display_name")
+    for k in exportKeys { check(d[k] != nil, "export preserves key \(k)") }
+    check(JSONSerialization.isValidJSONObject(d), "export dict JSON-serializable")
+}
+do {
+    // Absent scalars keep their pre-existing conventions: job_title "" (string), birthday/display NSNull.
+    let d = MacCLICore.contactExportJSON(
+        id: "C-10", givenName: "", middleName: "", familyName: "", nickname: "",
+        organization: "", department: "", jobTitle: "", contactType: "person",
+        phones: [], emails: [], urls: [], instantMessages: [], socialProfiles: [],
+        relations: [], postalAddresses: [], dates: [],
+        birthday: NSNull(), displayName: NSNull())
+    eq(d["job_title"] as? String, "", "export job_title empty-string when absent")
+    check(d["birthday"] is NSNull, "export birthday NSNull when absent")
+    check(d["display_name"] is NSNull, "export display_name NSNull when absent")
+    check(JSONSerialization.isValidJSONObject(d), "export empty dict JSON-serializable")
+}
+do {
+    let tricky = "Señor \"Boss\" 🎛️ — 日本語"
+    let d = MacCLICore.contactExportJSON(
+        id: "C-11", givenName: "T", middleName: "", familyName: "", nickname: "",
+        organization: "", department: "", jobTitle: tricky, contactType: "person",
+        phones: [], emails: [], urls: [], instantMessages: [], socialProfiles: [],
+        relations: [], postalAddresses: [], dates: [],
+        birthday: NSNull(), displayName: "T")
+    eq(d["job_title"] as? String, tricky, "export job_title preserves special chars verbatim")
+    let data = try! JSONSerialization.data(withJSONObject: d)
+    let round = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+    eq(round["job_title"] as? String, tricky, "export job_title survives JSON round-trip verbatim")
+}
+
 // MARK: - Summary
 if failures == 0 {
     print("ok — \(checks) checks passed")

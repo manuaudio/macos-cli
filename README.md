@@ -14,7 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="#install"><img src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple&logoColor=white" alt="macOS 13+"></a>
   <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"></a>
-  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/release-v0.8.0-blue" alt="Release"></a>
+  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/release-v0.8.1-blue" alt="Release"></a>
   <a href="#-use-it-with-ai-agents"><img src="https://img.shields.io/badge/agent--ready-JSON-8A2BE2?logo=anthropic&logoColor=white" alt="Agent-ready JSON"></a>
   <img src="https://img.shields.io/badge/runtime_deps-0-brightgreen" alt="Zero runtime deps">
 </p>
@@ -62,7 +62,7 @@ The installer does **not** grant any macOS privacy permission for you — it pri
 > Make sure `$HOME/.local/bin` is on your `PATH` (the installer reminds you if it isn't).
 
 ```bash
-macos --version   # 0.8.0
+macos --version   # 0.8.1
 macos setup       # checks every permission — a green ✓ per capability
 ```
 
@@ -201,6 +201,19 @@ Dates are ISO8601 UTC. `--from` is inclusive, `--to` is the exclusive upper boun
 { "id": "…", "title": "Soundcheck", "calendar": "Gigs",
   "start": "…", "end": "…", "all_day": false, "alarms": [120, 30] }
 ```
+
+### Contacts JSON contract (0.8.1)
+
+Both `macos contacts get <id> --json` and `macos contacts export` now carry a **`job_title`** field. It is a **string that is always present** — the contact's title, or an **empty string `""`** when the contact has no title. It is **never `null`** and never omitted, matching the export convention so an ingestion consumer sees one stable shape. Every pre-0.8.1 key (`id`, `name`, `organization`, `phones`, `emails`, and the rich export fields) is unchanged — `job_title` is purely additive.
+
+Because the field reads back exactly as written, an agent can do a **verified read-after-write** around `contacts update --job-title`:
+
+```bash
+macos contacts update --id "$ID" --job-title "Tour Manager"   # write
+macos contacts get "$ID" --json | jq -r .job_title            # → "Tour Manager"
+```
+
+The written value appears verbatim in the very next `get`/`export`, so the write can be confirmed rather than assumed.
 
 ## Permissions
 

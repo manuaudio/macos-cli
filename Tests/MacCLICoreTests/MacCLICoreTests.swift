@@ -429,3 +429,97 @@ final class NotesDecodeTests: XCTestCase {
         XCTAssertNil(MacCLICore.decodeNoteBody(Data([0x00, 0x01, 0x02])))
     }
 }
+
+// MARK: - Contacts serialization (job_title parity for add-only verified enrichment)
+
+final class ContactGetSerializationTests: XCTestCase {
+    func testJobTitleFlowsThroughWithPreExistingKeys() {
+        let d = MacCLICore.contactGetJSON(
+            id: "C-1", name: "Ada Lovelace", organization: "Analytical Engines",
+            jobTitle: "Chief Mathematician",
+            phones: [["label": "mobile", "number": "+13105550100"]],
+            emails: [["label": "work", "email": "ada@example.com"]],
+            birthday: "1815-12-10")
+        XCTAssertEqual(d["id"] as? String, "C-1")
+        XCTAssertEqual(d["name"] as? String, "Ada Lovelace")
+        XCTAssertEqual(d["organization"] as? String, "Analytical Engines")
+        XCTAssertEqual(d["job_title"] as? String, "Chief Mathematician")
+        XCTAssertEqual(d["birthday"] as? String, "1815-12-10")
+        XCTAssertNotNil(d["phones"])
+        XCTAssertNotNil(d["emails"])
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(d))
+    }
+
+    func testEmptyJobTitleIsEmptyStringAndBirthdayOmittedWhenNil() {
+        let d = MacCLICore.contactGetJSON(
+            id: "C-2", name: "No Title", organization: "",
+            jobTitle: "", phones: [], emails: [], birthday: nil)
+        // Matches export's convention: empty string, never null.
+        XCTAssertEqual(d["job_title"] as? String, "")
+        XCTAssertNil(d["birthday"])
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(d))
+    }
+
+    func testSpecialCharactersSurviveJSONRoundTrip() {
+        let tricky = "V.P. \"Ops\" — Café ☕ 日本語"
+        let d = MacCLICore.contactGetJSON(
+            id: "C-3", name: "Tricky", organization: "O", jobTitle: tricky,
+            phones: [], emails: [], birthday: nil)
+        XCTAssertEqual(d["job_title"] as? String, tricky)
+        let data = try! JSONSerialization.data(withJSONObject: d)
+        let round = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(round["job_title"] as? String, tricky)
+    }
+}
+
+final class ContactExportSerializationTests: XCTestCase {
+    private let exportKeys = ["id", "given_name", "middle_name", "family_name", "nickname",
+                              "organization", "department", "job_title", "contact_type",
+                              "phones", "emails", "urls", "instant_messages", "social_profiles",
+                              "relations", "postal_addresses", "dates", "birthday", "display_name"]
+
+    func testRichExportPreservesFullKeySetIncludingJobTitle() {
+        let d = MacCLICore.contactExportJSON(
+            id: "C-9", givenName: "Ada", middleName: "", familyName: "Lovelace",
+            nickname: "", organization: "Analytical Engines", department: "R&D",
+            jobTitle: "Chief Mathematician", contactType: "person",
+            phones: [], emails: [], urls: [], instantMessages: [], socialProfiles: [],
+            relations: [], postalAddresses: [], dates: [],
+            birthday: "1815-12-10", displayName: "Ada Lovelace")
+        XCTAssertEqual(d["id"] as? String, "C-9")
+        XCTAssertEqual(d["given_name"] as? String, "Ada")
+        XCTAssertEqual(d["job_title"] as? String, "Chief Mathematician")
+        XCTAssertEqual(d["contact_type"] as? String, "person")
+        XCTAssertEqual(d["birthday"] as? String, "1815-12-10")
+        XCTAssertEqual(d["display_name"] as? String, "Ada Lovelace")
+        for k in exportKeys { XCTAssertNotNil(d[k], "export must preserve key \(k)") }
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(d))
+    }
+
+    func testAbsentScalarsKeepPreExistingConventions() {
+        let d = MacCLICore.contactExportJSON(
+            id: "C-10", givenName: "", middleName: "", familyName: "", nickname: "",
+            organization: "", department: "", jobTitle: "", contactType: "person",
+            phones: [], emails: [], urls: [], instantMessages: [], socialProfiles: [],
+            relations: [], postalAddresses: [], dates: [],
+            birthday: NSNull(), displayName: NSNull())
+        XCTAssertEqual(d["job_title"] as? String, "")
+        XCTAssertTrue(d["birthday"] is NSNull)
+        XCTAssertTrue(d["display_name"] is NSNull)
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(d))
+    }
+
+    func testJobTitleSpecialCharactersSurviveJSONRoundTrip() {
+        let tricky = "Señor \"Boss\" 🎛️ — 日本語"
+        let d = MacCLICore.contactExportJSON(
+            id: "C-11", givenName: "T", middleName: "", familyName: "", nickname: "",
+            organization: "", department: "", jobTitle: tricky, contactType: "person",
+            phones: [], emails: [], urls: [], instantMessages: [], socialProfiles: [],
+            relations: [], postalAddresses: [], dates: [],
+            birthday: NSNull(), displayName: "T")
+        XCTAssertEqual(d["job_title"] as? String, tricky)
+        let data = try! JSONSerialization.data(withJSONObject: d)
+        let round = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(round["job_title"] as? String, tricky)
+    }
+}

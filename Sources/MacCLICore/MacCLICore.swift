@@ -375,6 +375,91 @@ public enum MacCLICore {
         ]
     }
 
+    // MARK: - Contacts: get/export serialization (job_title parity)
+
+    /// Assemble one contact's `contacts get --json` object from plain, already-extracted
+    /// values — no Contacts.framework, so it is hermetically testable without TCC.
+    ///
+    /// Backward compatibility: `id`, `name`, `organization`, `phones`, `emails` are always
+    /// present exactly as the pre-0.8.1 output. `job_title` is additive and always present
+    /// as a string (empty string when the contact has no title — never null, matching the
+    /// export convention so an ingestion consumer sees one stable shape). `birthday` is
+    /// included only when supplied, so no null noise appears for the common no-birthday case.
+    /// Special characters survive verbatim through normal dictionary JSON serialization.
+    public static func contactGetJSON(
+        id: String,
+        name: String,
+        organization: String,
+        jobTitle: String,
+        phones: [[String: Any]],
+        emails: [[String: Any]],
+        birthday: String?
+    ) -> [String: Any] {
+        var d: [String: Any] = [
+            "id": id,
+            "name": name,
+            "organization": organization,
+            "job_title": jobTitle,
+            "phones": phones,
+            "emails": emails,
+        ]
+        if let birthday = birthday {
+            d["birthday"] = birthday
+        }
+        return d
+    }
+
+    /// Assemble one contact's rich `contacts export` object from plain, already-extracted
+    /// values. Every pre-0.8.1 key is preserved with its original convention: scalar name
+    /// parts / organization / department / `job_title` / `contact_type` are strings (empty
+    /// string when absent, never null); the multi-value arrays pass through as-is; and
+    /// `birthday` / `display_name` are `Any` so the caller can supply either a formatted
+    /// string or `NSNull()` when the value is absent. `job_title` is threaded through
+    /// verbatim — special characters survive normal dictionary JSON serialization.
+    public static func contactExportJSON(
+        id: String,
+        givenName: String,
+        middleName: String,
+        familyName: String,
+        nickname: String,
+        organization: String,
+        department: String,
+        jobTitle: String,
+        contactType: String,
+        phones: [[String: Any]],
+        emails: [[String: Any]],
+        urls: [[String: Any]],
+        instantMessages: [[String: Any]],
+        socialProfiles: [[String: Any]],
+        relations: [[String: Any]],
+        postalAddresses: [[String: Any]],
+        dates: [[String: Any]],
+        birthday: Any,
+        displayName: Any
+    ) -> [String: Any] {
+        return [
+            "id": id,
+            "given_name": givenName,
+            "middle_name": middleName,
+            "family_name": familyName,
+            "nickname": nickname,
+            "organization": organization,
+            "department": department,
+            "job_title": jobTitle,
+            "contact_type": contactType,
+            "phones": phones,
+            "emails": emails,
+            "urls": urls,
+            "instant_messages": instantMessages,
+            "social_profiles": socialProfiles,
+            "relations": relations,
+            "postal_addresses": postalAddresses,
+            "dates": dates,
+            "birthday": birthday,
+            "display_name": displayName,
+        ]
+    }
+
     // MARK: - Apple Notes body decoding (Unicode-preserving)
 
     /// If `data` starts with the gzip magic (0x1f 0x8b) decompress it; otherwise

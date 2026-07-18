@@ -1,6 +1,7 @@
 import ArgumentParser
 import Contacts
 import Foundation
+import MacCLICore
 
 struct ContactsCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -266,6 +267,7 @@ struct ContactsCommand: ParsableCommand {
                 CNContactGivenNameKey as CNKeyDescriptor,
                 CNContactFamilyNameKey as CNKeyDescriptor,
                 CNContactOrganizationNameKey as CNKeyDescriptor,
+                CNContactJobTitleKey as CNKeyDescriptor,
                 CNContactPhoneNumbersKey as CNKeyDescriptor,
                 CNContactEmailAddressesKey as CNKeyDescriptor,
                 CNContactBirthdayKey as CNKeyDescriptor,
@@ -276,16 +278,18 @@ struct ContactsCommand: ParsableCommand {
             }
 
             if json {
-                var d: [String: Any] = [
-                    "id": contact.identifier,
-                    "name": "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces),
-                    "organization": contact.organizationName,
-                    "phones": contact.phoneNumbers.map { ["label": $0.label ?? "", "number": $0.value.stringValue] },
-                    "emails": contact.emailAddresses.map { ["label": $0.label ?? "", "email": $0.value as String] },
-                ]
+                var birthday: String?
                 if let bday = contact.birthday {
-                    d["birthday"] = "\(bday.year ?? 0)-\(String(format: "%02d", bday.month ?? 0))-\(String(format: "%02d", bday.day ?? 0))"
+                    birthday = "\(bday.year ?? 0)-\(String(format: "%02d", bday.month ?? 0))-\(String(format: "%02d", bday.day ?? 0))"
                 }
+                let d = MacCLICore.contactGetJSON(
+                    id: contact.identifier,
+                    name: "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces),
+                    organization: contact.organizationName,
+                    jobTitle: contact.jobTitle,
+                    phones: contact.phoneNumbers.map { ["label": $0.label ?? "", "number": $0.value.stringValue] },
+                    emails: contact.emailAddresses.map { ["label": $0.label ?? "", "email": $0.value as String] },
+                    birthday: birthday)
                 printJSON(d)
             } else {
                 let name = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces)
@@ -513,27 +517,29 @@ func contactExportDict(_ c: CNContact) -> [String: Any] {
     }
     let dates = c.dates.map { ["label": friendlyLabel($0.label), "date": ymd($0.value as DateComponents)] }
 
-    var d: [String: Any] = [
-        "id": c.identifier,
-        "given_name": c.givenName,
-        "middle_name": c.middleName,
-        "family_name": c.familyName,
-        "nickname": c.nickname,
-        "organization": c.organizationName,
-        "department": c.departmentName,
-        "job_title": c.jobTitle,
-        "contact_type": c.contactType == .organization ? "organization" : "person",
-        "phones": phones,
-        "emails": emails,
-        "urls": urls,
-        "instant_messages": ims,
-        "social_profiles": socials,
-        "relations": relations,
-        "postal_addresses": postal,
-        "dates": dates,
-    ]
-    d["birthday"] = ymd(c.birthday)
     let display = "\(c.givenName) \(c.familyName)".trimmingCharacters(in: .whitespaces)
-    d["display_name"] = display.isEmpty ? (c.organizationName.isEmpty ? NSNull() : c.organizationName as Any) : display
-    return d
+    let displayName: Any = display.isEmpty
+        ? (c.organizationName.isEmpty ? NSNull() : c.organizationName as Any)
+        : display
+
+    return MacCLICore.contactExportJSON(
+        id: c.identifier,
+        givenName: c.givenName,
+        middleName: c.middleName,
+        familyName: c.familyName,
+        nickname: c.nickname,
+        organization: c.organizationName,
+        department: c.departmentName,
+        jobTitle: c.jobTitle,
+        contactType: c.contactType == .organization ? "organization" : "person",
+        phones: phones,
+        emails: emails,
+        urls: urls,
+        instantMessages: ims,
+        socialProfiles: socials,
+        relations: relations,
+        postalAddresses: postal,
+        dates: dates,
+        birthday: ymd(c.birthday),
+        displayName: displayName)
 }

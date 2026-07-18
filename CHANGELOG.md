@@ -1,3 +1,17 @@
+## 0.8.1 — 2026-07-18
+
+Additive contact `job_title` read parity — no breaking changes.
+
+### Added
+- **`job_title` in `contacts get <id> --json`.** The single-contact read now carries the contact's job title alongside `id`, `name`, `organization`, `phones`, and `emails`. `contacts export` already emitted it; this brings the two read surfaces to parity.
+- **Stable encoding, both surfaces.** `job_title` is a string that is **always present** — the title, or an **empty string `""`** when the contact has none. It is never `null` and never omitted, so an ingestion consumer sees one shape.
+- **Verified read-after-write.** Because `job_title` reads back verbatim, an agent can confirm a `contacts update --job-title` write by re-reading `contacts get <id> --json` (or `export`) rather than assuming the mutation landed.
+
+### Notes
+- No `--json` field names changed and no keys were removed; `job_title` is purely additive. This release is output-compatible with 0.8.0 for every existing consumer.
+
+---
+
 ## 0.6.3 — 2026-05-28
 
 Correctness pass — fixed broken human-readable output and removed all compiler warnings.

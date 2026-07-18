@@ -200,3 +200,55 @@ edited.
    retained backups/caches — not by running two live calendar implementations in
    parallel. Once the CLI path is proven live, the legacy scripts and wrappers
    are retired, leaving the one executable at `$HOME/.local/bin/macos`.
+
+---
+
+## 0.8.1 Contacts job-title parity
+
+macos-cli **0.8.1** brings the contact **`job_title`** field to full read parity
+across both contact read surfaces, so Aura's people/enrichment flows can verify a
+title write through the one installed binary at `$HOME/.local/bin/macos` — no
+standalone Contacts helper, no folding the title into a note.
+
+### The read contract
+
+`job_title` now appears in **both**:
+
+- `macos contacts get <id> --json`
+- `macos contacts export`
+
+In each, `job_title` is a **string that is always present**: the contact's title,
+or an **empty string `""`** when the contact has no title. It is **never `null`**
+and never omitted — one stable shape for an ingestion consumer. Every pre-0.8.1
+key is preserved with its original convention; `job_title` is purely additive, so
+no existing parse breaks.
+
+### Verified add-only title writes
+
+The existing write path is unchanged and remains **add-only** — `contacts update
+--job-title` sets the title field; it never touches phones, emails, note, or any
+other field:
+
+```
+macos contacts update --id "CONTACT-ID" --job-title "Tour Manager" --json
+```
+
+Because `job_title` reads back verbatim, Aura enrichment can now **verify** the
+write instead of assuming it. Write, then re-read the same field and confirm it
+matches:
+
+```
+macos contacts update --id "$ID" --job-title "Tour Manager"   # write (add-only)
+macos contacts get "$ID" --json                               # job_title == "Tour Manager"
+```
+
+The written value is present in the very next `get`/`export`, closing the
+read-after-write loop through a single CLI. This satisfies the standing rule that
+a write is only "done" once a read confirms it — the title enrichment no longer
+relies on an unverified mutation.
+
+### TCC — Contacts
+
+The Contacts TCC permission is granted **by the user**, interactively, to
+`$HOME/.local/bin/macos`. `contacts update` is a **gated write** capability; it is
+never auto-granted, and `TCC.db` is never edited.

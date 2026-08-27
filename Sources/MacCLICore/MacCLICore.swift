@@ -590,4 +590,33 @@ public enum MacCLICore {
         let trimmed = longest.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+
+    // MARK: - JXA envelope result encoding
+
+    /// Re-encode the `result` field of a JXA envelope back into a JSON string.
+    ///
+    /// `JSONSerialization.data(withJSONObject:)` raises an Objective-C exception —
+    /// which is NOT a Swift error, so `try?` cannot catch it and the process dies —
+    /// whenever the top-level value is not an array or dictionary. `mail refresh`
+    /// returns `{"ok": true, "result": "refreshed"}`, whose result is a bare string,
+    /// and that is exactly how `macos mail refresh` aborted. Scalars are encoded here
+    /// by wrapping them in an array and stripping the brackets, so a JSON fragment
+    /// comes back instead of a trap.
+    ///
+    /// Returns `""` for an absent (`nil`) result and for anything JSON genuinely
+    /// cannot represent (NaN, infinity, `Data`), so callers get a value rather than
+    /// a crash in every case. Arrays and dictionaries encode byte-for-byte as before.
+    public static func encodeJXAResult(_ result: Any?) -> String {
+        guard let result = result else { return "" }
+        if JSONSerialization.isValidJSONObject(result),
+           let data = try? JSONSerialization.data(withJSONObject: result, options: []),
+           let s = String(data: data, encoding: .utf8) {
+            return s
+        }
+        guard JSONSerialization.isValidJSONObject([result]),
+              let data = try? JSONSerialization.data(withJSONObject: [result], options: []),
+              let s = String(data: data, encoding: .utf8),
+              s.hasPrefix("["), s.hasSuffix("]"), s.count >= 2 else { return "" }
+        return String(s.dropFirst().dropLast())
+    }
 }

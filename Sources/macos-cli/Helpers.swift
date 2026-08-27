@@ -1,6 +1,7 @@
 // Sources/macos-cli/Helpers.swift
 import Foundation
 import ArgumentParser
+import MacCLICore
 
 // MARK: - Process helpers (moved out of SystemCommand.swift)
 
@@ -242,13 +243,11 @@ func parseJXAEnvelope(_ raw: String) -> JXAEnvelope? {
     }
     let ok = obj["ok"] as? Bool ?? false
     let errMsg = obj["error"] as? String ?? ""
-    var resultJSON = ""
-    if let result = obj["result"] {
-        if let d = try? JSONSerialization.data(withJSONObject: result, options: []),
-           let s = String(data: d, encoding: .utf8) {
-            resultJSON = s
-        }
-    }
+    // `result` is frequently a bare scalar — `mail refresh` returns
+    // {"ok": true, "result": "refreshed"} — and feeding a scalar straight to
+    // JSONSerialization raises an uncatchable Objective-C exception. Encoding goes
+    // through MacCLICore, which handles fragments. See `encodeJXAResult`.
+    let resultJSON = MacCLICore.encodeJXAResult(obj["result"])
     return JXAEnvelope(ok: ok, resultJSON: resultJSON, error: errMsg)
 }
 

@@ -1,3 +1,17 @@
+## Unreleased
+
+### Fixed
+- **`mail refresh` aborted instead of running.** The JXA envelope parser re-encoded the envelope's `result` field with `JSONSerialization.data(withJSONObject:)`, which raises `NSInvalidArgumentException` ("Invalid top-level type in JSON write") for any top-level value that is not an array or dictionary. `mail refresh` returns `{"ok": true, "result": "refreshed"}` — a bare string — so the command trapped every time. Because that is an Objective-C exception rather than a Swift error, the enclosing `try?` could not catch it and the process died with `SIGABRT` before printing anything; **both** `mail refresh` and `mail refresh --json` were affected. Scalar results now encode as JSON fragments via `MacCLICore.encodeJXAResult`. Array and dictionary results encode byte-for-byte as before, so no other command's output changes.
+
+### Added
+- **`macos mail inventory`** — read-only, bounded, machine-first inventory of **one** mailbox in **one** account. `--account` and `--mailbox` are required and matched exactly; the window is bounded by `--limit` (max 500) and `--offset`. Each row carries stable identity (`id`, `rfc_message_id`), scope, sender, recipients, dates, read/flagged state, and the classification-relevant RFC headers (Message-ID, In-Reply-To, References, List-ID, List-Unsubscribe, List-Unsubscribe-Post, Precedence, Auto-Submitted). Message **bodies are never emitted**. Anything that could not be read degrades the whole envelope to `ok:false` / `status:"degraded"` with a non-zero exit, so a partial page can never be mistaken for a complete view.
+- **`macos mail mutate`** — mark read/unread or move **exactly one** message, located by stable identity (`--id` and/or `--message-id`) inside an explicit `--account` and source `--mailbox`. There is no subject/sender selector and no delete or expunge path; both actions are reversible. The message is located with an exact Mail-side filtered specifier (`messages.whose(...)`), so cost is proportional to the number of **matches**, not to mailbox size — it works against 30,000-message inboxes. Lookup, mutation, and read-back happen in a single script window, and success is asserted only from observed post-state: exactly one match in the destination and zero in the source for a move, and the read flag observed to equal what was asked for. A setter that did not throw is never treated as evidence; `status:"unverified"` means re-run `mail inventory` rather than retry.
+
+### Changed
+- **`mail refresh` help now states the contract.** `--help` documents that the refresh is fire-and-forget — exit `0` means Mail *accepted* the request, not that new mail has finished downloading — and names both output shapes.
+
+---
+
 ## 0.8.1 — 2026-07-18
 
 Additive contact `job_title` read parity — no breaking changes.

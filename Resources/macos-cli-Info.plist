@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Info.plist embedded directly into the `macos` executable's Mach-O
+  (__TEXT,__info_plist) by Package.swift. There is no .app bundle: a bare
+  command-line tool carries its bundle identity in this section, and codesign
+  seals it into the signature.
+
+  This is what makes a granted TCC permission durable. macOS records the grant
+  against the binary's code identity (bundle identifier + designated
+  requirement). Without a stable CFBundleIdentifier and a Developer ID
+  signature, every rebuild produces a new identity and every permission has to
+  be granted again.
+
+  The usage-description strings below are what the user actually reads in the
+  system permission prompt, so they name the specific data and say that access
+  only happens for commands the user runs.
+
+  NOTE ON FULL DISK ACCESS: macOS has no Info.plist usage-description key that
+  requests or grants Full Disk Access — it is granted only by the user in
+  System Settings, per binary. The MacOSCLIFullDiskAccessRationale key below is
+  our own informational key (deliberately NOT in Apple's `NS…` namespace); it
+  documents why the tool may need FDA and is read by nobody but a human. See
+  docs/SIGNING.md.
+-->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.manuaudio.macos-cli</string>
+	<key>CFBundleName</key>
+	<string>macos</string>
+	<key>CFBundleExecutable</key>
+	<string>macos</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.8.1</string>
+	<key>CFBundleVersion</key>
+	<string>0.8.1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+
+	<key>NSContactsUsageDescription</key>
+	<string>The macos command reads and edits your contacts only when you run a contacts command in the terminal.</string>
+
+	<key>NSCalendarsUsageDescription</key>
+	<string>The macos command reads and edits your calendar events only when you run a calendar command in the terminal.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>The macos command needs full calendar access to list, create and delete events for the calendar commands you run.</string>
+
+	<key>NSRemindersUsageDescription</key>
+	<string>The macos command reads and completes your reminders only when you run a reminders command in the terminal.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>The macos command needs full reminders access to list and complete reminders for the reminders commands you run.</string>
+
+	<key>NSAppleEventsUsageDescription</key>
+	<string>The macos command controls apps such as Safari, Mail, Messages, Music and Finder only for the commands you run.</string>
+
+	<key>NSLocationUsageDescription</key>
+	<string>The macos command reads your current location only when you run the location command in the terminal.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>The macos command asks for your location while it runs a location command, and never in the background.</string>
+
+	<key>MacOSCLIFullDiskAccessRationale</key>
+	<string>Informational only — macOS provides no Info.plist key that requests or grants Full Disk Access. Some commands (Apple Notes, Messages history, Safari data) read protected databases and therefore require Full Disk Access, which you must grant to this binary yourself in System Settings &#8250; Privacy &amp; Security &#8250; Full Disk Access. See docs/SIGNING.md.</string>
+</dict>
+</plist>

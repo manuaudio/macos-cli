@@ -3,3 +3,4 @@
 *.o
 *.d
 Package.resolved
+dist/

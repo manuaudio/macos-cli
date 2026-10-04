@@ -60,3 +60,13 @@ codesign --verify --strict /Users/factory/.local/bin/macos
 ```
 
 Root should verify export using count-only in-memory handling, then manage any normal collector recovery independently. This candidate does not run the collector, write Notes or mirror state, modify authentication, install software, invoke updates, or change services. Primary checkout is preserved. Unsupported future Notes schemas remain explicit errors; there is no recurrence guarantee or broad security workaround.
+
+## Coordinator verification and delivery — 11:01 PDT
+
+Independently reran 245 core checks, 54 XCTest tests and 200 installer-contract checks; all passed. Optional ad-hoc/live-keychain integration remained skipped. Independently captured Release and signed export only in memory: 167 records, zero unreadable/null bodies. Main fast-forwarded to35c76ef and pushed.
+
+Actual installation differs from the candidate assumption: `~/.local/bin/macos` was a symlink into `~/Applications/macos-cli.app`, ad-hoc signed. Its copied standalone executable cannot validate the bundle resources, so the initial pre-install backup check stopped before changing anything. The original app bundle was verified and retained intact. Used existing installer with existing Developer ID identity and `MACOS_CLI_INSTALL_DIR=/Users/factory/.local/lib/macos-cli/35c76ef`; signature, version and read-only export passed, then atomically switched the launcher symlink to that signed artifact. Signed SHA256c9c26406b2671c6f075dd0a443c8b5ec00aab20dd9a017c22920441ca7028923. No privacy settings changed; Reminders authorization remains notDetermined before/after. Other TCC permissions and notarization are not claimed verified. Do not run `macos setup` as an unattended smoke test: despite installer guidance, its current implementation can request Automation access/open settings.
+
+Manual normal `factory/bin/job-run sync-notes` succeeded10:56:26:167notes,17changed,0pruned. Next natural launchd sync succeeded10:56:54:167notes,0changed,0pruned, run45fbfe21be2c49f7acdc28217c87386a. This verifies actual recovery, not merely export success. Fail-closed collector unchanged.
+
+Evidence: `/Users/factory/Documents/hermes-implementation-2026-10-04/notes-repair-independent.log`, `notes-repair-deployed.json`, `notes-repair-collector.log`, `notes-natural-scheduled-recovery.heartbeat`. Rollback restores only the launcher symlink atomically to `/Users/factory/Applications/macos-cli.app/Contents/MacOS/macos`; verify the intact bundle first. Never install the invalid standalone backup copy. This delivery uses a versioned signed path, not the candidate report's bare default-path installation assumption.

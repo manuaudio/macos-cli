@@ -578,16 +578,69 @@ public enum MacCLICore {
         return nil
     }
 
-    /// Decode a `ZICNOTEDATA.ZDATA` blob into the plain-text note body.
-    ///
-    /// The blob is gzip-compressed protobuf; field 2 of the top-level message holds
-    /// the body. We take the longest coherent text found, which is robust to the
-    /// exact field layout across Notes schema versions. Returns nil on failure.
-    public static func decodeNoteBody(_ zdata: Data) -> String? {
-        guard let decompressed = gunzipIfNeeded(zdata) else { return nil }
-        let texts = extractProtobufText(decompressed, minAlphaRatio: 0.3, minLen: 4)
-        guard let longest = texts.max(by: { $0.count < $1.count }) else { return nil }
-        let trimmed = longest.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+    /// Decode the supported Notes document → note → UTF-8 text path (2/3/2).
+    /// Do not infer a body from metadata or apply the generic text heuristic.
+    public static func decodeNoteBody(_ zdata: Data, isProtected: Bool = false) -> String? {
+        guard !isProtected, let data = gunzipIfNeeded(zdata) else { return nil }
+        if zdata.starts(with: [0x1f, 0x8b]) {
+            let bytes = [UInt8](zdata)
+            guard bytes.count > 18, bytes[2] == 8, bytes[3] & 0xe0 == 0 else { return nil }
+            func trailer(_ offset: Int) -> UInt32 {
+                (0..<4).reduce(UInt32(0)) { $0 | UInt32(bytes[bytes.count - offset + $1]) << (8 * $1) }
+            }
+            var crc: UInt32 = 0xffffffff
+            for byte in data {
+                crc ^= UInt32(byte)
+                for _ in 0..<8 { crc = (crc >> 1) ^ ((crc & 1) == 1 ? 0xedb88320 : 0) }
+            }
+            guard ~crc == trailer(8), UInt32(truncatingIfNeeded: data.count) == trailer(4) else { return nil }
+        }
+        guard let document = noteField(2, in: data),
+              let note = noteField(3, in: document),
+              let text = noteField(2, in: note) else { return nil }
+        return String(data: text, encoding: .utf8)
+    }
+
+    /// Validate the entire enclosing protobuf and require one unambiguous field.
+    /// Unknown scalar/length-delimited metadata is skipped, never decoded as text.
+    private static func noteField(_ wanted: UInt64, in data: Data) -> Data? {
+        let bytes = [UInt8](data)
+        var pos = 0
+        var result: Data?
+        func varint() -> UInt64? {
+            var value: UInt64 = 0
+            for shift in stride(from: 0, through: 63, by: 7) {
+                guard pos < bytes.count else { return nil }
+                let byte = bytes[pos]; pos += 1
+                if shift == 63 && byte > 1 { return nil }
+                value |= UInt64(byte & 127) << shift
+                if byte < 128 { return value }
+            }
+            return nil
+        }
+        while pos < bytes.count {
+            guard let tag = varint(), tag >> 3 > 0, tag >> 3 <= 0x1fffffff else { return nil }
+            let field = tag >> 3
+            let wire = tag & 7
+            if field == wanted && wire != 2 { return nil }
+            switch wire {
+            case 0:
+                guard varint() != nil else { return nil }
+            case 1, 5:
+                let size = wire == 1 ? 8 : 4
+                guard size <= bytes.count - pos else { return nil }
+                pos += size
+            case 2:
+                guard let length = varint(), length <= UInt64(bytes.count - pos) else { return nil }
+                let end = pos + Int(length)
+                if field == wanted {
+                    guard result == nil else { return nil }
+                    result = Data(bytes[pos..<end])
+                }
+                pos = end
+            default: return nil
+            }
+        }
+        return result
     }
 }

@@ -62,7 +62,7 @@ struct NotesCommand: ParsableCommand {
             let sql = """
             SELECT o.ZIDENTIFIER AS id, o.ZTITLE1 AS title, f.ZTITLE2 AS folder, \
             o.ZSNIPPET AS snippet, o.ZCREATIONDATE1 AS created, o.ZMODIFICATIONDATE1 AS modified, \
-            o.ZMARKEDFORDELETION AS deleted, hex(n.ZDATA) AS blob_hex \
+            o.ZMARKEDFORDELETION AS deleted, o.ZISPASSWORDPROTECTED AS protected, hex(n.ZDATA) AS blob_hex \
             FROM ZICCLOUDSYNCINGOBJECT o \
             LEFT JOIN ZICNOTEDATA n ON o.Z_PK = n.ZNOTE \
             LEFT JOIN ZICCLOUDSYNCINGOBJECT f ON o.ZFOLDER = f.Z_PK \
@@ -88,11 +88,14 @@ struct NotesCommand: ParsableCommand {
                 if let want = folder, folderName != want { continue }  // fail-closed exact match
 
                 var body: Any = NSNull()
-                var bodyError = false
+                let isProtected = (row["protected"] as? Int ?? 0) != 0
+                // Missing data is not a successfully decoded empty body.
+                var bodyError = true
                 if let hex = row["blob_hex"] as? String, !hex.isEmpty,
                    let blob = Data(hexString: hex) {
-                    if let decoded = MacCLICore.decodeNoteBody(blob) {
+                    if let decoded = MacCLICore.decodeNoteBody(blob, isProtected: isProtected) {
                         body = decoded
+                        bodyError = false
                     } else {
                         bodyError = true
                     }

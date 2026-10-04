@@ -163,14 +163,40 @@ do {
     check(extracted.contains(body), "Unicode body survives extraction verbatim")
 }
 do {
-    let short = "hi"
-    let long = "The quick brown fox — café 日本語 jumps over the lazy dog"
-    var proto = Data()
-    proto.append(protoField(3, Data(short.utf8)))
-    proto.append(protoField(2, Data(long.utf8)))
-    proto.append(protoField(5, Data([0x00, 0x01, 0x02, 0xFF, 0xFE])))
-    eq(MacCLICore.decodeNoteBody(proto), long, "decode picks longest coherent text")
-}
+        for body in ["12345 / 67890", "12-34.56!", "?!", "a", "", "  \n", "Café ☕ 日本語"] {
+            let note = protoField(2, Data(body.utf8)) + protoField(3, Data("Metadata longer than body".utf8))
+            let proto = protoField(2, protoField(3, note))
+            eq(MacCLICore.decodeNoteBody(proto), body, "structural body preserved")
+            check(MacCLICore.decodeNoteBody(proto, isProtected: true) == nil, "protected body refused")
+        }
+    }
+
+do {
+        let valid = protoField(2, protoField(3, protoField(2, Data("ok".utf8))))
+        let invalid: [Data] = [
+            protoField(2, Data("unsupported direct text".utf8)),
+            protoField(2, protoField(3, protoField(2, Data([0xff])))),
+            valid + Data([0]), valid + Data([0x80]),
+            protoField(2, protoField(3, Data([0x12, 0x7f, 0x61]))),
+            protoField(2, protoField(3, protoField(2, Data()) + protoField(2, Data()))),
+            valid + Data([0x1d, 0x00]),
+            valid + Data([0x20] + Array(repeating: 0xff, count: 10)),
+            Data([0x1f, 0x8b, 0x08])
+        ]
+        for fixture in invalid { check(MacCLICore.decodeNoteBody(fixture) == nil, "invalid body refused") }
+    }
+
+do {
+        let gzip = Data([31, 139, 8, 0, 0, 0, 0, 0, 2, 255, 19, 18, 148, 226, 23, 226, 53, 52, 50, 54, 49, 85, 208, 87, 48, 51, 183, 176, 52, 0, 0, 16, 221, 218, 156, 19, 0, 0, 0])
+        eq(MacCLICore.decodeNoteBody(gzip), "12345 / 67890", "gzip structural body")
+        var badCRC = gzip; badCRC[badCRC.count - 8] ^= 1
+        var badSize = gzip; badSize[badSize.count - 4] ^= 1
+        var badPayload = gzip; badPayload[10] ^= 0xff
+        for fixture in [badCRC, badSize, badPayload, Data(gzip.dropLast())] {
+            check(MacCLICore.decodeNoteBody(fixture) == nil, "invalid body refused")
+        }
+    }
+
 check(MacCLICore.decodeNoteBody(Data([0x00, 0x01, 0x02])) == nil, "decode returns nil on garbage")
 
 // MARK: - Calendar: fail-closed calendar filter (an unknown filter must NEVER broaden to all)

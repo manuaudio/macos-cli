@@ -20,9 +20,9 @@ struct SetupCommand: ParsableCommand {
         var failures: [String] = []
 
         // ── 1. No-permission capabilities ─────────────────────────────────────
-        header("Core (no permission required)")
+        header("Core")
         check("Battery / system info",     &failures) { batteryOK() }
-        check("Apple Notes (SQLite read)", &failures) { notesOK() }
+        check("Apple Notes (needs Full Disk Access)", &failures) { notesOK() }
         check("Text-to-speech",            &failures) { speechOK() }
         check("Storage / disk info",       &failures) { true }
         print("")
@@ -123,11 +123,13 @@ struct SetupCommand: ParsableCommand {
         print("════════════════════════════════════════")
         if failures.isEmpty {
             print("✅  All capabilities working. You're fully set up.")
-        } else {
-            print("⚠️   Still needed: \(failures.joined(separator: ", "))")
-            print("    Re-run `macos setup` after granting permissions.")
+            print("")
+            return
         }
         print("")
+        throw CLIFailure(code: "access_denied",
+                         message: "Still needed: \(failures.joined(separator: ", ")).",
+                         hint: "Grant them, then run `macos setup` again. `macos doctor` lists each one.")
     }
 
     // MARK: - Helpers
@@ -157,15 +159,13 @@ struct SetupCommand: ParsableCommand {
         return !r.isEmpty && !r.lowercased().contains("not allowed") && !r.lowercased().contains("error")
     }
 
+    /// Offers to open the settings pane, only to a person at a terminal: without one
+    /// there is nobody to answer, and the old prompt waited on stdin.
     private func offerOpen(_ url: String) {
-        print("  Open settings now? (y/n): ", terminator: "")
-        fflush(stdout)
-        if let line = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-           line == "y" || line == "yes" {
-            _ = Process.run(args: ["/usr/bin/open", url])
-            print("  Press Enter after granting access...")
-            _ = readLine()
-        }
+        guard let answer = askPerson("  Open settings now? (y/n): ")?.lowercased(),
+              answer == "y" || answer == "yes" else { return }
+        _ = Process.run(args: ["/usr/bin/open", url])
+        _ = askPerson("  Press Enter after granting access...")
     }
 
     private func batteryOK() -> Bool {
@@ -173,11 +173,7 @@ struct SetupCommand: ParsableCommand {
     }
 
     private func notesOK() -> Bool {
-        let db = "\(FileManager.default.homeDirectoryForCurrentUser.path)/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite"
-        let r = (Process.capture(args: ["/usr/bin/sqlite3", db,
-            "SELECT COUNT(*) FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL;"],
-            timeout: 5) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return Int(r) != nil
+        DiskAccess.probe(DiskAccess.notesStore) == "granted"
     }
 
     private func speechOK() -> Bool {

@@ -2,12 +2,9 @@ import ArgumentParser
 import Foundation
 import MacCLICore
 
-// Apple Notes SQLite store — no Automation TCC permission required.
-// ZTEXT body is gzip+protobuf; we use a Python one-liner to decompress.
-private func notesDBPath() -> String {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    return "\(home)/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite"
-}
+// Apple Notes reads go straight to its SQLite store: no Automation prompt, but the
+// store sits behind Full Disk Access. `DiskAccess.readableNotesStore()` turns a refused
+// open into a permission error, so a missing grant is never reported as zero notes.
 
 // Core Data timestamps are seconds since 2001-01-01 (not Unix epoch).
 private func cdateToISO(_ seconds: Double) -> String {
@@ -60,7 +57,7 @@ struct NotesCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("notes.read")
-            let db = notesDBPath()
+            let db = try DiskAccess.readableNotesStore()
             // hex(ZDATA) keeps the blob ASCII-safe; JSON mode preserves Unicode text.
             let sql = """
             SELECT o.ZIDENTIFIER AS id, o.ZTITLE1 AS title, f.ZTITLE2 AS folder, \
@@ -138,7 +135,7 @@ struct NotesCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("notes.read")
-            let db = notesDBPath()
+            let db = try DiskAccess.readableNotesStore()
             let sql = "SELECT ZTITLE1, ZMODIFICATIONDATE1 FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL ORDER BY ZMODIFICATIONDATE1 DESC;"
             let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", db, sql], timeout: 5, fallback: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -176,7 +173,7 @@ struct NotesCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("notes.read")
-            let db = notesDBPath()
+            let db = try DiskAccess.readableNotesStore()
             let q = query.lowercased().replacingOccurrences(of: "'", with: "''")
             let sql = "SELECT ZTITLE1, ZMODIFICATIONDATE1 FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL AND LOWER(ZTITLE1) LIKE '%\(q)%' ORDER BY ZMODIFICATIONDATE1 DESC;"
             let raw = Process.capture(args: ["/usr/bin/sqlite3", "-separator", "\t", db, sql], timeout: 5, fallback: "")
@@ -209,7 +206,7 @@ struct NotesCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("notes.read")
-            let db = notesDBPath().replacingOccurrences(of: "'", with: "\\'")
+            let db = try DiskAccess.readableNotesStore().replacingOccurrences(of: "'", with: "\\'")
             let q = title.lowercased()
                          .replacingOccurrences(of: "'", with: "\\'")
                          .replacingOccurrences(of: "\"", with: "\\\"")

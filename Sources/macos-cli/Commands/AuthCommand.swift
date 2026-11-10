@@ -27,13 +27,15 @@ struct AuthCommand: ParsableCommand {
     // MARK: - Grant
 
     struct Grant: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Grant a capability")
+        static let configuration = CommandConfiguration(
+            abstract: "Grant a capability (a person confirms it at the terminal)")
         @Argument(help: "Capability ID — run `macos auth list` to see all") var capability: String
 
         func run() throws {
             guard Auth.allCapabilities.contains(where: { $0.id == capability }) else {
                 throw ValidationError("Unknown capability '\(capability)'. Run `macos auth list` to see valid IDs.")
             }
+            try Auth.confirmByPerson("Grant '\(capability)' to every program that runs macos?", answer: capability)
             var caps = Auth.load()
             if caps.isEmpty { caps = Auth.defaultCapabilities }
             caps[capability] = true
@@ -63,9 +65,11 @@ struct AuthCommand: ParsableCommand {
     // MARK: - Reset
 
     struct Reset: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Reset all capabilities to default policy")
+        static let configuration = CommandConfiguration(
+            abstract: "Reset all capabilities to default policy (a person confirms it at the terminal)")
 
         func run() throws {
+            try Auth.confirmByPerson("Reset every capability to the default policy?", answer: "reset")
             try Auth.save(Auth.defaultCapabilities)
             print("Permissions reset to default policy (reads allowed, destructive operations denied).")
         }
@@ -74,22 +78,13 @@ struct AuthCommand: ParsableCommand {
     // MARK: - Setup
 
     struct Setup: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Interactive onboarding wizard — configure all capabilities")
-        @Flag(name: .long, help: "Grant all capabilities without prompting (agent use; requires --yes to skip confirmation)") var all = false
-        @Flag(name: .long, help: "Skip confirmation prompt when using --all") var yes = false
+        static let configuration = CommandConfiguration(abstract: "Interactive onboarding wizard — configure all capabilities (needs a person at the terminal)")
+        @Flag(name: .long, help: "Grant every capability (a person confirms it at the terminal)") var all = false
 
         func run() throws {
             if all {
-                if !yes {
-                    let granting = Auth.allCapabilities.map { "  \($0.id)" }.joined(separator: "\n")
-                    print("This will GRANT every capability:\n\(granting)\n")
-                    print("Continue? (y/N): ", terminator: "")
-                    let input = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
-                    guard input == "y" || input == "yes" else {
-                        print("Cancelled.")
-                        return
-                    }
-                }
+                let granting = Auth.allCapabilities.map { "  \($0.id)" }.joined(separator: "\n")
+                try Auth.confirmByPerson("This grants every capability:\n\(granting)\nContinue?", answer: "all")
                 var caps = Auth.defaultCapabilities
                 for entry in Auth.allCapabilities { caps[entry.id] = true }
                 try Auth.save(caps)
@@ -97,6 +92,7 @@ struct AuthCommand: ParsableCommand {
                 return
             }
 
+            guard personAtTerminal else { throw Auth.personRequired() }
             print("macos-cli permission setup")
             print("Press Y to grant, N to deny, Enter to keep the default shown in brackets.\n")
             var caps = Auth.load()
@@ -105,7 +101,8 @@ struct AuthCommand: ParsableCommand {
             for entry in Auth.allCapabilities {
                 let current = caps[entry.id] ?? entry.defaultAllow
                 print("\(entry.id) [\(current ? "Y" : "N")] — \(entry.description): ", terminator: "")
-                let input = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
+                fflush(stdout)
+                let input = askPerson("")?.lowercased() ?? ""
                 if input == "y" { caps[entry.id] = true }
                 else if input == "n" { caps[entry.id] = false }
                 // empty → keep current

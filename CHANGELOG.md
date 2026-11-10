@@ -1,3 +1,25 @@
+## Unreleased
+
+One error contract for every command, and `--json` where the README promised it.
+
+### Fixed
+- **`--json` on the four exports.** `calendar export`, `contacts export`, `notes export` and `reminders export` always printed JSON but refused the flag with `Unknown option '--json'` (exit 64). They accept it now.
+- **Notes bodies.** `notes export` read some valid bodies as missing: a heuristic rejected text that was mostly digits or punctuation. The decoder now follows the note's own protobuf path (document → note → text), validates every enclosing message and the gzip checksum, and returns the text verbatim. A password-protected note is refused explicitly, and missing data is an error, distinct from an empty body.
+- **Unknown calendar.** `calendar events --calendar NAME` (and `delete`, `update`, `create`) with a name that does not exist printed the root usage text; it now says which calendar is missing and exits 3.
+
+### Changed
+- **Errors.** Under `--json`, and always for the exports, a failure is one JSON object on stdout with stderr empty: `ok: false`, `status: "error"`, a stable code in `error`, a `message`, often a `hint`, and the `exit_code`. Without `--json` a failure is one `Error:` line and a `Hint:` line on stderr, without the usage text.
+- **Exit codes.** 64 usage (including a rejected value such as a bad date), 3 not found, 4 permission, 5 timeout, 6 app error. The JSON errors that 0.8 emitted with exit 1 keep their codes and keys and exit with the status from this table: `invalid_date`, `invalid_date_range`, `invalid_alarm` and `invalid_delete_mode` exit 64, `event_not_found` 3, `access_denied` 4, `fetch_timeout` 5.
+- **Permission failures are told apart.** A capability turned off in `auth.json` is `capability_denied`; macOS privacy settings refusing access is `access_denied`; a permission request nobody answered is `timeout`. 0.8 reported all three as `access_denied`.
+- **`auth.json` follows `HOME`.** The policy file is `$HOME/.config/macos-cli/auth.json`, so a test or a sandboxed agent can point it at its own file.
+- **`script run --json`** returns `{"output", "stderr"}`.
+- The version string lives in one place, `Sources/macos-cli/Version.swift`; the installer and its tests read it from there.
+
+### Removed
+- The GitHub Actions workflow and Dependabot configuration. Checks run locally: `make test`.
+
+---
+
 ## 0.8.1 — 2026-07-18
 
 Additive contact `job_title` read parity — no breaking changes.
@@ -9,6 +31,39 @@ Additive contact `job_title` read parity — no breaking changes.
 
 ### Notes
 - No `--json` field names changed and no keys were removed; `job_title` is purely additive. This release is output-compatible with 0.8.0 for every existing consumer.
+
+---
+
+## 0.8.0 — 2026-07-18
+
+Calendar ingestion and safe deletes.
+
+### Added
+- **`calendar export`** — every event in a window as one envelope `{ok, status, count, filter, calendars, events}`, across all linked calendars from all sources. `--from` is inclusive, `--to` exclusive; both default to a ±1-year window. `--calendar NAME` is fail-closed: an unknown name returns zero events and zero calendars, never all of them.
+- **Rich event fields** in `calendar events --json` and `export`: `source`, `location`, `notes`, `url`, `timezone`, `created`, `last_modified`, `status`, `availability`, `recurring`, `organizer`, `attendees`, `alarms`. They are additive; the six original keys are unchanged.
+- **`calendar create --alarm N`** (repeatable, minutes before start). With no `--alarm` the event has no alarms.
+- **`calendar delete --id ID`** removes exactly one occurrence by identifier. `--id` and `--title`/`--date` are mutually exclusive.
+
+### Changed
+- Strict date parsing: an impossible date such as `2026-02-30` or a range with `--from` after `--to` is a structured JSON error, never silently replaced with a default.
+
+---
+
+## 0.7.0 — 2026-07-18
+
+One binary, built for unattended use.
+
+### Changed
+- **One executable.** The MCP server, the HTTP bridge and the generated tool definitions are gone; an agent runs `macos <area> <action> --json` as a subprocess. `install.sh` builds from source, signs and verifies the binary, and installs only `macos` to `~/.local/bin` (no sudo).
+- **`reminders done` retired.** It was an ungated write; it now changes nothing and points to `reminders complete`.
+
+### Added
+- **`reminders status --json`** — the Reminders authorization state, without prompting.
+- **`reminders export`** — every reminder as rich JSON; `--list NAME` is fail-closed. A fetch that exceeds `--timeout` is an error (`fetch_timeout`), never an empty list.
+- **`reminders complete --id ID`** — a dry run unless `--approve` matches the `APPLE_EVENTKIT_APPROVE_TOKEN` environment variable. `complete-safe` is an alias.
+- **`notes export`** — notes with full Unicode bodies from the local store; `--folder` is fail-closed.
+- **`contacts export`** — every contact as rich JSON.
+- **MacCLICore**, the pure logic behind those guarantees, with an XCTest suite and a dependency-free runner (`swift run MacCLICoreTestRunner`).
 
 ---
 
@@ -86,7 +141,7 @@ Honest version history. Each entry documents what works, what was broken, and wh
 
 ## [0.5.6] — 2026-05-18
 
-### Added — close 4 capability gaps surfaced by the chief/Aura MCP→CLI sweep
+### Added — four capabilities that scripts had been working around
 
 - **`apple contacts create/update --job-title`** — first-class job-title field on both create and update. Previously callers had to fold job title into `--note` as `Title: <value>` because the flag didn't exist.
 - **`apple calendar reload`** — force Calendar to refresh from iCloud / CalDAV sources. Uses EventKit's `refreshSourcesIfNecessary()` directly (no AppleScript / Calendar.app dependency).
@@ -94,7 +149,7 @@ Honest version history. Each entry documents what works, what was broken, and wh
 - **`apple contacts get-note <id>` + `apple contacts set-note <id> --text "..." [--if-empty]`** — read/write the contact note field. macOS 13+ gates `CNContactNoteKey` behind the `com.apple.developer.contacts.notes` entitlement that un-entitled binaries (including apple-cli and pyobjc) can't satisfy. AppleScript routes through Contacts.app — which IS entitled — so we wrap that path inside the CLI for the note field only. Same wrapped-AppleScript pattern as `mail refresh`.
 
 ### Why these landed together
-Aura's chief codebase did a full MCP→CLI sweep on 2026-05-18 (replacing 8 production scripts that used osascript). Three capability gaps were documented as known limitations during the migration. v0.5.6 closes those gaps so the migrated scripts don't need workarounds.
+Scripts that moved from raw `osascript` to the CLI had to work around these four missing commands. v0.5.6 adds them, so those scripts no longer need their own AppleScript.
 
 ---
 

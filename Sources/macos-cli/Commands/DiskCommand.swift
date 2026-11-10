@@ -21,7 +21,7 @@ struct DiskCommand: ParsableCommand {
                   let data = plist.data(using: .utf8),
                   let obj = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
                   let allDisks = obj["AllDisksAndPartitions"] as? [[String: Any]] else {
-                throw ValidationError("diskutil list failed or timed out")
+                throw CLIFailure.timeout("diskutil list failed or timed out")
             }
 
             if json {
@@ -65,7 +65,7 @@ struct DiskCommand: ParsableCommand {
             guard let plist = Process.capture(args: ["/usr/sbin/diskutil", "info", "-plist", path], timeout: 10),
                   let data = plist.data(using: .utf8),
                   let obj = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
-                throw ValidationError("diskutil info failed for: \(path)")
+                throw CLIFailure.appError("diskutil info failed for: \(path)")
             }
 
             if json {
@@ -112,7 +112,7 @@ struct DiskCommand: ParsableCommand {
             } else if code == 0 {
                 print("Ejected: \(path)")
             } else {
-                throw ValidationError("Eject failed for: \(path) (exit \(code))")
+                throw CLIFailure.appError("Eject failed for: \(path) (exit \(code))")
             }
         }
     }
@@ -141,7 +141,7 @@ struct DiskCommand: ParsableCommand {
             } else if code == 0 {
                 print("Unmounted: \(path)")
             } else {
-                throw ValidationError("Unmount failed for: \(path)")
+                throw CLIFailure.appError("Unmount failed for: \(path)")
             }
         }
     }
@@ -172,7 +172,7 @@ struct DiskCommand: ParsableCommand {
             } else if code == 0 {
                 print("Mounted: \(path)")
             } else {
-                throw ValidationError("Mount failed for: \(path)")
+                throw CLIFailure.appError("Mount failed for: \(path)")
             }
         }
     }

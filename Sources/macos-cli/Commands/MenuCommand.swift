@@ -41,14 +41,14 @@ struct MenuCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError(
+                throw CLIFailure.appError(
                     "Could not read menu bar. Requires Automation permission for System Events in System Settings → Privacy & Security.\nRaw: \(errMsg.prefix(200))"
                 )
             }
             guard let data = env.resultJSON.data(using: .utf8),
                   let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
             else {
-                throw ValidationError(
+                throw CLIFailure.appError(
                     "Could not read menu bar. Requires Automation permission for System Events in System Settings → Privacy & Security.\nRaw: \(env.resultJSON.prefix(200))"
                 )
             }
@@ -125,10 +125,10 @@ struct MenuCommand: ParsableCommand {
             }
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("Could not click '\(path)'. Empty or unparseable JXA result.\nRaw: \(raw.prefix(300))")
+                throw CLIFailure.appError("Could not click '\(path)'. Empty or unparseable JXA result.\nRaw: \(raw.prefix(300))")
             }
             if !env.ok {
-                throw ValidationError(
+                throw CLIFailure.appError(
                     "Could not click '\(path)'. Verify the path is correct and Automation permission for System Events is granted.\n\(env.error)"
                 )
             }

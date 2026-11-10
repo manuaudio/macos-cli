@@ -35,7 +35,7 @@ struct AxCommand: ParsableCommand {
                 resolvedApp = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
             }
             guard !resolvedApp.isEmpty else {
-                throw ValidationError("No frontmost application — pass --app <name>")
+                throw CLIFailure.notFound("No frontmost application — pass --app <name>")
             }
             let procExpr = "se.applicationProcesses.whose({name: \"\(jxaEscape(resolvedApp))\"})[0]"
             let script = """
@@ -65,10 +65,10 @@ struct AxCommand: ParsableCommand {
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("AX access failed — grant Accessibility to Terminal in System Settings\n\(raw.prefix(200))")
+                throw CLIFailure.appError("AX access failed — grant Accessibility to Terminal in System Settings\n\(raw.prefix(200))")
             }
             if !env.ok {
-                throw ValidationError("AX access failed — grant Accessibility to Terminal in System Settings\n\(env.error)")
+                throw CLIFailure.appError("AX access failed — grant Accessibility to Terminal in System Settings\n\(env.error)")
             }
             guard let data = env.resultJSON.data(using: .utf8),
                   let elements = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
@@ -108,7 +108,7 @@ struct AxCommand: ParsableCommand {
                 resolvedApp = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
             }
             guard !resolvedApp.isEmpty else {
-                throw ValidationError("No frontmost application — pass --app <name>")
+                throw CLIFailure.notFound("No frontmost application — pass --app <name>")
             }
             let escaped = jxaEscape(name)
             let procExpr = "se.applicationProcesses.whose({name: \"\(jxaEscape(resolvedApp))\"})[0]"
@@ -140,14 +140,14 @@ struct AxCommand: ParsableCommand {
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("AX click failed — grant Accessibility to Terminal\n\(raw.prefix(200))")
+                throw CLIFailure.appError("AX click failed — grant Accessibility to Terminal\n\(raw.prefix(200))")
             }
             if env.ok {
                 print("Clicked '\(name)'")
             } else if env.error == "not-found" {
-                throw ValidationError("Element '\(name)' not found in \(resolvedApp)")
+                throw CLIFailure.notFound("Element '\(name)' not found in \(resolvedApp)")
             } else {
-                throw ValidationError("AX click failed — grant Accessibility to Terminal\n\(env.error)")
+                throw CLIFailure.appError("AX click failed — grant Accessibility to Terminal\n\(env.error)")
             }
         }
     }
@@ -168,7 +168,7 @@ struct AxCommand: ParsableCommand {
                 resolvedApp = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
             }
             guard !resolvedApp.isEmpty else {
-                throw ValidationError("No frontmost application — pass --app <name>")
+                throw CLIFailure.notFound("No frontmost application — pass --app <name>")
             }
             let procExpr = "se.applicationProcesses.whose({name: \"\(jxaEscape(resolvedApp))\"})[0]"
             let script = """
@@ -196,14 +196,14 @@ struct AxCommand: ParsableCommand {
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("AX read failed — grant Accessibility to Terminal\n\(raw.prefix(200))")
+                throw CLIFailure.appError("AX read failed — grant Accessibility to Terminal\n\(raw.prefix(200))")
             }
             if !env.ok {
-                throw ValidationError("Could not read UI tree for \(resolvedApp)\n\(env.error)")
+                throw CLIFailure.appError("Could not read UI tree for \(resolvedApp)\n\(env.error)")
             }
             guard !env.resultJSON.isEmpty, let data = env.resultJSON.data(using: .utf8),
                   let tree = try? JSONSerialization.jsonObject(with: data) else {
-                throw ValidationError("Could not read UI tree for \(resolvedApp)")
+                throw CLIFailure.appError("Could not read UI tree for \(resolvedApp)")
             }
             if json {
                 printJSON(tree)
@@ -257,7 +257,7 @@ struct AxCommand: ParsableCommand {
                     err = AXUIElementPerformAction(el.ref, kAXConfirmAction as CFString)
                 }
                 if err != .success {
-                    throw ValidationError("Could not activate hint \(n) (AXError \(err.rawValue))")
+                    throw CLIFailure.appError("Could not activate hint \(n) (AXError \(err.rawValue))")
                 }
                 print("Clicked hint \(n): \(el.title)")
                 return
@@ -301,10 +301,10 @@ struct AxCommand: ParsableCommand {
                 var focused: CFTypeRef?
                 AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &focused)
                 guard let app = focused else {
-                    throw ValidationError("No focused application — pass --app <name>")
+                    throw CLIFailure.notFound("No focused application — pass --app <name>")
                 }
                 guard CFGetTypeID(app) == AXUIElementGetTypeID() else {
-                    throw ValidationError("Focused application element has unexpected type")
+                    throw CLIFailure.appError("Focused application element has unexpected type")
                 }
                 target = app as! AXUIElement
             } else {
@@ -312,7 +312,7 @@ struct AxCommand: ParsableCommand {
                 guard let runningApp = ws.runningApplications.first(where: {
                     $0.localizedName?.lowercased() == appName.lowercased()
                 }) else {
-                    throw ValidationError("App '\(appName)' not running")
+                    throw CLIFailure.notFound("App '\(appName)' not running")
                 }
                 target = AXUIElementCreateApplication(runningApp.processIdentifier)
             }

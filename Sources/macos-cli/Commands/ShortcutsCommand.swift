@@ -17,7 +17,7 @@ struct ShortcutsCommand: ParsableCommand {
 
         func run() throws {
             guard let output = Process.capture(args: ["/usr/bin/shortcuts", "list"], timeout: 15) else {
-                throw ValidationError("shortcuts list timed out after 15s")
+                throw CLIFailure.timeout("shortcuts list timed out after 15s")
             }
             let names = output
                 .components(separatedBy: "\n")
@@ -65,14 +65,14 @@ struct ShortcutsCommand: ParsableCommand {
             }
 
             guard (try? proc.run()) != nil else {
-                throw ValidationError("Failed to launch shortcuts binary")
+                throw CLIFailure.appError("Failed to launch shortcuts binary")
             }
 
             let deadline = Date().addingTimeInterval(30)
             while proc.isRunning {
                 if Date() > deadline {
                     proc.terminate()
-                    throw ValidationError("Shortcut '\(name)' timed out after 30s")
+                    throw CLIFailure.timeout("Shortcut '\(name)' timed out after 30s")
                 }
                 Thread.sleep(forTimeInterval: 0.05)
             }
@@ -82,7 +82,7 @@ struct ShortcutsCommand: ParsableCommand {
 
             if proc.terminationStatus != 0 {
                 let msg = errOut.trimmingCharacters(in: .whitespacesAndNewlines)
-                throw ValidationError(msg.isEmpty ? "Shortcut '\(name)' not found or failed (exit \(proc.terminationStatus))" : msg)
+                throw CLIFailure.notFound(msg.isEmpty ? "Shortcut '\(name)' not found or failed (exit \(proc.terminationStatus))" : msg)
             }
 
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)

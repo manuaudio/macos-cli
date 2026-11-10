@@ -7,14 +7,13 @@
 <p align="center">
   Calendar · Contacts · Mail · Messages · Notes · Reminders · Photos · Music · Safari ·
   screenshots · OCR · windows · mouse &amp; keyboard · the Accessibility tree · and 40+ more.<br>
-  One native Swift binary. Every command speaks <code>--json</code>.
+  One native Swift binary. Every command that returns data speaks <code>--json</code>.
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="#install"><img src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple&logoColor=white" alt="macOS 13+"></a>
   <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"></a>
-  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/release-v0.8.1-blue" alt="Release"></a>
   <a href="#-use-it-with-ai-agents"><img src="https://img.shields.io/badge/agent--ready-JSON-8A2BE2?logo=anthropic&logoColor=white" alt="Agent-ready JSON"></a>
   <img src="https://img.shields.io/badge/runtime_deps-0-brightgreen" alt="Zero runtime deps">
 </p>
@@ -28,7 +27,7 @@
 ```bash
 macos calendar events --json          # what's on today
 macos mail search "invoice" --json    # find that email
-macos ocr screen                      # read everything on screen as text
+macos ocr full                        # read everything on screen as text
 macos ax click "Sign In"              # click a button by its name — no coordinates
 ```
 
@@ -38,16 +37,18 @@ macOS hides its best features behind GUI apps and brittle AppleScript. **macOS C
 
 - 🤖 **Built for AI agents.** Point Claude, Ollama, or any tool-calling model at it and your assistant can read your calendar, triage your inbox, move windows, and click buttons *by name*.
 - 🪶 **One tiny binary.** Native Swift, ~7 MB, zero runtime dependencies. No interpreter, no `node_modules`, no glue code.
-- 🧩 **40+ capabilities, one grammar.** Every command follows `macos <area> <action>` and every command takes `--json`.
+- 🧩 **40+ capabilities, one grammar.** Every command follows `macos <area> <action>`; every command that returns data takes `--json`, and under `--json` every failure is JSON too.
 - 🔒 **Local & private.** It talks to your Mac's own frameworks. Nothing leaves your machine.
 
 ## Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | MACOS_CLI_SIGN_MODE=adhoc bash
 ```
 
-Builds from source and installs exactly **one** binary — `macos` — to `$HOME/.local/bin/macos`. No sudo, no background service, no second executable. ~30 seconds.
+Builds from source, signs, verifies, and installs exactly **one** binary — `macos` — to `$HOME/.local/bin/macos`. No sudo, no background service, no second executable. ~30 seconds.
+
+An ad-hoc signature is all a personal install needs, with one catch: macOS ties privacy grants to the signature, so it asks again for Calendars, Contacts and the rest after every rebuild. With a Developer ID certificate in your keychain, drop `MACOS_CLI_SIGN_MODE=adhoc` and set `MACOS_CLI_SIGN_IDENTITY` instead; grants then survive rebuilds. [docs/SIGNING.md](docs/SIGNING.md) has the details.
 
 Install somewhere else on your `PATH`:
 
@@ -62,7 +63,7 @@ The installer does **not** grant any macOS privacy permission for you — it pri
 > Make sure `$HOME/.local/bin` is on your `PATH` (the installer reminds you if it isn't).
 
 ```bash
-macos --version   # 0.8.1
+macos --version
 macos setup       # checks every permission — a green ✓ per capability
 ```
 
@@ -94,18 +95,18 @@ macos setup       # checks every permission — a green ✓ per capability
 ```bash
 # Calendar & reminders
 macos calendar events --json
-macos reminders create --title "Call the bank" --due "tomorrow 9am"
+macos reminders create --title "Call the bank" --due "2026-07-21 09:00"
 
 # Find a contact, then text them
 macos contacts search "Ryan" --json
 macos messages send --to "+13105550100" --text "On my way"
 
 # See your screen — literally
-macos screenshot --out ~/shot.png
-macos ocr screen                       # everything on screen → plain text
+macos screenshot full --output ~/shot.png
+macos ocr full                         # everything on screen → plain text
 
 # Read the web page you're looking at
-macos safari current-tab --json
+macos safari read --json
 
 # Drive the UI like a human (Accessibility)
 macos ax find "Sign In"                # locate it
@@ -113,10 +114,10 @@ macos ax click "Sign In"               # click it — by label, no pixel coordin
 macos keyboard type "hello world"
 ```
 
-Every command supports `--json` for clean, parseable output:
+Commands that return data take `--json` for clean, parseable output:
 
 ```bash
-macos battery --json
+macos system battery --json
 # {"level": 87, "charging": false, "plugged_in": true}
 ```
 
@@ -138,10 +139,10 @@ These commands are built for unattended, read-mostly automation — stable JSON,
 |---|---|
 | `macos reminders status --json` | Reports the Reminders authorization state **without prompting** — safe to poll. |
 | `macos reminders export --json` | Rich read-only export. `--list NAME` is **fail-closed**: an unknown list yields zero rows, never all of them. |
-| `macos reminders export --timeout N` | A fetch timeout is a **hard error** — prints `{"status":"error","error":"fetch_timeout",…}` on stdout and exits `1`, so a hang can never be mistaken for "zero reminders." |
+| `macos reminders export --timeout N` | A fetch timeout is a **hard error** — prints `{"status":"error","error":"fetch_timeout",…}` on stdout and exits `5`, so a hang can never be mistaken for "zero reminders." |
 | `macos reminders complete --id ID` | The **only** way to complete a reminder. Defaults to a **dry run**; it writes only when `--approve` exactly matches a non-empty `APPLE_EVENTKIT_APPROVE_TOKEN` environment variable. `complete-safe` is a kept alias. |
-| `macos calendar export --json` | Rich read-only export as a single envelope `{ok,status,count,filter,calendars,events}`. Enumerates **all linked calendars from all sources** by default; `--calendar NAME` is **fail-closed** (unknown name ⇒ zero events *and* zero calendars, never all). `--from`/`--to` validate `from ≤ to` and emit a structured `invalid_date_range`/`invalid_date` error + exit `1` on bad input. |
-| `macos calendar delete --id ID` | Deletes exactly one event by stable identifier (`EKSpanThisEvent`). `--id` and `--title`/`--date` are **mutually exclusive**; a missing id prints `{"error":"event_not_found",…,"deleted":false}` and exits `1`. Result carries only `id` + `deleted` — no private event content. |
+| `macos calendar export --json` | Rich read-only export as a single envelope `{ok,status,count,filter,calendars,events}`. Enumerates **all linked calendars from all sources** by default; `--calendar NAME` is **fail-closed** (unknown name ⇒ zero events *and* zero calendars, never all). `--from`/`--to` validate `from ≤ to` and emit a structured `invalid_date_range`/`invalid_date` error + exit `64` on bad input. |
+| `macos calendar delete --id ID` | Deletes exactly one event by stable identifier (`EKSpanThisEvent`). `--id` and `--title`/`--date` are **mutually exclusive**; a missing id prints `{"error":"event_not_found",…,"deleted":false}` and exits `3`. Result carries only `id` + `deleted` — no private event content. |
 | `macos notes export --json` | Read-only Notes export straight from the local store (Unicode-preserving), with a fail-closed `--folder` filter. |
 
 The old `reminders done` command is **retired** — it was an ungated write. It now performs no writes and prints a one-line pointer to `reminders complete`.
@@ -153,6 +154,34 @@ export APPLE_EVENTKIT_APPROVE_TOKEN="$(openssl rand -hex 16)"   # you set this, 
 macos reminders complete --id "$ID"                 # dry run — no token passed, nothing changes
 macos reminders complete --id "$ID" --approve "$APPLE_EVENTKIT_APPROVE_TOKEN"   # writes
 ```
+
+### Errors and exit codes
+
+Under `--json` a failure is one JSON object on stdout, and stderr stays empty. The `export` commands always answer this way, with or without the flag. Branch on `error`; `message` and `hint` are for people and may change.
+
+```jsonc
+// macos calendar events --json --calendar "Nope"
+{
+  "ok": false,
+  "status": "error",
+  "error": "calendar_not_found",
+  "message": "No calendar is named 'Nope'.",
+  "hint": "Run `macos calendar calendars` to see the names.",
+  "calendar": "Nope",
+  "exit_code": 3
+}
+```
+
+| Exit | Meaning | `error` codes |
+|---|---|---|
+| 0 | Success | — |
+| 64 | The command line was rejected: unknown option, missing argument, a value that doesn't parse | `usage`, `invalid_date`, `invalid_date_range`, `invalid_alarm`, `invalid_delete_mode` |
+| 3 | The named thing does not exist | `not_found`, `calendar_not_found`, `event_not_found` |
+| 4 | Not allowed | `capability_denied` (turned off in `auth.json`), `access_denied` (macOS privacy settings) |
+| 5 | No answer in time | `timeout`, `fetch_timeout` |
+| 6 | The system or an app reported an error | `app_error` |
+
+Commands that only perform an action (move a window, click, play music) print a line of text and have no `--json` output; asked for `--json`, they answer with a `usage` error that says so. Without `--json`, a failure is one `Error:` line and usually a `Hint:` line on stderr.
 
 ### Calendar JSON contract
 
@@ -193,7 +222,7 @@ Two read shapes, chosen for compatibility:
 
 Dates are ISO8601 UTC. `--from` is inclusive, `--to` is the exclusive upper bound; both default to a bounded ±1-year window and accept explicit multi-year ranges (a single EventKit query spans at most ~4 years — chunk beyond that). An unknown `--calendar` returns a valid envelope with `count: 0` and `calendars: []` — never all.
 
-**Create with custom alarms** (each `--alarm` is minutes-before; repeatable; overrides the default 1-day + 1-hour alerts; the result echoes the minute list, never notes):
+**Create with custom alarms** (each `--alarm` is minutes-before and repeatable; with no `--alarm` the event has no alarms; the result echoes the minute list, never notes):
 
 ```jsonc
 // macos calendar create --title "Soundcheck" --start "2026-07-20 16:00" \
@@ -225,8 +254,10 @@ macOS gates these capabilities behind privacy permissions — by design. On firs
 git clone https://github.com/manuaudio/macos-cli
 cd macos-cli
 swift build -c release
-cp .build/release/macos /usr/local/bin/
+mkdir -p ~/.local/bin && cp .build/release/macos-cli ~/.local/bin/macos
 ```
+
+SwiftPM names the product `macos-cli`; it is installed as `macos`. `./install.sh` does the same and signs the binary; `make test` runs the tests.
 
 ## Contributing
 

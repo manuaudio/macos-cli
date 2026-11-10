@@ -39,7 +39,7 @@ struct MailCommand: ParsableCommand {
                                       timeout: 30, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Mail refresh failed: \(errMsg.prefix(200))")
+                throw CLIFailure.appError("Mail refresh failed: \(errMsg.prefix(200))")
             }
             if json {
                 printJSON(["refresh_requested": true])
@@ -91,7 +91,7 @@ struct MailCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Could not create draft — check Automation permission for Mail in System Settings\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("Could not create draft — check Automation permission for Mail in System Settings\n\(errMsg.prefix(200))")
             }
             if json {
                 printJSON(["draft_created": true, "to": to, "subject": subject])
@@ -146,12 +146,12 @@ struct MailCommand: ParsableCommand {
             """
             guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 45),
                   !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ValidationError("Mail search timed out — large mailboxes may take longer. Try a more specific query.")
+                throw CLIFailure.timeout("Mail search timed out — large mailboxes may take longer. Try a more specific query.")
             }
             let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = raw.data(using: .utf8),
                   let msgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not search Mail — check Automation permission\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not search Mail — check Automation permission\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(msgs)
@@ -208,7 +208,7 @@ struct MailCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Could not send email — check Automation permission for Mail in System Settings\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("Could not send email — check Automation permission for Mail in System Settings\n\(errMsg.prefix(200))")
             }
             if json {
                 if let data = env.resultJSON.data(using: .utf8),
@@ -269,12 +269,12 @@ struct MailCommand: ParsableCommand {
             """
             guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 60),
                   !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ValidationError("Mail read timed out — try a more specific query.")
+                throw CLIFailure.timeout("Mail read timed out — try a more specific query.")
             }
             let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = raw.data(using: .utf8),
                   let msgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not read Mail messages — check Automation permission\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not read Mail messages — check Automation permission\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(msgs)
@@ -338,7 +338,7 @@ struct MailCommand: ParsableCommand {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not delete messages — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not delete messages — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(result)
@@ -405,7 +405,7 @@ struct MailCommand: ParsableCommand {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not mark messages — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not mark messages — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(result)
@@ -452,12 +452,12 @@ struct MailCommand: ParsableCommand {
             """
             guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 45),
                   !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ValidationError("Mail mailboxes timed out — large accounts may take longer.")
+                throw CLIFailure.timeout("Mail mailboxes timed out — large accounts may take longer.")
             }
             let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = raw.data(using: .utf8),
                   let mailboxes = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not list mailboxes — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not list mailboxes — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(mailboxes)
@@ -536,10 +536,10 @@ struct MailCommand: ParsableCommand {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not reply — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not reply — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
             }
             if result["replied"] as? Bool != true {
-                throw ValidationError("Reply failed: \(result["error"] as? String ?? raw)")
+                throw CLIFailure.appError("Reply failed: \(result["error"] as? String ?? raw)")
             }
             if json {
                 printJSON(result)
@@ -569,7 +569,7 @@ struct MailCommand: ParsableCommand {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let accounts = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not list Mail accounts — check Automation permission\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not list Mail accounts — check Automation permission\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(accounts)

@@ -110,13 +110,13 @@ struct ProcessCommand: ParsableCommand {
                 if code == 0 {
                     killed.append(Int32(targetPid))
                 } else {
-                    throw ValidationError("kill(\(targetPid)) failed: \(String(cString: strerror(errno)))")
+                    throw CLIFailure.appError("kill(\(targetPid)) failed: \(String(cString: strerror(errno)))")
                 }
             } else if let nameFilter = name {
                 let procs = try readProcesses()
                 let matches = procs.filter { $0.name.localizedCaseInsensitiveContains(nameFilter) }
                 if matches.isEmpty {
-                    throw ValidationError("No processes matching '\(nameFilter)'")
+                    throw CLIFailure.notFound("No processes matching '\(nameFilter)'")
                 }
                 let targets = all ? matches : [matches[0]]
                 for p in targets {
@@ -148,7 +148,7 @@ private struct ProcInfo {
 
 private func readProcesses() throws -> [ProcInfo] {
     guard let output = Process.capture(args: ["/bin/ps", "-axo", "pid=,pcpu=,pmem=,comm="], timeout: 10) else {
-        throw ValidationError("ps timed out — system may be under load, try again")
+        throw CLIFailure.timeout("ps timed out — system may be under load, try again")
     }
     let lines = output.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     return lines.compactMap { line -> ProcInfo? in

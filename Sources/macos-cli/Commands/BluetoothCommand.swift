@@ -47,11 +47,11 @@ struct BluetoothCommand: ParsableCommand {
         func run() throws {
             try Auth.check("bluetooth.write")
             guard let device = bluetoothFindDevice(nameOrAddress) else {
-                throw ValidationError("Device not found: \(nameOrAddress). Use 'bluetooth list' to see paired devices.")
+                throw CLIFailure.notFound("Device not found: \(nameOrAddress). Use 'bluetooth list' to see paired devices.")
             }
             let result = device.openConnection()
             guard result == kIOReturnSuccess else {
-                throw ValidationError("Failed to connect '\(device.name ?? nameOrAddress)': IOReturn 0x\(String(result, radix: 16))")
+                throw CLIFailure.appError("Failed to connect '\(device.name ?? nameOrAddress)': IOReturn 0x\(String(result, radix: 16))")
             }
             if json {
                 printJSON(["connected": true, "name": device.name ?? nameOrAddress] as [String: Any])
@@ -69,11 +69,11 @@ struct BluetoothCommand: ParsableCommand {
         func run() throws {
             try Auth.check("bluetooth.write")
             guard let device = bluetoothFindDevice(nameOrAddress) else {
-                throw ValidationError("Device not found: \(nameOrAddress). Use 'bluetooth list' to see paired devices.")
+                throw CLIFailure.notFound("Device not found: \(nameOrAddress). Use 'bluetooth list' to see paired devices.")
             }
             let result = device.closeConnection()
             guard result == kIOReturnSuccess else {
-                throw ValidationError("Failed to disconnect '\(device.name ?? nameOrAddress)': IOReturn 0x\(String(result, radix: 16))")
+                throw CLIFailure.appError("Failed to disconnect '\(device.name ?? nameOrAddress)': IOReturn 0x\(String(result, radix: 16))")
             }
             if json {
                 printJSON(["disconnected": true, "name": device.name ?? nameOrAddress] as [String: Any])

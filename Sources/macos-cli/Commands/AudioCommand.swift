@@ -20,11 +20,11 @@ struct AudioDeviceCommand: ParsableCommand {
         )
         var size: UInt32 = 0
         var status = AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size)
-        guard status == noErr else { throw ValidationError("CoreAudio error reading device list: \(status)") }
+        guard status == noErr else { throw CLIFailure.appError("CoreAudio error reading device list: \(status)") }
         let count = Int(size) / MemoryLayout<AudioDeviceID>.size
         var ids = [AudioDeviceID](repeating: 0, count: count)
         status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &ids)
-        guard status == noErr else { throw ValidationError("CoreAudio error reading device IDs: \(status)") }
+        guard status == noErr else { throw CLIFailure.appError("CoreAudio error reading device IDs: \(status)") }
         return ids
     }
 
@@ -85,7 +85,7 @@ struct AudioDeviceCommand: ParsableCommand {
             UInt32(MemoryLayout<AudioDeviceID>.size), &mutableID
         )
         guard status == noErr else {
-            throw ValidationError("CoreAudio error setting device: \(status)")
+            throw CLIFailure.appError("CoreAudio error setting device: \(status)")
         }
     }
 
@@ -107,7 +107,7 @@ struct AudioDeviceCommand: ParsableCommand {
             deviceName($0).lowercased().contains(query.lowercased())
         }) else {
             let kind = input ? "input" : "output"
-            throw ValidationError(
+            throw CLIFailure.notFound(
                 "No \(kind) device matching '\(query)'. Run `macos audio list` to see available devices."
             )
         }

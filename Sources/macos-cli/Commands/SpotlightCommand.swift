@@ -52,7 +52,7 @@ struct SpotlightCommand: ParsableCommand {
             }
 
             guard let output = Process.capture(args: args, timeout: 15) else {
-                throw ValidationError("Spotlight search timed out after 15s.")
+                throw CLIFailure.timeout("Spotlight search timed out after 15s.")
             }
 
             let allPaths = output

@@ -75,6 +75,13 @@ private func calRichEventDict(_ e: EKEvent) -> [String: Any] {
     )
 }
 
+extension CLIFailure {
+    static func calendarNotFound(_ name: String) -> CLIFailure {
+        CLIFailure(code: "calendar_not_found", message: "No calendar is named '\(name)'.",
+                   hint: "Run `macos calendar calendars` to see the names.", extra: ["calendar": name])
+    }
+}
+
 struct CalendarCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "calendar",
@@ -132,8 +139,7 @@ struct CalendarCommand: ParsableCommand {
             let start: Date
             if let s = from {
                 guard let d = df.date(from: s) else {
-                    if json { printJSON(MacCLICore.dateParseErrorJSON(field: "from", value: s)); throw ExitCode(1) }
-                    throw ValidationError("Invalid --from date '\(s)' — use YYYY-MM-DD")
+                    throw CLIFailure(envelope: MacCLICore.dateParseErrorJSON(field: "from", value: s))
                 }
                 start = d
             } else {
@@ -143,8 +149,7 @@ struct CalendarCommand: ParsableCommand {
             let end: Date
             if let s = to {
                 guard let d = df.date(from: s) else {
-                    if json { printJSON(MacCLICore.dateParseErrorJSON(field: "to", value: s)); throw ExitCode(1) }
-                    throw ValidationError("Invalid --to date '\(s)' — use YYYY-MM-DD")
+                    throw CLIFailure(envelope: MacCLICore.dateParseErrorJSON(field: "to", value: s))
                 }
                 end = d
             } else {
@@ -154,31 +159,20 @@ struct CalendarCommand: ParsableCommand {
             let rangeCheck = MacCLICore.validateDateRange(
                 startEpoch: start.timeIntervalSince1970, endEpoch: end.timeIntervalSince1970)
             guard rangeCheck.valid else {
-                if json {
-                    printJSON(MacCLICore.dateRangeErrorJSON(from: from ?? df.string(from: start),
-                                                            to: to ?? df.string(from: end)))
-                    throw ExitCode(1)
-                }
-                throw ValidationError("Invalid range: --from must be on or before --to")
+                throw CLIFailure(envelope: MacCLICore.dateRangeErrorJSON(from: from ?? df.string(from: start),
+                                                                         to: to ?? df.string(from: end)))
             }
 
-            // Validation passed — NOW touch TCC. An authorization/access failure while
-            // acquiring the store becomes a stable redacted error under --json (stdout,
-            // stderr empty, non-zero); human mode surfaces the readable CLIError.
-            let store: EKEventStore
-            do {
-                try Auth.check("calendar.read")
-                store = try EventKitStore.authorized(for: .event)
-            } catch {
-                if json { printJSON(MacCLICore.accessErrorJSON(entity: "calendar")); throw ExitCode(1) }
-                throw error
-            }
+            // Validation passed — NOW touch TCC. A denial (auth.json or macOS) or an
+            // unanswered permission request is a typed failure with its own code.
+            try Auth.check("calendar.read")
+            let store = try EventKitStore.authorized(for: .event)
 
             let allCalendars = store.calendars(for: .event)
             let targetCals: [EKCalendar]
             if let name = calendar {
                 targetCals = allCalendars.filter { $0.title == name }
-                if targetCals.isEmpty { throw ValidationError("Calendar '\(name)' not found") }
+                if targetCals.isEmpty { throw CLIFailure.calendarNotFound(name) }
             } else {
                 targetCals = Array(allCalendars)
             }
@@ -217,6 +211,9 @@ struct CalendarCommand: ParsableCommand {
         @Option(name: .long, help: "Exact calendar name filter (fail-closed: unknown name => zero events, never all)")
         var calendar: String?
 
+        @Flag(name: .long, help: "Accepted for consistency; export always prints JSON")
+        var json = false
+
         func run() throws {
             // POSIX + strict parsing: reject locale surprises AND impossible calendar
             // dates (e.g. 2026-02-30) instead of rolling them over.
@@ -238,8 +235,7 @@ struct CalendarCommand: ParsableCommand {
             let start: Date
             if let s = from {
                 guard let d = df.date(from: s) else {
-                    printJSON(MacCLICore.dateParseErrorJSON(field: "from", value: s))
-                    throw ExitCode(1)
+                    throw CLIFailure(envelope: MacCLICore.dateParseErrorJSON(field: "from", value: s))
                 }
                 start = d
             } else { start = defaultStart }
@@ -247,8 +243,7 @@ struct CalendarCommand: ParsableCommand {
             let end: Date
             if let s = to {
                 guard let d = df.date(from: s) else {
-                    printJSON(MacCLICore.dateParseErrorJSON(field: "to", value: s))
-                    throw ExitCode(1)
+                    throw CLIFailure(envelope: MacCLICore.dateParseErrorJSON(field: "to", value: s))
                 }
                 end = d
             } else { end = defaultEnd }
@@ -256,22 +251,15 @@ struct CalendarCommand: ParsableCommand {
             let rangeCheck = MacCLICore.validateDateRange(
                 startEpoch: start.timeIntervalSince1970, endEpoch: end.timeIntervalSince1970)
             guard rangeCheck.valid else {
-                printJSON(MacCLICore.dateRangeErrorJSON(from: from ?? df.string(from: start),
-                                                        to: to ?? df.string(from: end)))
-                throw ExitCode(1)
+                throw CLIFailure(envelope: MacCLICore.dateRangeErrorJSON(from: from ?? df.string(from: start),
+                                                                         to: to ?? df.string(from: end)))
             }
 
-            // Validation passed — NOW touch TCC. Catch ONLY authorization/access failures
-            // around store acquisition and redact them: a stable machine code on stdout,
-            // no calendar content, no raw localized system strings, stderr empty, exit 1.
-            let store: EKEventStore
-            do {
-                try Auth.check("calendar.read")
-                store = try EventKitStore.authorized(for: .event)
-            } catch {
-                printJSON(MacCLICore.accessErrorJSON(entity: "calendar"))
-                throw ExitCode(1)
-            }
+            // Validation passed — NOW touch TCC. A policy denial (`capability_denied`), a
+            // macOS denial (`access_denied`) and an unanswered request (`timeout`) are
+            // distinct codes; none carries calendar content.
+            try Auth.check("calendar.read")
+            let store = try EventKitStore.authorized(for: .event)
 
             // Enumerate ALL linked event calendars from ALL sources, then resolve the
             // optional filter fail-closed (an unknown name never broadens to all).
@@ -330,11 +318,7 @@ struct CalendarCommand: ParsableCommand {
             // Validate alarms BEFORE touching EventKit so a bad value never opens the store.
             let invalidAlarms = MacCLICore.invalidAlarmMinutes(alarm)
             if !invalidAlarms.isEmpty {
-                if json {
-                    printJSON(MacCLICore.alarmValidationErrorJSON(invalid: invalidAlarms))
-                    throw ExitCode(1)
-                }
-                throw ValidationError("--alarm values must be positive minutes; invalid: \(invalidAlarms)")
+                throw CLIFailure(envelope: MacCLICore.alarmValidationErrorJSON(invalid: invalidAlarms))
             }
 
             let store = try EventKitStore.authorized(for: .event)
@@ -380,7 +364,7 @@ struct CalendarCommand: ParsableCommand {
             let allCalendars = store.calendars(for: .event)
             if let name = calendar {
                 guard let cal = allCalendars.first(where: { $0.title == name }) else {
-                    throw ValidationError("Calendar '\(name)' not found")
+                    throw CLIFailure.calendarNotFound(name)
                 }
                 event.calendar = cal
             } else {
@@ -390,7 +374,7 @@ struct CalendarCommand: ParsableCommand {
             do {
                 try store.save(event, span: .thisEvent, commit: true)
             } catch {
-                throw CLIError.saveFailure(error.localizedDescription)
+                throw CLIFailure.saveFailure(error.localizedDescription)
             }
 
             if json {
@@ -441,21 +425,12 @@ struct CalendarCommand: ParsableCommand {
 
             switch MacCLICore.resolveDeleteMode(id: id, title: title, date: date) {
             case .invalid(let reason):
-                if json {
-                    printJSON(MacCLICore.calendarDeleteModeErrorJSON(reason: reason))
-                    throw ExitCode(1)
-                }
-                throw ValidationError(reason)
+                throw CLIFailure(envelope: MacCLICore.calendarDeleteModeErrorJSON(reason: reason))
 
             case .byId(let eventId):
                 let store = try EventKitStore.authorized(for: .event)
                 guard let event = store.event(withIdentifier: eventId) else {
-                    if json {
-                        printJSON(MacCLICore.calendarDeleteNotFoundJSON(id: eventId))
-                    } else {
-                        fputs("error: no event with id '\(eventId)'\n", stderr)
-                    }
-                    throw ExitCode(1)
+                    throw CLIFailure(envelope: MacCLICore.calendarDeleteNotFoundJSON(id: eventId))
                 }
                 // Removes only this occurrence (EKSpanThisEvent) by default.
                 try store.remove(event, span: .thisEvent, commit: true)
@@ -484,7 +459,7 @@ struct CalendarCommand: ParsableCommand {
                 let targetCals: [EKCalendar]
                 if let calName = calendar {
                     targetCals = allCalendars.filter { $0.title == calName }
-                    if targetCals.isEmpty { throw ValidationError("Calendar '\(calName)' not found") }
+                    if targetCals.isEmpty { throw CLIFailure.calendarNotFound(calName) }
                 } else {
                     targetCals = Array(allCalendars)
                 }
@@ -557,7 +532,7 @@ struct CalendarCommand: ParsableCommand {
             let store = try EventKitStore.authorized(for: .event)
 
             guard let event = store.event(withIdentifier: id) else {
-                throw ValidationError("Event '\(id)' not found")
+                throw CLIFailure(envelope: MacCLICore.calendarDeleteNotFoundJSON(id: id).filter { $0.key != "deleted" })
             }
 
             let df = DateFormatter()
@@ -587,7 +562,7 @@ struct CalendarCommand: ParsableCommand {
             if let calName = calendar {
                 let allCalendars = store.calendars(for: .event)
                 guard let cal = allCalendars.first(where: { $0.title == calName }) else {
-                    throw ValidationError("Calendar '\(calName)' not found")
+                    throw CLIFailure.calendarNotFound(calName)
                 }
                 event.calendar = cal
             }
@@ -595,7 +570,7 @@ struct CalendarCommand: ParsableCommand {
             do {
                 try store.save(event, span: .thisEvent, commit: true)
             } catch {
-                throw CLIError.saveFailure(error.localizedDescription)
+                throw CLIFailure.saveFailure(error.localizedDescription)
             }
 
             if json {

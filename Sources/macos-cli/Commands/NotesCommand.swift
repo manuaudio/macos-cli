@@ -55,6 +55,9 @@ struct NotesCommand: ParsableCommand {
         @Flag(name: .customLong("include-deleted"), help: "Include notes in Recently Deleted")
         var includeDeleted = false
 
+        @Flag(name: .long, help: "Accepted for consistency; export always prints JSON")
+        var json = false
+
         func run() throws {
             try Auth.check("notes.read")
             let db = notesDBPath()
@@ -77,7 +80,7 @@ struct NotesCommand: ParsableCommand {
                       let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                 rows = parsed
             } else {
-                throw ValidationError("Could not read Notes store — unexpected sqlite3 output")
+                throw CLIFailure.appError("Could not read Notes store — unexpected sqlite3 output")
             }
 
             var out: [[String: Any]] = []
@@ -248,7 +251,7 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
             guard raw != "null", !raw.isEmpty,
                   let data = raw.data(using: .utf8),
                   let note = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Note matching '\(title)' not found")
+                throw CLIFailure.notFound("Note matching '\(title)' not found")
             }
             if json {
                 printJSON(note)
@@ -290,14 +293,14 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("Could not delete note — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not delete note — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
             }
             if !env.ok {
-                throw ValidationError("Delete failed: \(env.error)")
+                throw CLIFailure.appError("Delete failed: \(env.error)")
             }
             guard let data = env.resultJSON.data(using: .utf8),
                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Unexpected response from Notes: \(env.resultJSON.prefix(200))")
+                throw CLIFailure.appError("Unexpected response from Notes: \(env.resultJSON.prefix(200))")
             }
             if json {
                 printJSON(result)
@@ -356,10 +359,10 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not update note — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not update note — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
             }
             if result["updated"] as? Bool != true {
-                throw ValidationError("Update failed: \(result["error"] as? String ?? raw)")
+                throw CLIFailure.appError("Update failed: \(result["error"] as? String ?? raw)")
             }
             if json {
                 printJSON(result)
@@ -391,7 +394,7 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let folders = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not list Notes folders — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not list Notes folders — check Automation permission for Notes in System Settings\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(folders)
@@ -430,11 +433,11 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Could not create folder — check Automation permission for Notes in System Settings\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("Could not create folder — check Automation permission for Notes in System Settings\n\(errMsg.prefix(200))")
             }
             guard let data = env.resultJSON.data(using: .utf8),
                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Unexpected response from Notes: \(env.resultJSON.prefix(200))")
+                throw CLIFailure.appError("Unexpected response from Notes: \(env.resultJSON.prefix(200))")
             }
             if json {
                 printJSON(result)
@@ -478,12 +481,12 @@ print(json.dumps({'title': title, 'body': body, 'modified': modified}))
             JSON.stringify({id: n.id(), title: n.name(), folder: n.container().name()});
             """
             guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10) else {
-                throw ValidationError("Could not create note — osascript timed out. Ensure Notes has Automation permission in System Settings.")
+                throw CLIFailure.timeout("Could not create note — osascript timed out. Ensure Notes has Automation permission in System Settings.")
             }
             let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let note = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not create note — check Automation permission for Notes in System Settings")
+                throw CLIFailure.appError("Could not create note — check Automation permission for Notes in System Settings")
             }
             if json {
                 printJSON(note)

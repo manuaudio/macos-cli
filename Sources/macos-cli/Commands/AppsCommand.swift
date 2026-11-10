@@ -69,13 +69,13 @@ struct AppsCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 5, fallback: "")
             if let env = parseJXAEnvelope(raw) {
                 if !env.ok {
-                    throw ValidationError("App '\(app)' not found or could not be launched: \(env.error)")
+                    throw CLIFailure.notFound("App '\(app)' not found or could not be launched: \(env.error)")
                 }
             } else {
                 // fallback: try open -a
                 let code = Process.run(args: ["/usr/bin/open", "-a", app])
                 guard code == 0 else {
-                    throw ValidationError("App '\(app)' not found")
+                    throw CLIFailure.notFound("App '\(app)' not found")
                 }
             }
             print("Launched: \(app)")
@@ -96,7 +96,7 @@ struct AppsCommand: ParsableCommand {
                 $0.bundleIdentifier?.lowercased() == app.lowercased()
             }
             guard let target = match else {
-                throw ValidationError("App '\(app)' is not running")
+                throw CLIFailure.notFound("App '\(app)' is not running")
             }
             if force {
                 target.forceTerminate()
@@ -114,7 +114,7 @@ struct AppsCommand: ParsableCommand {
         func run() throws {
             let ws = NSWorkspace.shared
             guard let app = ws.frontmostApplication else {
-                throw ValidationError("No frontmost application")
+                throw CLIFailure.notFound("No frontmost application")
             }
             if json {
                 printJSON([

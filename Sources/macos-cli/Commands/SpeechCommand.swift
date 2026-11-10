@@ -24,7 +24,7 @@ struct SpeechCommand: ParsableCommand {
             if let o = output { args += ["-o", o] }
             args.append(text)
             let result = Process.run(args: args)
-            if result != 0 { throw ValidationError("say command failed") }
+            if result != 0 { throw CLIFailure.appError("say command failed") }
             if let o = output {
                 print("Audio saved to: \(o)")
             } else {

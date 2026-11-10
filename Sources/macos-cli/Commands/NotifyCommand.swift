@@ -26,7 +26,7 @@ struct NotifyCommand: ParsableCommand {
 
             let result = Process.run(args: ["/usr/bin/osascript", "-e", script])
             if result != 0 {
-                throw ValidationError("Notification failed — check Notifications permission in System Preferences")
+                throw CLIFailure.appError("Notification failed — check Notifications permission in System Preferences")
             }
             if json {
                 var out: [String: Any] = ["sent": true, "title": title, "body": body]

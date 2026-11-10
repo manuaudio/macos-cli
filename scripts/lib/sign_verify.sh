@@ -34,7 +34,8 @@ SV_REPO_ROOT="$(cd "$SV_LIB_DIR/../.." && pwd)"
 # The stable code identity. Changing this string invalidates every existing TCC
 # grant on every user's machine, so it is pinned here and asserted by the tests.
 SV_BUNDLE_ID="com.manuaudio.macos-cli"
-SV_EXPECTED_VERSION="0.8.1"
+# The version lives in Sources/macos-cli/Version.swift.
+SV_EXPECTED_VERSION="$(sed -nE 's/^let macosCLIVersion = "([^"]+)"$/\1/p' "$SV_REPO_ROOT/Sources/macos-cli/Version.swift")"
 # Entitlements requested at signing time: only
 # com.apple.security.automation.apple-events, which the Hardened Runtime
 # requires for Apple-event automation. See docs/SIGNING.md for the rationale.

@@ -64,7 +64,7 @@ struct ScreenCommand: ParsableCommand {
             if window { args.append("-w") }
             args.append(output)
             let result = Process.run(args: args)
-            if result != 0 { throw ValidationError("Screenshot failed — grant Screen Recording in Privacy & Security") }
+            if result != 0 { throw CLIFailure.appError("Screenshot failed — grant Screen Recording in Privacy & Security") }
             print("Screenshot saved: \(output)")
         }
     }

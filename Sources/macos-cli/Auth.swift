@@ -3,10 +3,15 @@ import Foundation
 import ArgumentParser
 
 struct Auth {
-    private static let configURL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/macos-cli/auth.json")
+    /// `$HOME/.config/macos-cli/auth.json`. `HOME` wins over the account's home folder,
+    /// so a test (or a sandboxed agent) can point the policy at its own file.
+    private static var configURL: URL {
+        let home = ProcessInfo.processInfo.environment["HOME"].map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        return home.appendingPathComponent(".config/macos-cli/auth.json")
+    }
 
-    // Call at top of any destructive run(). Throws ValidationError if denied.
+    // Call at top of any destructive run(). Throws a `capability_denied` CLIFailure if denied.
     //
     // Capability resolution order (H6 — partial-config safety):
     //   1. caps[capability]                — explicit user choice from auth.json
@@ -21,18 +26,12 @@ struct Auth {
     static func check(_ capability: String) throws {
         let caps = load()
         let allowed = caps[capability] ?? defaultCapabilities[capability] ?? !isWriteCapability(capability)
-        if !allowed {
-            if caps.isEmpty {
-                throw ValidationError(
-                    "'\(capability)' is denied by default. Run `macos auth setup` to configure permissions, " +
-                    "or `macos auth grant \(capability)` to enable this capability."
-                )
-            } else {
-                throw ValidationError(
-                    "'\(capability)' is denied. Run `macos auth grant \(capability)` to enable it."
-                )
-            }
-        }
+        guard !allowed else { return }
+        throw CLIFailure(
+            code: "capability_denied",
+            message: "'\(capability)' is denied by \(caps[capability] == false ? "your auth.json" : "default").",
+            hint: "A person can allow it with `macos auth grant \(capability)` (or `macos auth setup`).",
+            extra: ["capability": capability])
     }
 
     static func load() -> [String: Bool] {

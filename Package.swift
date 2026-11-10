@@ -60,6 +60,12 @@ let package = Package(
             dependencies: ["MacCLICore"],
             path: "Tests/MacCLICoreTests"
         ),
+        // Runs the built `macos-cli` binary and checks the command-line contract:
+        // exit codes, the JSON error envelope, --json on the exports. Reads nothing private.
+        .testTarget(
+            name: "CLITests",
+            path: "Tests/CLITests"
+        ),
         // Dependency-free mirror of the XCTest assertions, runnable on a
         // Command-Line-Tools-only toolchain where XCTest is unavailable:
         //   swift run MacCLICoreTestRunner

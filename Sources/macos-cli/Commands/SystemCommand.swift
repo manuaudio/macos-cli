@@ -135,7 +135,7 @@ struct AudioCommand: ParsableCommand {
             guard let data = spOutput.data(using: .utf8),
                   let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let audioData = parsed["SPAudioDataType"] as? [[String: Any]] else {
-                throw ValidationError("Could not retrieve audio devices")
+                throw CLIFailure.appError("Could not retrieve audio devices")
             }
             // Normalize raw system_profiler keys into clean output
             var devices: [[String: Any]] = []
@@ -246,7 +246,7 @@ struct WifiCommand: ParsableCommand {
                     if !security.isEmpty { print("Security: \(security)") }
                 }
             } else {
-                throw ValidationError("Could not retrieve Wi-Fi info")
+                throw CLIFailure.appError("Could not retrieve Wi-Fi info")
             }
         }
     }
@@ -307,7 +307,7 @@ struct WifiCommand: ParsableCommand {
             if let pw = password { args.append(pw) }
             let code = Process.run(args: args)
             guard code == 0 else {
-                throw ValidationError("Could not join '\(ssid)' (exit \(code)) — check SSID and password")
+                throw CLIFailure.appError("Could not join '\(ssid)' (exit \(code)) — check SSID and password")
             }
             print("Joined: \(ssid)")
         }
@@ -470,11 +470,11 @@ struct DisplayCommand: ParsableCommand {
                 try Auth.check("display.write")
                 let expanded = (path as NSString).expandingTildeInPath
                 guard FileManager.default.fileExists(atPath: expanded) else {
-                    throw ValidationError("Image file not found: \(path)")
+                    throw CLIFailure.notFound("Image file not found: \(path)")
                 }
                 let url = URL(fileURLWithPath: expanded)
                 let screens = NSScreen.screens
-                guard !screens.isEmpty else { throw ValidationError("No displays found.") }
+                guard !screens.isEmpty else { throw CLIFailure.appError("No displays found.") }
                 for screen in screens {
                     try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
                 }
@@ -541,7 +541,7 @@ struct VPNCommand: ParsableCommand {
 
         func run() throws {
             guard let output = Process.capture(args: ["/usr/sbin/scutil", "--nc", "list"], timeout: 10) else {
-                throw ValidationError("VPN status query timed out.")
+                throw CLIFailure.timeout("VPN status query timed out.")
             }
             let uuidRegex = try? NSRegularExpression(pattern: "[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}")
             let lines = output.components(separatedBy: "\n")
@@ -583,7 +583,7 @@ struct VPNCommand: ParsableCommand {
             try Auth.check("vpn.write")
             let result = Process.run(args: ["/usr/sbin/scutil", "--nc", "start", name])
             guard result == 0 else {
-                throw ValidationError("Failed to start VPN '\(name)'. Check name with 'system vpn status'.")
+                throw CLIFailure.appError("Failed to start VPN '\(name)'. Check name with 'system vpn status'.")
             }
             if json {
                 printJSON(["connecting": true, "name": name] as [String: Any])
@@ -602,7 +602,7 @@ struct VPNCommand: ParsableCommand {
             try Auth.check("vpn.write")
             let result = Process.run(args: ["/usr/sbin/scutil", "--nc", "stop", name])
             guard result == 0 else {
-                throw ValidationError("Failed to stop VPN '\(name)'.")
+                throw CLIFailure.appError("Failed to stop VPN '\(name)'.")
             }
             if json {
                 printJSON(["disconnected": true, "name": name] as [String: Any])

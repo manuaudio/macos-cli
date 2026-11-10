@@ -16,7 +16,7 @@ enum EventKitStore {
             return store
         }
         if status == .denied || status == .restricted {
-            throw CLIError.notAuthorized(type)
+            throw CLIFailure.notAuthorized(type)
         }
 
         // Not determined — request access. Must spin the main run loop.
@@ -51,13 +51,13 @@ enum EventKitStore {
         }
 
         if !done {
-            throw CLIError.authTimeout
+            throw CLIFailure.authTimeout(type)
         }
         if let err = authError {
             throw err
         }
         guard granted else {
-            throw CLIError.notAuthorized(type)
+            throw CLIFailure.notAuthorized(type)
         }
         return store
     }
@@ -88,22 +88,25 @@ enum EventKitStore {
     }
 }
 
-enum CLIError: LocalizedError {
-    case authTimeout
-    case notAuthorized(EKEntityType)
-    case noDefaultList
-    case saveFailure(String)
+extension CLIFailure {
+    static func notAuthorized(_ type: EKEntityType) -> CLIFailure {
+        let area = type == .reminder ? "Reminders" : "Calendars"
+        return CLIFailure(code: "access_denied",
+                          message: "Access to \(area) is not authorized for this binary.",
+                          hint: "Grant it in System Settings › Privacy & Security › \(area), then retry.",
+                          extra: ["entity": type == .reminder ? "reminder" : "calendar"])
+    }
 
-    var errorDescription: String? {
-        switch self {
-        case .authTimeout:
-            return "TCC authorization timed out — grant access in System Preferences > Privacy & Security"
-        case .notAuthorized(let t):
-            return "Access denied to \(t == .reminder ? "Reminders" : "Calendar") — grant in Privacy & Security"
-        case .noDefaultList:
-            return "No default list found"
-        case .saveFailure(let msg):
-            return "Save failed: \(msg)"
-        }
+    static func authTimeout(_ type: EKEntityType) -> CLIFailure {
+        let area = type == .reminder ? "Reminders" : "Calendars"
+        return CLIFailure(code: "timeout",
+                          message: "The \(area) permission request was not answered within 15 s.",
+                          hint: "Run the command once in a logged-in Terminal and allow access, "
+                              + "or grant it in System Settings › Privacy & Security › \(area).",
+                          extra: ["entity": type == .reminder ? "reminder" : "calendar"])
+    }
+
+    static func saveFailure(_ message: String) -> CLIFailure {
+        .appError("Save failed: \(message)")
     }
 }

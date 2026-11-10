@@ -61,12 +61,12 @@ struct RemindersCommand: ParsableCommand {
             if let listName = list {
                 let lists = store.calendars(for: .reminder)
                 guard let target = lists.first(where: { $0.title == listName }) else {
-                    throw ValidationError("List '\(listName)' not found")
+                    throw CLIFailure.notFound("List '\(listName)' not found")
                 }
                 reminder.calendar = target
             } else {
                 guard let def = store.defaultCalendarForNewReminders() else {
-                    throw CLIError.noDefaultList
+                    throw CLIFailure.notFound("No default Reminders list is set.", hint: "Pass --list <name>.")
                 }
                 reminder.calendar = def
             }
@@ -74,7 +74,7 @@ struct RemindersCommand: ParsableCommand {
             do {
                 try store.save(reminder, commit: true)
             } catch {
-                throw CLIError.saveFailure(error.localizedDescription)
+                throw CLIFailure.saveFailure(error.localizedDescription)
             }
 
             if json {
@@ -114,7 +114,7 @@ struct RemindersCommand: ParsableCommand {
             if let listName = list {
                 targetLists = lists.filter { $0.title == listName }
                 if targetLists.isEmpty {
-                    throw ValidationError("List '\(listName)' not found")
+                    throw CLIFailure.notFound("List '\(listName)' not found")
                 }
             } else {
                 targetLists = Array(lists)
@@ -224,13 +224,13 @@ struct RemindersCommand: ParsableCommand {
             }
             sema.wait()
             guard let reminder = found else {
-                throw ValidationError("Reminder '\(id)' not found")
+                throw CLIFailure.notFound("Reminder '\(id)' not found")
             }
             let savedTitle = reminder.title ?? id
             do {
                 try store.remove(reminder, commit: true)
             } catch {
-                throw CLIError.saveFailure(error.localizedDescription)
+                throw CLIFailure.saveFailure(error.localizedDescription)
             }
             if json {
                 printJSON(["deleted": true, "id": id, "title": savedTitle])
@@ -277,7 +277,7 @@ struct RemindersCommand: ParsableCommand {
             }
             sema.wait()
             guard let reminder = found else {
-                throw ValidationError("Reminder '\(id)' not found")
+                throw CLIFailure.notFound("Reminder '\(id)' not found")
             }
 
             if let t = title { reminder.title = t }
@@ -302,7 +302,7 @@ struct RemindersCommand: ParsableCommand {
             if let listName = list {
                 let lists = store.calendars(for: .reminder)
                 guard let target = lists.first(where: { $0.title == listName }) else {
-                    throw ValidationError("List '\(listName)' not found")
+                    throw CLIFailure.notFound("List '\(listName)' not found")
                 }
                 reminder.calendar = target
             }
@@ -310,7 +310,7 @@ struct RemindersCommand: ParsableCommand {
             do {
                 try store.save(reminder, commit: true)
             } catch {
-                throw CLIError.saveFailure(error.localizedDescription)
+                throw CLIFailure.saveFailure(error.localizedDescription)
             }
 
             if json {
@@ -354,14 +354,14 @@ struct RemindersCommand: ParsableCommand {
             }
             sema.wait()
             guard let reminder = found else {
-                throw ValidationError("Reminder '\(id)' not found")
+                throw CLIFailure.notFound("Reminder '\(id)' not found")
             }
             reminder.isCompleted = false
             reminder.completionDate = nil
             do {
                 try store.save(reminder, commit: true)
             } catch {
-                throw CLIError.saveFailure(error.localizedDescription)
+                throw CLIFailure.saveFailure(error.localizedDescription)
             }
             if json {
                 printJSON([
@@ -443,6 +443,9 @@ struct RemindersCommand: ParsableCommand {
         @Option(name: .long, help: "Fetch timeout in seconds (default: 25)")
         var timeout: Double = 25
 
+        @Flag(name: .long, help: "Accepted for consistency; export always prints JSON")
+        var json = false
+
         func run() throws {
             try Auth.check("reminders.read")
             let store = try EventKitStore.authorized(for: .reminder)
@@ -473,12 +476,9 @@ struct RemindersCommand: ParsableCommand {
             let reminders: [EKReminder]
             switch outcome {
             case .timedOut:
-                // Machine contract: emit a structured JSON error envelope on stdout,
-                // then fail with a non-zero exit. ExitCode.failure exits 1 WITHOUT
-                // ArgumentParser printing its own plain-text "Error:" line, so the
-                // only thing a caller sees on stdout is the parseable envelope.
-                printJSON(MacCLICore.fetchTimeoutErrorJSON(timeoutSeconds: timeout))
-                throw ExitCode.failure
+                // A timeout is a hard error, never an empty result: the envelope goes to
+                // stdout and the process exits 5.
+                throw CLIFailure(envelope: MacCLICore.fetchTimeoutErrorJSON(timeoutSeconds: timeout))
             case .success(let r):
                 reminders = r
             }
@@ -547,14 +547,14 @@ struct RemindersCommand: ParsableCommand {
             try Auth.check("reminders.write")
             let store = try EventKitStore.authorized(for: .reminder)
             guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else {
-                throw ValidationError("Reminder '\(id)' not found")
+                throw CLIFailure.notFound("Reminder '\(id)' not found")
             }
             reminder.isCompleted = true
             reminder.completionDate = Date()
             do {
                 try store.save(reminder, commit: true)
             } catch {
-                throw CLIError.saveFailure(error.localizedDescription)
+                throw CLIFailure.saveFailure(error.localizedDescription)
             }
             if json {
                 printJSON([

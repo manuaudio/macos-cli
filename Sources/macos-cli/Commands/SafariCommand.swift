@@ -39,11 +39,11 @@ struct SafariCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Could not read Safari tabs — check Automation permission for Safari in System Settings\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("Could not read Safari tabs — check Automation permission for Safari in System Settings\n\(errMsg.prefix(200))")
             }
             guard let data = env.resultJSON.data(using: .utf8),
                   let tabs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not read Safari tabs — check Automation permission for Safari in System Settings")
+                throw CLIFailure.appError("Could not read Safari tabs — check Automation permission for Safari in System Settings")
             }
             if json {
                 printJSON(tabs)
@@ -84,7 +84,7 @@ struct SafariCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Could not open URL — check Automation permission for Safari\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("Could not open URL — check Automation permission for Safari\n\(errMsg.prefix(200))")
             }
             print("Opened: \(url)")
         }
@@ -117,11 +117,11 @@ struct SafariCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Could not read Safari tab — check Automation permission\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("Could not read Safari tab — check Automation permission\n\(errMsg.prefix(200))")
             }
             guard let data = env.resultJSON.data(using: .utf8),
                   let page = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not read Safari tab — check Automation permission\n\(env.resultJSON.prefix(200))")
+                throw CLIFailure.appError("Could not read Safari tab — check Automation permission\n\(env.resultJSON.prefix(200))")
             }
             if json {
                 printJSON(page)
@@ -159,7 +159,7 @@ struct SafariCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("JS execution failed\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("JS execution failed\n\(errMsg.prefix(200))")
             }
             // env.resultJSON is a JSON-encoded string; decode it to get the actual JS result
             if let data = env.resultJSON.data(using: .utf8),
@@ -200,7 +200,7 @@ struct SafariCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Could not open new tab — check Automation permission for Safari\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("Could not open new tab — check Automation permission for Safari\n\(errMsg.prefix(200))")
             }
             if json {
                 printJSON(["opened": url])
@@ -270,7 +270,7 @@ struct SafariCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Could not close tab\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("Could not close tab\n\(errMsg.prefix(200))")
             }
             if json {
                 print(env.resultJSON.isEmpty ? "{\"closed\":0}" : env.resultJSON)
@@ -331,7 +331,7 @@ struct SafariCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Could not reload tab\n\(errMsg.prefix(200))")
+                throw CLIFailure.appError("Could not reload tab\n\(errMsg.prefix(200))")
             }
             if json {
                 print(env.resultJSON.isEmpty ? "{\"reloaded\":0}" : env.resultJSON)
@@ -354,7 +354,7 @@ struct SafariCommand: ParsableCommand {
             try Auth.check("safari.read")
             let dbPath = (NSHomeDirectory() as NSString).appendingPathComponent("Library/Safari/History.db")
             guard FileManager.default.fileExists(atPath: dbPath) else {
-                throw ValidationError("Safari History.db not found at \(dbPath)")
+                throw CLIFailure.notFound("Safari History.db not found at \(dbPath)")
             }
 
             // Apple epoch: seconds since 2001-01-01
@@ -422,14 +422,14 @@ struct SafariCommand: ParsableCommand {
             try Auth.check("safari.read")
             let plistPath = (NSHomeDirectory() as NSString).appendingPathComponent("Library/Safari/Bookmarks.plist")
             guard FileManager.default.fileExists(atPath: plistPath) else {
-                throw ValidationError("Bookmarks.plist not found at \(plistPath)")
+                throw CLIFailure.notFound("Bookmarks.plist not found at \(plistPath)")
             }
 
             // Convert plist to JSON using plutil
             let jsonStr = Process.capture(args: ["/usr/bin/plutil", "-convert", "json", "-o", "-", plistPath], timeout: 10, fallback: "")
             guard !jsonStr.isEmpty, let data = jsonStr.data(using: .utf8),
                   let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not parse Bookmarks.plist")
+                throw CLIFailure.appError("Could not parse Bookmarks.plist")
             }
 
             // Recursively extract leaf bookmarks

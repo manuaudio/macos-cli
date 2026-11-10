@@ -30,7 +30,7 @@ struct PhotosCommand: ParsableCommand {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty, let data = raw.data(using: .utf8),
                   let albums = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not read Photos — check Automation permission for Photos in System Settings\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not read Photos — check Automation permission for Photos in System Settings\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(albums)
@@ -80,12 +80,12 @@ struct PhotosCommand: ParsableCommand {
             """
             guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 45),
                   !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ValidationError("Photos search timed out — large libraries may take longer. Try a more specific query.")
+                throw CLIFailure.timeout("Photos search timed out — large libraries may take longer. Try a more specific query.")
             }
             let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = raw.data(using: .utf8),
                   let photos = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not search Photos — check Automation permission\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not search Photos — check Automation permission\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(photos)
@@ -134,17 +134,17 @@ struct PhotosCommand: ParsableCommand {
             """
             guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 15),
                   !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ValidationError("Photos export timed out — check Automation permission for Photos in System Settings")
+                throw CLIFailure.timeout("Photos export timed out — check Automation permission for Photos in System Settings")
             }
             let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = raw.data(using: .utf8),
                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not export Photos — check Automation permission\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not export Photos — check Automation permission\n\(raw.prefix(200))")
             }
             let exported = result["exported"] as? Int ?? 0
             let toPath   = result["to"] as? String ?? destDir
             if exported == 0 {
-                throw ValidationError("No photos found matching '\(name)'")
+                throw CLIFailure.notFound("No photos found matching '\(name)'")
             }
             if json {
                 printJSON(result)
@@ -196,15 +196,15 @@ struct PhotosCommand: ParsableCommand {
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 15, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("Could not add photo to album\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not add photo to album\n\(raw.prefix(200))")
             }
             if !env.ok {
                 if env.error == "no-photo" {
-                    throw ValidationError("No photo found matching '\(name)'")
+                    throw CLIFailure.notFound("No photo found matching '\(name)'")
                 } else if env.error == "no-album" {
-                    throw ValidationError("No album found matching '\(album)'")
+                    throw CLIFailure.notFound("No album found matching '\(album)'")
                 }
-                throw ValidationError("Could not add photo to album\n\(env.error)")
+                throw CLIFailure.appError("Could not add photo to album\n\(env.error)")
             }
             if json {
                 printJSON(["added": true])
@@ -243,16 +243,16 @@ struct PhotosCommand: ParsableCommand {
             """
             guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 15),
                   !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ValidationError("Photos delete timed out — check Automation permission for Photos in System Settings")
+                throw CLIFailure.timeout("Photos delete timed out — check Automation permission for Photos in System Settings")
             }
             let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = raw.data(using: .utf8),
                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw ValidationError("Could not delete from Photos — check Automation permission\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not delete from Photos — check Automation permission\n\(raw.prefix(200))")
             }
             let deleted = result["deleted"] as? Int ?? 0
             if deleted == 0 {
-                throw ValidationError("No photos found matching '\(name)'")
+                throw CLIFailure.notFound("No photos found matching '\(name)'")
             }
             if json {
                 printJSON(result)
@@ -289,12 +289,12 @@ struct PhotosCommand: ParsableCommand {
             """
             guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30),
                   !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ValidationError("Photos timed out — check Automation permission for Photos in System Settings")
+                throw CLIFailure.timeout("Photos timed out — check Automation permission for Photos in System Settings")
             }
             let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = raw.data(using: .utf8),
                   let photos = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not read Photos — check Automation permission\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not read Photos — check Automation permission\n\(raw.prefix(200))")
             }
             if json {
                 printJSON(photos)

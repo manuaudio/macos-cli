@@ -150,7 +150,7 @@ struct FinderCommand: ParsableCommand {
                                                         withIntermediateDirectories: true,
                                                         attributes: nil)
             } catch {
-                throw ValidationError("Could not create folder '\(expanded)': \(error.localizedDescription)")
+                throw CLIFailure.appError("Could not create folder '\(expanded)': \(error.localizedDescription)")
             }
             // Reveal in Finder
             let escaped = jxaEscape(expanded)
@@ -184,7 +184,7 @@ struct FinderCommand: ParsableCommand {
             try Auth.check("finder.write")
             let fromExpanded = (from as NSString).expandingTildeInPath
             guard FileManager.default.fileExists(atPath: fromExpanded) else {
-                throw ValidationError("Source not found: \(fromExpanded)")
+                throw CLIFailure.notFound("Source not found: \(fromExpanded)")
             }
             // If `to` contains a slash and starts with / or ~, treat it as a full path; else it's just a name
             let toExpanded: String
@@ -197,7 +197,7 @@ struct FinderCommand: ParsableCommand {
             do {
                 try FileManager.default.moveItem(atPath: fromExpanded, toPath: toExpanded)
             } catch {
-                throw ValidationError("Could not rename: \(error.localizedDescription)")
+                throw CLIFailure.appError("Could not rename: \(error.localizedDescription)")
             }
             if json {
                 printJSON(["renamed": true, "from": fromExpanded, "to": toExpanded])
@@ -227,7 +227,7 @@ struct FinderCommand: ParsableCommand {
             try Auth.check("finder.write")
             let expanded = (path as NSString).expandingTildeInPath
             guard FileManager.default.fileExists(atPath: expanded) else {
-                throw ValidationError("Path not found: \(expanded)")
+                throw CLIFailure.notFound("Path not found: \(expanded)")
             }
 
             if list || (add == nil && remove == nil) {
@@ -253,14 +253,14 @@ struct FinderCommand: ParsableCommand {
                 if let colorToAdd = add {
                     let code = Process.run(args: [tagCLI, "--add", colorToAdd, expanded])
                     guard code == 0 else {
-                        throw ValidationError("Could not add tag '\(colorToAdd)' (tag exited \(code))")
+                        throw CLIFailure.appError("Could not add tag '\(colorToAdd)' (tag exited \(code))")
                     }
                     if !json { print("Added tag '\(colorToAdd)' to \(expanded)") }
                 }
                 if let colorToRemove = remove {
                     let code = Process.run(args: [tagCLI, "--remove", colorToRemove, expanded])
                     guard code == 0 else {
-                        throw ValidationError("Could not remove tag '\(colorToRemove)' (tag exited \(code))")
+                        throw CLIFailure.appError("Could not remove tag '\(colorToRemove)' (tag exited \(code))")
                     }
                     if !json { print("Removed tag '\(colorToRemove)' from \(expanded)") }
                 }

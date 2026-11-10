@@ -89,16 +89,13 @@ public enum MacCLICore {
     /// plus `ok == false`, makes it structurally impossible to mistake for an empty
     /// successful export.
     public static func fetchTimeoutErrorJSON(timeoutSeconds: Double) -> [String: Any] {
-        return [
-            "ok": false,
-            "status": "error",
-            "error": "fetch_timeout",
-            "entity": "reminder",
-            "timeout_seconds": timeoutSeconds,
-            "message": "Reminders fetch exceeded the \(timeoutSeconds)s timeout; the EventKit "
+        return errorEnvelope(
+            code: "fetch_timeout",
+            message: "Reminders fetch exceeded the \(timeoutSeconds)s timeout; the EventKit "
                 + "callback did not return in time. This is a hard error, not an empty result — "
                 + "do not treat it as zero reminders.",
-        ]
+            hint: "Retry with a longer --timeout.",
+            extra: ["entity": "reminder", "timeout_seconds": timeoutSeconds])
     }
 
     /// Human-readable reason a mutation was withheld. Never contains any token value.
@@ -150,26 +147,18 @@ public enum MacCLICore {
     /// Structured error body for a mis-ordered `--from`/`--to` range. Carries NO events
     /// array, so it can never be mistaken for an empty successful export.
     public static func dateRangeErrorJSON(from: String, to: String) -> [String: Any] {
-        return [
-            "ok": false,
-            "status": "error",
-            "error": "invalid_date_range",
-            "from": from,
-            "to": to,
-            "message": "The --from date is after the --to date; supply a range where from <= to.",
-        ]
+        return errorEnvelope(
+            code: "invalid_date_range",
+            message: "The --from date is after the --to date; supply a range where from <= to.",
+            extra: ["from": from, "to": to])
     }
 
     /// Structured error body for an unparseable date argument.
     public static func dateParseErrorJSON(field: String, value: String) -> [String: Any] {
-        return [
-            "ok": false,
-            "status": "error",
-            "error": "invalid_date",
-            "field": field,
-            "value": value,
-            "message": "Could not parse the --\(field) value; use YYYY-MM-DD or 'YYYY-MM-DD HH:MM'.",
-        ]
+        return errorEnvelope(
+            code: "invalid_date",
+            message: "Could not parse the --\(field) value; use YYYY-MM-DD or 'YYYY-MM-DD HH:MM'.",
+            extra: ["field": field, "value": value])
     }
 
     /// Structured, REDACTED error body for an EventKit authorization/access failure.
@@ -181,14 +170,11 @@ public enum MacCLICore {
     /// carries no `events`/`calendars`/`count`, it can never be mistaken for a
     /// successful (possibly empty) export.
     public static func accessErrorJSON(entity: String) -> [String: Any] {
-        return [
-            "ok": false,
-            "status": "error",
-            "error": "access_denied",
-            "entity": entity,
-            "message": "EventKit access to \(entity) is not authorized for this binary. "
-                + "Grant it in System Settings › Privacy & Security, then retry.",
-        ]
+        return errorEnvelope(
+            code: "access_denied",
+            message: "EventKit access to \(entity) is not authorized for this binary.",
+            hint: "Grant it in System Settings › Privacy & Security, then retry.",
+            extra: ["entity": entity])
     }
 
     // MARK: - Calendar: delete-mode resolution (exactly one of --id | --title+--date)
@@ -226,14 +212,10 @@ public enum MacCLICore {
     /// Structured error body when an `--id`-mode delete finds no such event. Non-zero
     /// exit is the caller's responsibility; this body carries `deleted: false` and the id.
     public static func calendarDeleteNotFoundJSON(id: String) -> [String: Any] {
-        return [
-            "ok": false,
-            "status": "error",
-            "error": "event_not_found",
-            "id": id,
-            "deleted": false,
-            "message": "No calendar event has identifier '\(id)'.",
-        ]
+        return errorEnvelope(
+            code: "event_not_found",
+            message: "No calendar event has identifier '\(id)'.",
+            extra: ["id": id, "deleted": false])
     }
 
     /// Structured success body for an `--id`-mode delete. Deliberately carries NO event
@@ -249,12 +231,7 @@ public enum MacCLICore {
 
     /// Structured error body for an invalid delete-mode combination.
     public static func calendarDeleteModeErrorJSON(reason: String) -> [String: Any] {
-        return [
-            "ok": false,
-            "status": "error",
-            "error": "invalid_delete_mode",
-            "message": reason,
-        ]
+        return errorEnvelope(code: "invalid_delete_mode", message: reason)
     }
 
     // MARK: - Calendar: alarm validation + offset conversion
@@ -293,13 +270,10 @@ public enum MacCLICore {
 
     /// Structured error body for one or more invalid `--alarm` values.
     public static func alarmValidationErrorJSON(invalid: [Int]) -> [String: Any] {
-        return [
-            "ok": false,
-            "status": "error",
-            "error": "invalid_alarm",
-            "invalid": invalid,
-            "message": "Each --alarm value must be a positive integer number of minutes before the event.",
-        ]
+        return errorEnvelope(
+            code: "invalid_alarm",
+            message: "Each --alarm value must be a positive integer number of minutes before the event.",
+            extra: ["invalid": invalid])
     }
 
     // MARK: - Calendar: rich event serialization

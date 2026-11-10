@@ -16,6 +16,7 @@
   <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"></a>
   <a href="#-use-it-with-ai-agents"><img src="https://img.shields.io/badge/agent--ready-JSON-8A2BE2?logo=anthropic&logoColor=white" alt="Agent-ready JSON"></a>
   <img src="https://img.shields.io/badge/runtime_deps-0-brightgreen" alt="Zero runtime deps">
+  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/version-0.8.1-blue" alt="Version 0.8.1"></a>
 </p>
 
 <p align="center">
@@ -55,6 +56,8 @@ Install somewhere else on your `PATH`:
 ```bash
 MACOS_CLI_INSTALL_DIR="$HOME/bin" ./install.sh
 ```
+
+Signed, notarized binaries will be on the [Releases](https://github.com/manuaudio/macos-cli/releases) page; the first one is on its way. Until then, the installer above builds from source.
 
 The installer does **not** grant any macOS privacy permission for you — it prints guidance and leaves you in control (see [Permissions](#permissions)).
 
@@ -118,7 +121,7 @@ Commands that return data take `--json` for clean, parseable output:
 
 ```bash
 macos system battery --json
-# {"level": 87, "charging": false, "plugged_in": true}
+# {"charging": false, "level": 87, "plugged_in": true, "time_remaining_minutes": 13}
 ```
 
 ## 🤖 Use it with AI agents
@@ -238,7 +241,7 @@ Both `macos contacts get <id> --json` and `macos contacts export` now carry a **
 Because the field reads back exactly as written, an agent can do a **verified read-after-write** around `contacts update --job-title`:
 
 ```bash
-macos contacts update --id "$ID" --job-title "Tour Manager"   # write
+macos contacts update "$ID" --job-title "Tour Manager"        # write
 macos contacts get "$ID" --json | jq -r .job_title            # → "Tour Manager"
 ```
 

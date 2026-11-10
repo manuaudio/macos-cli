@@ -5,6 +5,7 @@ One error contract for every command, and `--json` where the README promised it.
 ### Fixed
 - **`--json` on the four exports.** `calendar export`, `contacts export`, `notes export` and `reminders export` always printed JSON but refused the flag with `Unknown option '--json'` (exit 64). They accept it now.
 - **Notes bodies.** `notes export` read some valid bodies as missing: a heuristic rejected text that was mostly digits or punctuation. The decoder now follows the note's own protobuf path (document → note → text), validates every enclosing message and the gzip checksum, and returns the text verbatim. A password-protected note is refused explicitly, and missing data is an error, distinct from an empty body.
+- **README examples.** `contacts update` takes the contact id as an argument, not `--id`; the README now says so, and the `system battery --json` sample shows the real keys.
 - **Unknown calendar.** `calendar events --calendar NAME` (and `delete`, `update`, `create`) with a name that does not exist printed the root usage text; it now says which calendar is missing and exits 3.
 
 ### Changed
@@ -14,6 +15,7 @@ One error contract for every command, and `--json` where the README promised it.
 - **`auth.json` follows `HOME`.** The policy file is `$HOME/.config/macos-cli/auth.json`, so a test or a sandboxed agent can point it at its own file.
 - **`script run --json`** returns `{"output", "stderr"}`.
 - The version string lives in one place, `Sources/macos-cli/Version.swift`; the installer and its tests read it from there.
+- **`make test` checks the README.** `scripts/tests/readme_examples_test.sh` fails when a README example names a command or option the binary lacks, and runs the read-only examples that need no permission.
 
 ### Removed
 - The GitHub Actions workflow and Dependabot configuration. Checks run locally: `make test`.

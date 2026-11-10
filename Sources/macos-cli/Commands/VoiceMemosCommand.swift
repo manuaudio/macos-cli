@@ -125,7 +125,7 @@ struct VoiceMemosCommand: ParsableCommand {
             try Auth.check("voicememos.read")
             let memos = loadMemos()
             guard let memo = memos.first(where: { $0.title.localizedCaseInsensitiveContains(title) }) else {
-                throw ValidationError("No memo matching '\(title)' found.")
+                throw CLIFailure.notFound("No memo matching '\(title)' found.")
             }
             let dest: URL
             if let o = out {

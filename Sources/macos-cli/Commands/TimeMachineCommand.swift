@@ -76,7 +76,7 @@ struct TimeMachineCommand: ParsableCommand {
             try Auth.check("timemachine.write")
             let code = Process.run(args: ["/usr/bin/tmutil", "startbackup"])
             guard code == 0 else {
-                throw ValidationError(
+                throw CLIFailure.appError(
                     "Could not start backup (tmutil exit \(code)). Check that a destination is configured in System Settings → Time Machine."
                 )
             }
@@ -93,7 +93,7 @@ struct TimeMachineCommand: ParsableCommand {
             try Auth.check("timemachine.write")
             let code = Process.run(args: ["/usr/bin/tmutil", "stopbackup"])
             guard code == 0 else {
-                throw ValidationError("Could not stop backup — no backup may be running (tmutil exit \(code)).")
+                throw CLIFailure.appError("Could not stop backup — no backup may be running (tmutil exit \(code)).")
             }
             print("Backup stopped.")
         }

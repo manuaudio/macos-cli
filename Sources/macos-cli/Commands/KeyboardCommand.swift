@@ -40,7 +40,7 @@ struct KeyboardCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Type failed — grant Accessibility permission to Terminal in System Settings → Privacy → Accessibility\n\(errMsg)")
+                throw CLIFailure.appError("Type failed — grant Accessibility permission to Terminal in System Settings → Privacy → Accessibility\n\(errMsg)")
             }
             print("Typed: \(text.prefix(50))\(text.count > 50 ? "..." : "")")
         }
@@ -103,7 +103,7 @@ struct KeyboardCommand: ParsableCommand {
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw ValidationError("Key failed — grant Accessibility permission to Terminal in System Settings\n\(errMsg)")
+                throw CLIFailure.appError("Key failed — grant Accessibility permission to Terminal in System Settings\n\(errMsg)")
             }
             print("Key: \(combo)")
         }

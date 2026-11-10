@@ -39,7 +39,7 @@ struct LocationCommand: ParsableCommand {
                     print(String(format: "%.6f, %.6f (±%.0fm)", loc.coordinate.latitude, loc.coordinate.longitude, loc.horizontalAccuracy))
                 }
             case .failure(let err):
-                throw ValidationError(err)
+                throw CLIFailure.appError(err)
             }
         }
     }

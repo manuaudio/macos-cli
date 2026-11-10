@@ -64,7 +64,7 @@ struct DockCommand: ParsableCommand {
             try Auth.check("dock.write")
             let expanded = (path as NSString).expandingTildeInPath
             guard FileManager.default.fileExists(atPath: expanded) else {
-                throw ValidationError("App not found: \(path)")
+                throw CLIFailure.notFound("App not found: \(path)")
             }
             let name = URL(fileURLWithPath: expanded).deletingPathExtension().lastPathComponent
 
@@ -81,7 +81,7 @@ struct DockCommand: ParsableCommand {
             let plistPath = NSHomeDirectory() + "/Library/Preferences/com.apple.dock.plist"
             guard let plistData = try? Data(contentsOf: URL(fileURLWithPath: plistPath)),
                   var plist = try? PropertyListSerialization.propertyList(from: plistData, options: [.mutableContainersAndLeaves], format: nil) as? [String: Any] else {
-                throw ValidationError("Could not read Dock preferences plist at \(plistPath)")
+                throw CLIFailure.appError("Could not read Dock preferences plist at \(plistPath)")
             }
 
             var apps = plist["persistent-apps"] as? [[String: Any]] ?? []
@@ -92,12 +92,12 @@ struct DockCommand: ParsableCommand {
             do {
                 outData = try PropertyListSerialization.data(fromPropertyList: plist, format: .binary, options: 0)
             } catch {
-                throw ValidationError("Could not serialize Dock plist: \(error.localizedDescription)")
+                throw CLIFailure.appError("Could not serialize Dock plist: \(error.localizedDescription)")
             }
             do {
                 try outData.write(to: URL(fileURLWithPath: plistPath), options: .atomic)
             } catch {
-                throw ValidationError("Could not write Dock plist: \(error.localizedDescription)")
+                throw CLIFailure.appError("Could not write Dock plist: \(error.localizedDescription)")
             }
 
             _ = Process.run(args: ["/usr/bin/killall", "Dock"])
@@ -120,7 +120,7 @@ struct DockCommand: ParsableCommand {
             let plistPath = NSHomeDirectory() + "/Library/Preferences/com.apple.dock.plist"
             guard let plistData = try? Data(contentsOf: URL(fileURLWithPath: plistPath)),
                   var plist = try? PropertyListSerialization.propertyList(from: plistData, options: [.mutableContainersAndLeaves], format: nil) as? [String: Any] else {
-                throw ValidationError("Could not read Dock preferences plist at \(plistPath)")
+                throw CLIFailure.appError("Could not read Dock preferences plist at \(plistPath)")
             }
             var apps = plist["persistent-apps"] as? [[String: Any]] ?? []
 
@@ -141,7 +141,7 @@ struct DockCommand: ParsableCommand {
                 return entryName.lowercased() == lowerName
             }
             guard apps.count < beforeCount else {
-                throw ValidationError("App not found in Dock: \(name). Use 'dock list' to see pinned apps.")
+                throw CLIFailure.notFound("App not found in Dock: \(name). Use 'dock list' to see pinned apps.")
             }
             plist["persistent-apps"] = apps
 
@@ -149,12 +149,12 @@ struct DockCommand: ParsableCommand {
             do {
                 outData = try PropertyListSerialization.data(fromPropertyList: plist, format: .binary, options: 0)
             } catch {
-                throw ValidationError("Could not serialize Dock plist: \(error.localizedDescription)")
+                throw CLIFailure.appError("Could not serialize Dock plist: \(error.localizedDescription)")
             }
             do {
                 try outData.write(to: URL(fileURLWithPath: plistPath), options: .atomic)
             } catch {
-                throw ValidationError("Could not write Dock plist: \(error.localizedDescription)")
+                throw CLIFailure.appError("Could not write Dock plist: \(error.localizedDescription)")
             }
             _ = Process.run(args: ["/usr/bin/killall", "Dock"])
             if json {

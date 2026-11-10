@@ -39,7 +39,8 @@ INSTALL_SH="$REPO_ROOT/install.sh"
 SIGNING_DOC="$REPO_ROOT/docs/SIGNING.md"
 
 BUNDLE_ID="com.manuaudio.macos-cli"
-EXPECTED_VERSION="0.8.1"
+# The version lives in Sources/macos-cli/Version.swift; everything else must agree with it.
+EXPECTED_VERSION="$(sed -nE 's/^let macosCLIVersion = "([^"]+)"$/\1/p' "$REPO_ROOT/Sources/macos-cli/Version.swift")"
 APPLE_EVENTS_ENT="com.apple.security.automation.apple-events"
 
 # Every usage-description key the embedded plist must carry, one per TCC surface
@@ -193,9 +194,8 @@ if [ -f "$PLIST" ]; then
     assert_eq "plist CFBundleShortVersionString" "$(plutil -extract CFBundleShortVersionString raw -o - "$PLIST" 2>/dev/null)" "$EXPECTED_VERSION"
     assert_eq "plist CFBundleVersion" "$(plutil -extract CFBundleVersion raw -o - "$PLIST" 2>/dev/null)" "$EXPECTED_VERSION"
 
-    # Version must not drift from the CLI's own --version string.
-    swift_version="$(grep -Eo 'version: "[0-9][^"]*"' "$REPO_ROOT/Sources/macos-cli/MacOSCLI.swift" | head -1 | sed -E 's/.*"(.*)"/\1/')"
-    assert_eq "plist version matches MacOSCLI.swift" "$swift_version" "$EXPECTED_VERSION"
+    # --version must come from Version.swift, not a second literal.
+    assert_grep "MacOSCLI.swift takes its version from Version.swift" 'version: macosCLIVersion' "$REPO_ROOT/Sources/macos-cli/MacOSCLI.swift"
 
     # Bounded, human-readable usage descriptions for every TCC surface the CLI uses.
     for key in "${REQUIRED_USAGE_KEYS[@]}"; do

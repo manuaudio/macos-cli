@@ -547,3 +547,42 @@ final class ContactExportSerializationTests: XCTestCase {
         XCTAssertEqual(round["job_title"] as? String, tricky)
     }
 }
+
+final class ErrorContractTests: XCTestCase {
+    func testExitCodesFollowTheTable() {
+        for code in ["usage", "invalid_argument", "invalid_date", "invalid_date_range", "invalid_alarm"] {
+            XCTAssertEqual(MacCLICore.exitCode(forErrorCode: code), 64, code)
+        }
+        for code in ["not_found", "calendar_not_found", "event_not_found"] {
+            XCTAssertEqual(MacCLICore.exitCode(forErrorCode: code), 3, code)
+        }
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "capability_denied"), 4)
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "access_denied"), 4)
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "timeout"), 5)
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "fetch_timeout"), 5)
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "app_error"), 6)
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "something_new"), 6)
+    }
+
+    func testEnvelopeKeepsContractKeysOverExtras() {
+        let env = MacCLICore.errorEnvelope(code: "not_found", message: "gone", hint: "look elsewhere",
+                                           extra: ["ok": true, "error": "spoofed", "id": "x"])
+        XCTAssertEqual(env["ok"] as? Bool, false)
+        XCTAssertEqual(env["status"] as? String, "error")
+        XCTAssertEqual(env["error"] as? String, "not_found")
+        XCTAssertEqual(env["message"] as? String, "gone")
+        XCTAssertEqual(env["hint"] as? String, "look elsewhere")
+        XCTAssertEqual(env["exit_code"] as? Int, 3)
+        XCTAssertEqual(env["id"] as? String, "x")
+        XCTAssertNil(MacCLICore.errorEnvelope(code: "timeout", message: "slow")["hint"])
+    }
+
+    func testMachineErrorsForJSONFlagAndExports() {
+        XCTAssertTrue(MacCLICore.wantsMachineErrors(arguments: ["calendar", "events", "--json"]))
+        XCTAssertTrue(MacCLICore.wantsMachineErrors(arguments: ["notes", "export"]))
+        XCTAssertTrue(MacCLICore.wantsMachineErrors(arguments: ["reminders", "export", "--list", "x"]))
+        XCTAssertFalse(MacCLICore.wantsMachineErrors(arguments: ["calendar", "events"]))
+        XCTAssertFalse(MacCLICore.wantsMachineErrors(arguments: ["file", "read", "export"]))
+        XCTAssertFalse(MacCLICore.wantsMachineErrors(arguments: ["script", "run", "--", "--json"]))
+    }
+}

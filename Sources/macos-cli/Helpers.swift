@@ -258,10 +258,10 @@ func runJXAEnvelope(_ script: String, timeout: TimeInterval = 10, failureMessage
     let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script],
                               timeout: timeout, fallback: "")
     guard let env = parseJXAEnvelope(raw) else {
-        throw ValidationError("\(failureMessage)\nRaw: \(raw.prefix(300))")
+        throw CLIFailure.appError("\(failureMessage)\nRaw: \(raw.prefix(300))")
     }
     if !env.ok {
-        throw ValidationError("\(failureMessage)\n\(env.error)")
+        throw CLIFailure.appError("\(failureMessage)\n\(env.error)")
     }
     return env.resultJSON
 }

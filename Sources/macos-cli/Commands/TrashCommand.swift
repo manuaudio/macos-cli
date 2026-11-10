@@ -18,7 +18,7 @@ struct TrashCommand: ParsableCommand {
             try Auth.check("file.write")
             let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: url.path) else {
-                throw ValidationError("Path not found: \(path)")
+                throw CLIFailure.notFound("Path not found: \(path)")
             }
             var resultURL: NSURL?
             try FileManager.default.trashItem(at: url, resultingItemURL: &resultURL)
@@ -40,7 +40,7 @@ struct TrashCommand: ParsableCommand {
             let script = "tell application \"Finder\" to empty trash"
             let result = Process.capture(args: ["/usr/bin/osascript", "-e", script], timeout: 30)
             if result == nil {
-                throw ValidationError("Empty trash timed out after 30s. Trash may be large.")
+                throw CLIFailure.timeout("Empty trash timed out after 30s. Trash may be large.")
             }
             if json {
                 printJSON(["emptied": true])

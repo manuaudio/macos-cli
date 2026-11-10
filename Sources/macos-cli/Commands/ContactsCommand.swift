@@ -26,6 +26,9 @@ struct ContactsCommand: ParsableCommand {
         @Option(name: .long, help: "Max contacts to export (default: all)")
         var limit: Int?
 
+        @Flag(name: .long, help: "Accepted for consistency; export always prints JSON")
+        var json = false
+
         func run() throws {
             try Auth.check("contacts.read")
             let store = CNContactStore()
@@ -109,7 +112,7 @@ struct ContactsCommand: ParsableCommand {
                                       timeout: 15, fallback: "")
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix("__ERROR__") {
-                throw ValidationError("get-note failed: \(trimmed.prefix(200))")
+                throw CLIFailure.appError("get-note failed: \(trimmed.prefix(200))")
             }
             if json {
                 printJSON(["id": id, "note": trimmed])
@@ -164,7 +167,7 @@ struct ContactsCommand: ParsableCommand {
                                       timeout: 30, fallback: "")
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix("__ERROR__") {
-                throw ValidationError("set-note failed: \(trimmed.prefix(200))")
+                throw CLIFailure.appError("set-note failed: \(trimmed.prefix(200))")
             }
             if json {
                 printJSON(["id": id, "ok": trimmed == "ok"])
@@ -199,7 +202,7 @@ struct ContactsCommand: ParsableCommand {
             }
             sema.wait()
             guard authGranted else {
-                throw ValidationError("Contacts access denied — grant in Privacy & Security")
+                throw CLIFailure.permission("Contacts access denied — grant in Privacy & Security")
             }
 
             let keys: [CNKeyDescriptor] = [
@@ -260,7 +263,7 @@ struct ContactsCommand: ParsableCommand {
             }
             sema.wait()
             guard authGranted else {
-                throw ValidationError("Contacts access denied")
+                throw CLIFailure.permission("Contacts access denied")
             }
 
             let keys: [CNKeyDescriptor] = [
@@ -274,7 +277,7 @@ struct ContactsCommand: ParsableCommand {
             ]
 
             guard let contact = try? store.unifiedContact(withIdentifier: id, keysToFetch: keys) else {
-                throw ValidationError("Contact '\(id)' not found")
+                throw CLIFailure.notFound("Contact '\(id)' not found")
             }
 
             if json {
@@ -385,7 +388,7 @@ struct ContactsCommand: ParsableCommand {
                 // Use `macos contacts set-note` for note field updates
             ]
             guard let contact = try? store.unifiedContact(withIdentifier: id, keysToFetch: allKeys) else {
-                throw ValidationError("Contact '\(id)' not found")
+                throw CLIFailure.notFound("Contact '\(id)' not found")
             }
             let mutable = contact.mutableCopy() as! CNMutableContact
 
@@ -437,7 +440,7 @@ struct ContactsCommand: ParsableCommand {
                 CNContactFamilyNameKey as CNKeyDescriptor,
             ]
             guard let contact = try? store.unifiedContact(withIdentifier: id, keysToFetch: keys) else {
-                throw ValidationError("Contact '\(id)' not found")
+                throw CLIFailure.notFound("Contact '\(id)' not found")
             }
             let mutable = contact.mutableCopy() as! CNMutableContact
             let req = CNSaveRequest()
@@ -460,7 +463,7 @@ private func requestAccess(_ store: CNContactStore) throws {
     var granted = false
     store.requestAccess(for: .contacts) { ok, _ in granted = ok; sema.signal() }
     sema.wait()
-    guard granted else { throw ValidationError("Contacts access denied — grant in Privacy & Security") }
+    guard granted else { throw CLIFailure.permission("Contacts access denied — grant in Privacy & Security") }
 }
 
 private func cnLabel(_ label: String) -> String {

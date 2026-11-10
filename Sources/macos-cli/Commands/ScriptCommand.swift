@@ -27,6 +27,9 @@ struct ScriptCommand: ParsableCommand {
         @Flag(name: .long, help: "Suppress output, only report errors")
         var silent = false
 
+        @Flag(name: .long, help: "Output JSON: {output, stderr}; failures as the error envelope")
+        var json = false
+
         func run() throws {
             try Auth.check("script.run")
 
@@ -52,15 +55,17 @@ struct ScriptCommand: ParsableCommand {
             let stderrTrim = err.trimmingCharacters(in: .whitespacesAndNewlines)
 
             if code == -1 {
-                throw ValidationError("Script timed out after \(timeout)s")
+                throw CLIFailure.timeout("Script timed out after \(timeout)s")
             }
 
             if code != 0 {
                 let detail = stderrTrim.isEmpty ? stdoutTrim : stderrTrim
-                throw ValidationError("Script exited \(code): \(detail)")
+                throw CLIFailure.appError("Script exited \(code): \(detail)")
             }
 
-            if !silent {
+            if json {
+                printJSON(["output": stdoutTrim, "stderr": stderrTrim])
+            } else if !silent {
                 if !stdoutTrim.isEmpty { print(stdoutTrim) }
                 if !stderrTrim.isEmpty { fputs(stderrTrim + "\n", stderr) }
             }

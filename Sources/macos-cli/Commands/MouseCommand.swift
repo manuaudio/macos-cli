@@ -19,7 +19,7 @@ struct MouseCommand: ParsableCommand {
     static func checkAccessibility() throws {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         if !AXIsProcessTrustedWithOptions(options) {
-            throw ValidationError("Accessibility permission required. Grant it in System Settings → Privacy & Security → Accessibility → Terminal")
+            throw CLIFailure.permission("Accessibility permission required. Grant it in System Settings → Privacy & Security → Accessibility → Terminal")
         }
     }
 
@@ -41,7 +41,7 @@ struct MouseCommand: ParsableCommand {
             let point = CGPoint(x: x, y: y)
             guard let ev = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
                                    mouseCursorPosition: point, mouseButton: .left) else {
-                throw ValidationError("Could not create mouse event")
+                throw CLIFailure.appError("Could not create mouse event")
             }
             MouseCommand.post(ev)
             print("Moved to (\(x), \(y))")
@@ -70,7 +70,7 @@ struct MouseCommand: ParsableCommand {
                                          mouseCursorPosition: point, mouseButton: button),
                       let up   = CGEvent(mouseEventSource: nil, mouseType: upType,
                                          mouseCursorPosition: point, mouseButton: button) else {
-                    throw ValidationError("Could not create click event")
+                    throw CLIFailure.appError("Could not create click event")
                 }
                 MouseCommand.post(down)
                 MouseCommand.post(up)
@@ -111,7 +111,7 @@ struct MouseCommand: ParsableCommand {
                                        mouseCursorPosition: end,   mouseButton: .left),
                   let up    = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
                                        mouseCursorPosition: end,   mouseButton: .left) else {
-                throw ValidationError("Could not create drag events")
+                throw CLIFailure.appError("Could not create drag events")
             }
             MouseCommand.post(down)
             usleep(50_000)
@@ -141,7 +141,7 @@ struct MouseCommand: ParsableCommand {
             }
             guard let scroll = CGEvent(scrollWheelEvent2Source: nil, units: .line,
                                         wheelCount: 1, wheel1: Int32(amount), wheel2: 0, wheel3: 0) else {
-                throw ValidationError("Could not create scroll event")
+                throw CLIFailure.appError("Could not create scroll event")
             }
             MouseCommand.post(scroll)
             print("Scrolled \(amount > 0 ? "up" : "down") \(abs(amount)) at (\(x), \(y))")

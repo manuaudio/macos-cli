@@ -43,7 +43,7 @@ struct SpacesCommand: ParsableCommand {
     private static func loadSpaces() throws -> (spaces: [UInt64], active: UInt64) {
         let conn = CGSMainConnectionID()
         guard let displays = CGSCopyManagedDisplaySpaces(conn) as? [[String: Any]] else {
-            throw ValidationError(
+            throw CLIFailure.appError(
                 "Could not read spaces. This uses private macOS APIs — if running on macOS 15+, please file a bug."
             )
         }
@@ -106,7 +106,7 @@ struct SpacesCommand: ParsableCommand {
             let conn = CGSMainConnectionID()
 
             guard let changeSpaces = resolvedCGSChangeSpaces() else {
-                throw ValidationError(
+                throw CLIFailure.appError(
                     "CGSChangeSpaces symbol not found via dlsym. This is a private CoreGraphics API; " +
                     "Apple may have removed or renamed it on your macOS build. " +
                     "Workaround: use Mission Control gesture/keyboard shortcut to switch spaces manually."
@@ -114,7 +114,7 @@ struct SpacesCommand: ParsableCommand {
             }
             let result = changeSpaces(conn, [targetID] as CFArray, 0)
             if result != 0 {
-                throw ValidationError("Could not switch to space \(index) (CGSChangeSpaces returned \(result)).")
+                throw CLIFailure.appError("Could not switch to space \(index) (CGSChangeSpaces returned \(result)).")
             }
             print("Switched to space \(index)")
         }

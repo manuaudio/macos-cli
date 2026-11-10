@@ -25,7 +25,7 @@ struct ScreenshotCommand: ParsableCommand {
             args.append(output)
             let code = Process.run(args: args)
             guard code == 0 else {
-                throw ValidationError("screencapture failed (exit \(code))")
+                throw CLIFailure.appError("screencapture failed (exit \(code))")
             }
             print("Screenshot saved to \(output)")
         }
@@ -86,7 +86,7 @@ except Exception as e:
             args.append(output)
             let code = Process.run(args: args)
             guard code == 0 else {
-                throw ValidationError("screencapture failed (exit \(code)). May need Screen Recording permission.")
+                throw CLIFailure.appError("screencapture failed (exit \(code)). May need Screen Recording permission.")
             }
             print("Screenshot saved to \(output)")
         }
@@ -110,7 +110,7 @@ except Exception as e:
             let args = ["/usr/sbin/screencapture", "-x", "-R", "\(x),\(y),\(width),\(height)", output]
             let code = Process.run(args: args)
             guard code == 0 else {
-                throw ValidationError("screencapture failed (exit \(code))")
+                throw CLIFailure.appError("screencapture failed (exit \(code))")
             }
             print("Region (\(x),\(y)) \(width)×\(height) saved to \(output)")
         }

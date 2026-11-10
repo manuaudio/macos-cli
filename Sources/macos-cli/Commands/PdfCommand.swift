@@ -27,7 +27,7 @@ struct PdfCommand: ParsableCommand {
             let expanded = (path as NSString).expandingTildeInPath
             let url = URL(fileURLWithPath: expanded)
             guard let doc = PDFDocument(url: url) else {
-                throw ValidationError("Could not open PDF at: \(path)")
+                throw CLIFailure.appError("Could not open PDF at: \(path)")
             }
 
             let pageCount = doc.pageCount
@@ -72,7 +72,7 @@ struct PdfCommand: ParsableCommand {
             let expanded = (path as NSString).expandingTildeInPath
             let url = URL(fileURLWithPath: expanded)
             guard let doc = PDFDocument(url: url) else {
-                throw ValidationError("Could not open PDF at: \(path)")
+                throw CLIFailure.appError("Could not open PDF at: \(path)")
             }
 
             var out: [String: Any] = [

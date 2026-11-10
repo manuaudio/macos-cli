@@ -25,11 +25,11 @@ struct KeychainCommand: ParsableCommand {
             if let a = account { args += ["-a", a] }
             args.append("-w")
             guard let output = Process.capture(args: args, timeout: 5) else {
-                throw ValidationError("Keychain query timed out for service '\(service)'")
+                throw CLIFailure.timeout("Keychain query timed out for service '\(service)'")
             }
             let password = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if password.isEmpty {
-                throw ValidationError("Item not found in Keychain for service '\(service)'")
+                throw CLIFailure.notFound("Item not found in Keychain for service '\(service)'")
             }
             if json {
                 printJSON([
@@ -60,7 +60,7 @@ struct KeychainCommand: ParsableCommand {
             if update { args.append("-U") }
             let code = Process.run(args: args)
             guard code == 0 else {
-                throw ValidationError("Keychain write failed (exit \(code)) — item may already exist; try --update")
+                throw CLIFailure.appError("Keychain write failed (exit \(code)) — item may already exist; try --update")
             }
             if json {
                 printJSON(["saved": true, "service": service, "account": account] as [String: Any])
@@ -85,7 +85,7 @@ struct KeychainCommand: ParsableCommand {
             if let a = account { args += ["-a", a] }
             let code = Process.run(args: args)
             guard code == 0 else {
-                throw ValidationError("Keychain delete failed (exit \(code)) — item may not exist")
+                throw CLIFailure.appError("Keychain delete failed (exit \(code)) — item may not exist")
             }
             if json {
                 printJSON(["deleted": true, "service": service, "account": account ?? ""] as [String: Any])

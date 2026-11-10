@@ -50,13 +50,13 @@ struct MessagesCommand: ParsableCommand {
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("Could not send — check Automation permission for Messages\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not send — check Automation permission for Messages\n\(raw.prefix(200))")
             }
             if !env.ok {
                 if env.error == "not-found" {
-                    throw ValidationError("Recipient '\(to)' not found in Messages contacts")
+                    throw CLIFailure.notFound("Recipient '\(to)' not found in Messages contacts")
                 }
-                throw ValidationError("Could not send — check Automation permission for Messages\n\(env.error)")
+                throw CLIFailure.appError("Could not send — check Automation permission for Messages\n\(env.error)")
             }
             if json {
                 printJSON(["sent": true, "to": to])
@@ -118,17 +118,17 @@ struct MessagesCommand: ParsableCommand {
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("Could not read Messages — check Automation permission\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not read Messages — check Automation permission\n\(raw.prefix(200))")
             }
             if !env.ok {
-                throw ValidationError("Could not read Messages — check Automation permission\n\(env.error)")
+                throw CLIFailure.appError("Could not read Messages — check Automation permission\n\(env.error)")
             }
             guard let data = env.resultJSON.data(using: .utf8),
                   let msgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not read Messages — check Automation permission\n\(env.resultJSON.prefix(200))")
+                throw CLIFailure.appError("Could not read Messages — check Automation permission\n\(env.resultJSON.prefix(200))")
             }
             if msgs.isEmpty {
-                throw ValidationError("No conversation found matching '\(with)'")
+                throw CLIFailure.notFound("No conversation found matching '\(with)'")
             }
             if json {
                 printJSON(msgs)
@@ -186,13 +186,13 @@ struct MessagesCommand: ParsableCommand {
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("Could not delete conversation\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not delete conversation\n\(raw.prefix(200))")
             }
             if !env.ok {
                 if env.error == "not-found" {
-                    throw ValidationError("No conversation found matching '\(with)'")
+                    throw CLIFailure.notFound("No conversation found matching '\(with)'")
                 }
-                throw ValidationError("Could not delete conversation\n\(env.error)")
+                throw CLIFailure.appError("Could not delete conversation\n\(env.error)")
             }
             if json {
                 printJSON(["deleted": true])
@@ -233,14 +233,14 @@ struct MessagesCommand: ParsableCommand {
             """
             let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
             guard let env = parseJXAEnvelope(raw) else {
-                throw ValidationError("Could not read Messages — check Automation permission\n\(raw.prefix(200))")
+                throw CLIFailure.appError("Could not read Messages — check Automation permission\n\(raw.prefix(200))")
             }
             if !env.ok {
-                throw ValidationError("Could not read Messages — check Automation permission\n\(env.error)")
+                throw CLIFailure.appError("Could not read Messages — check Automation permission\n\(env.error)")
             }
             guard let data = env.resultJSON.data(using: .utf8),
                   let chats = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw ValidationError("Could not read Messages — check Automation permission\n\(env.resultJSON.prefix(200))")
+                throw CLIFailure.appError("Could not read Messages — check Automation permission\n\(env.resultJSON.prefix(200))")
             }
             if json {
                 printJSON(chats)

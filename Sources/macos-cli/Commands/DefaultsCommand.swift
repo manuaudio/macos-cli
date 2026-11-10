@@ -24,11 +24,11 @@ struct DefaultsCommand: ParsableCommand {
             var args = ["/usr/bin/defaults", "read", domain]
             if let k = key { args.append(k) }
             guard let output = Process.capture(args: args, timeout: 5) else {
-                throw ValidationError("defaults read timed out for domain '\(domain)'")
+                throw CLIFailure.timeout("defaults read timed out for domain '\(domain)'")
             }
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.contains("does not exist") {
-                throw ValidationError("Domain '\(domain)' not found or key '\(key ?? "")' does not exist")
+                throw CLIFailure.notFound("Domain '\(domain)' not found or key '\(key ?? "")' does not exist")
             }
             if json {
                 printJSON([
@@ -62,7 +62,7 @@ struct DefaultsCommand: ParsableCommand {
             let args = ["/usr/bin/defaults", "write", domain, key, "-\(type)", value]
             let code = Process.run(args: args)
             guard code == 0 else {
-                throw ValidationError("defaults write failed (exit \(code))")
+                throw CLIFailure.appError("defaults write failed (exit \(code))")
             }
             if json {
                 printJSON(["written": true, "domain": domain, "key": key, "value": value, "type": type] as [String: Any])
@@ -86,7 +86,7 @@ struct DefaultsCommand: ParsableCommand {
             let args = ["/usr/bin/defaults", "delete", domain, key]
             let code = Process.run(args: args)
             guard code == 0 else {
-                throw ValidationError("defaults delete failed (exit \(code)) — key may not exist")
+                throw CLIFailure.appError("defaults delete failed (exit \(code)) — key may not exist")
             }
             if json {
                 printJSON(["deleted": true, "domain": domain, "key": key] as [String: Any])

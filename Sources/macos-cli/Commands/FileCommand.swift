@@ -67,7 +67,7 @@ struct FileCommand: ParsableCommand {
             let srcURL = URL(fileURLWithPath: (src as NSString).expandingTildeInPath)
             let dstURL = URL(fileURLWithPath: (dst as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: srcURL.path) else {
-                throw ValidationError("Source not found: \(src)")
+                throw CLIFailure.notFound("Source not found: \(src)")
             }
             var isDir: ObjCBool = false
             let finalDst: URL
@@ -96,7 +96,7 @@ struct FileCommand: ParsableCommand {
             let srcURL = URL(fileURLWithPath: (src as NSString).expandingTildeInPath)
             let dstURL = URL(fileURLWithPath: (dst as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: srcURL.path) else {
-                throw ValidationError("Source not found: \(src)")
+                throw CLIFailure.notFound("Source not found: \(src)")
             }
             var isDir: ObjCBool = false
             let finalDst: URL
@@ -123,7 +123,7 @@ struct FileCommand: ParsableCommand {
             try Auth.check("file.delete")
             let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: url.path) else {
-                throw ValidationError("Path not found: \(path)")
+                throw CLIFailure.notFound("Path not found: \(path)")
             }
             try FileManager.default.removeItem(at: url)
             if json {
@@ -144,7 +144,7 @@ struct FileCommand: ParsableCommand {
             let expanded = (path as NSString).expandingTildeInPath
             let url = URL(fileURLWithPath: expanded)
             guard FileManager.default.fileExists(atPath: expanded) else {
-                throw ValidationError("Path not found: \(path)")
+                throw CLIFailure.notFound("Path not found: \(path)")
             }
             let attrs = try FileManager.default.attributesOfItem(atPath: expanded)
             let isDir = (attrs[.type] as? FileAttributeType) == .typeDirectory
@@ -191,7 +191,7 @@ struct FileCommand: ParsableCommand {
             try Auth.check("file.read")
             let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
             guard FileManager.default.fileExists(atPath: url.path) else {
-                throw ValidationError("File not found: \(path)")
+                throw CLIFailure.notFound("File not found: \(path)")
             }
             let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
             let fileSize = (attrs[.size] as? Int) ?? 0

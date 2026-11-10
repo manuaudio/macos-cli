@@ -233,8 +233,8 @@ struct MusicCommand: ParsableCommand {
                 fputs("Error: Unexpected response\n", stderr); throw ExitCode.failure
             }
             if let err = obj["error"] as? String {
-                if err == "no-track" { throw ValidationError("No track found matching '\(track)'") }
-                else { throw ValidationError("No playlist found matching '\(playlist)'") }
+                if err == "no-track" { throw CLIFailure.notFound("No track found matching '\(track)'") }
+                else { throw CLIFailure.notFound("No playlist found matching '\(playlist)'") }
             }
             if json {
                 print(raw)

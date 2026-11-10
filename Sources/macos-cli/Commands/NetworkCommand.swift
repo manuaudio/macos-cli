@@ -82,7 +82,7 @@ struct NetworkCommand: ParsableCommand {
                     }
                     .joined(separator: "\n")
             } else {
-                throw ValidationError("Neither /usr/bin/dig nor /usr/bin/host found")
+                throw CLIFailure.appError("Neither /usr/bin/dig nor /usr/bin/host found")
             }
             let addresses = output.components(separatedBy: "\n")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

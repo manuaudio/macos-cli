@@ -491,6 +491,31 @@ do {
     eq(round["job_title"] as? String, tricky, "export job_title survives JSON round-trip verbatim")
 }
 
+// MARK: - Error contract: exit codes, envelope, when failures are JSON
+do {
+    for code in ["usage", "invalid_argument", "invalid_date", "invalid_date_range", "invalid_alarm"] {
+        eq(MacCLICore.exitCode(forErrorCode: code), 64, "exit code \(code)")
+    }
+    for code in ["not_found", "calendar_not_found", "event_not_found"] {
+        eq(MacCLICore.exitCode(forErrorCode: code), 3, "exit code \(code)")
+    }
+    eq(MacCLICore.exitCode(forErrorCode: "capability_denied"), 4, "exit code capability_denied")
+    eq(MacCLICore.exitCode(forErrorCode: "access_denied"), 4, "exit code access_denied")
+    eq(MacCLICore.exitCode(forErrorCode: "timeout"), 5, "exit code timeout")
+    eq(MacCLICore.exitCode(forErrorCode: "fetch_timeout"), 5, "exit code fetch_timeout")
+    eq(MacCLICore.exitCode(forErrorCode: "app_error"), 6, "exit code app_error")
+    let env = MacCLICore.errorEnvelope(code: "not_found", message: "gone", hint: "look",
+                                       extra: ["ok": true, "error": "spoofed", "id": "x"])
+    check(env["ok"] as? Bool == false, "envelope ok=false wins over extra")
+    eq(env["error"] as? String, "not_found", "envelope code wins over extra")
+    eq(env["exit_code"] as? Int, 3, "envelope exit_code")
+    eq(env["id"] as? String, "x", "envelope keeps context keys")
+    check(MacCLICore.wantsMachineErrors(arguments: ["calendar", "events", "--json"]), "--json wants JSON errors")
+    check(MacCLICore.wantsMachineErrors(arguments: ["notes", "export"]), "exports always want JSON errors")
+    check(!MacCLICore.wantsMachineErrors(arguments: ["calendar", "events"]), "plain command wants text errors")
+    check(!MacCLICore.wantsMachineErrors(arguments: ["script", "run", "--", "--json"]), "--json after -- is an operand")
+}
+
 // MARK: - Summary
 if failures == 0 {
     print("ok — \(checks) checks passed")

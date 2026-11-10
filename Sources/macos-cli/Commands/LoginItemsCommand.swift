@@ -23,7 +23,7 @@ struct LoginItemsCommand: ParsableCommand {
             end tell
             """
             guard let output = Process.capture(args: ["/usr/bin/osascript", "-e", script], timeout: 10) else {
-                throw ValidationError("Login items query timed out — Automation permission for System Events may be missing.")
+                throw CLIFailure.timeout("Login items query timed out — Automation permission for System Events may be missing.")
             }
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
             let items: [[String: Any]] = trimmed.isEmpty ? [] : trimmed
@@ -61,7 +61,7 @@ struct LoginItemsCommand: ParsableCommand {
             try Auth.check("login-items.write")
             let expanded = (path as NSString).expandingTildeInPath
             guard FileManager.default.fileExists(atPath: expanded) else {
-                throw ValidationError("Path not found: \(path)")
+                throw CLIFailure.notFound("Path not found: \(path)")
             }
             let hiddenStr = hidden ? "true" : "false"
             let script = """
@@ -70,7 +70,7 @@ struct LoginItemsCommand: ParsableCommand {
             end tell
             """
             guard Process.capture(args: ["/usr/bin/osascript", "-e", script], timeout: 10) != nil else {
-                throw ValidationError("Add login item timed out.")
+                throw CLIFailure.timeout("Add login item timed out.")
             }
             let name = URL(fileURLWithPath: expanded).deletingPathExtension().lastPathComponent
             if json {
@@ -95,7 +95,7 @@ struct LoginItemsCommand: ParsableCommand {
             """
             let exitCode = Process.run(args: ["/usr/bin/osascript", "-e", script])
             if exitCode != 0 {
-                throw ValidationError("Login item not found: \(name)")
+                throw CLIFailure.notFound("Login item not found: \(name)")
             }
             if json {
                 printJSON(["removed": true, "name": name] as [String: Any])

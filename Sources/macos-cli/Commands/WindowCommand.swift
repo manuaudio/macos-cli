@@ -173,7 +173,7 @@ struct WindowCommand: ParsableCommand {
         func run() throws {
             try Auth.check("window.write")
             guard let screen = NSScreen.main else {
-                throw ValidationError("Could not determine main screen.")
+                throw CLIFailure.appError("Could not determine main screen.")
             }
             let vf = screen.visibleFrame
             let sf = screen.frame
@@ -203,7 +203,7 @@ struct WindowCommand: ParsableCommand {
             var windowsRef: CFTypeRef?
             let err = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef)
             guard err == .success, let windows = windowsRef as? [AXUIElement], !windows.isEmpty else {
-                throw ValidationError("Could not access \(app) windows — check Accessibility permission")
+                throw CLIFailure.appError("Could not access \(app) windows — check Accessibility permission")
             }
             let targetWindow: AXUIElement
             if let t = title {
@@ -212,7 +212,7 @@ struct WindowCommand: ParsableCommand {
                     AXUIElementCopyAttributeValue(win, kAXTitleAttribute as CFString, &titleRef)
                     return (titleRef as? String ?? "").localizedCaseInsensitiveContains(t)
                 }
-                guard let m = match else { throw ValidationError("No window with title '\(t)' in \(app)") }
+                guard let m = match else { throw CLIFailure.notFound("No window with title '\(t)' in \(app)") }
                 targetWindow = m
             } else {
                 targetWindow = windows[0]
@@ -237,7 +237,7 @@ struct WindowCommand: ParsableCommand {
                 y: primaryHeight - winOrigin.y - winSize.height / 2
             )
             let screen = NSScreen.screens.first(where: { $0.frame.contains(winCenterAK) }) ?? NSScreen.main
-            guard let screen = screen else { throw ValidationError("Could not determine a target screen.") }
+            guard let screen = screen else { throw CLIFailure.appError("Could not determine a target screen.") }
             let vf = screen.visibleFrame
             let sf = screen.frame
             let W = vf.width, H = vf.height

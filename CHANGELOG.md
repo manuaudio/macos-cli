@@ -1,5 +1,8 @@
 ## Unreleased
 
+### Added
+- **`macos commands --json`.** Every command with its flags, one line of help and whether it writes; `SKILL.md` is generated from it (`bash scripts/gen-skill.sh`).
+
 ## 0.9.0 — 2026-11-10
 
 An agent can find out what it may do, and cannot widen it; calendars by id; faster Mail, Contacts and Reminders.
@@ -28,17 +31,15 @@ An agent can find out what it may do, and cannot widen it; calendars by id; fast
 ### Fixed
 - **Notes without Full Disk Access** reported `count: 0`; Notes reads now fail with `access_denied`, `area: full_disk_access`.
 
----
+### One error contract for every command, and `--json` where the README promised it
 
-One error contract for every command, and `--json` where the README promised it.
-
-### Fixed
+#### Fixed
 - **`--json` on the four exports.** `calendar export`, `contacts export`, `notes export` and `reminders export` always printed JSON but refused the flag with `Unknown option '--json'` (exit 64). They accept it now.
 - **Notes bodies.** `notes export` read some valid bodies as missing: a heuristic rejected text that was mostly digits or punctuation. The decoder now follows the note's own protobuf path (document → note → text), validates every enclosing message and the gzip checksum, and returns the text verbatim. A password-protected note is refused explicitly, and missing data is an error, distinct from an empty body.
 - **README examples.** `contacts update` takes the contact id as an argument, not `--id`; the README now says so, and the `system battery --json` sample shows the real keys.
 - **Unknown calendar.** `calendar events --calendar NAME` (and `delete`, `update`, `create`) with a name that does not exist printed the root usage text; it now says which calendar is missing and exits 3.
 
-### Changed
+#### Changed
 - **Errors.** Under `--json`, and always for the exports, a failure is one JSON object on stdout with stderr empty: `ok: false`, `status: "error"`, a stable code in `error`, a `message`, often a `hint`, and the `exit_code`. Without `--json` a failure is one `Error:` line and a `Hint:` line on stderr, without the usage text.
 - **Exit codes.** 64 usage (including a rejected value such as a bad date), 3 not found, 4 permission, 5 timeout, 6 app error. The JSON errors that 0.8 emitted with exit 1 keep their codes and keys and exit with the status from this table: `invalid_date`, `invalid_date_range`, `invalid_alarm` and `invalid_delete_mode` exit 64, `event_not_found` 3, `access_denied` 4, `fetch_timeout` 5.
 - **Permission failures are told apart.** A capability turned off in `auth.json` is `capability_denied`; macOS privacy settings refusing access is `access_denied`; a permission request nobody answered is `timeout`. 0.8 reported all three as `access_denied`.
@@ -47,7 +48,7 @@ One error contract for every command, and `--json` where the README promised it.
 - The version string lives in one place, `Sources/macos-cli/Version.swift`; the installer and its tests read it from there.
 - **`make test` checks the README.** `scripts/tests/readme_examples_test.sh` fails when a README example names a command or option the binary lacks, and runs the read-only examples that need no permission.
 
-### Removed
+#### Removed
 - The GitHub Actions workflow and Dependabot configuration. Checks run locally: `make test`.
 
 ---

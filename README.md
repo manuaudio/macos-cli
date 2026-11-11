@@ -1,47 +1,86 @@
-<h1 align="center">🖥️ macOS CLI</h1>
+# macos-cli
 
-<p align="center">
-  <b>Drive your entire Mac from the command line — and hand that same power to your AI agent.</b>
-</p>
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-<p align="center">
-  Calendar · Contacts · Mail · Messages · Notes · Reminders · Photos · Music · Safari ·
-  screenshots · OCR · windows · mouse &amp; keyboard · the Accessibility tree · and 40+ more.<br>
-  One native Swift binary. Every command that returns data speaks <code>--json</code>.
-</p>
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <a href="#install"><img src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple&logoColor=white" alt="macOS 13+"></a>
-  <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"></a>
-  <a href="#-use-it-with-ai-agents"><img src="https://img.shields.io/badge/agent--ready-JSON-8A2BE2?logo=anthropic&logoColor=white" alt="Agent-ready JSON"></a>
-  <img src="https://img.shields.io/badge/runtime_deps-0-brightgreen" alt="Zero runtime deps">
-  <a href="https://github.com/manuaudio/macos-cli/releases"><img src="https://img.shields.io/badge/version-0.8.1-blue" alt="Version 0.8.1"></a>
-</p>
-
-<p align="center">
-  Zero runtime deps · no Python, no Node · just a ~7&nbsp;MB binary
-</p>
-
----
+`macos` is one signed binary that gives a script or an AI agent your Mac's calendar, contacts, mail, messages, notes, reminders, windows and screen, with JSON out and plain exit codes.
 
 ```bash
-macos calendar events --json          # what's on today
-macos mail search "invoice" --json    # find that email
-macos ocr full                        # read everything on screen as text
-macos ax click "Sign In"              # click a button by its name — no coordinates
+brew install manuaudio/tap/macos-cli
 ```
 
-## Why you'll want this
+or, without Homebrew:
 
-macOS hides its best features behind GUI apps and brittle AppleScript. **macOS CLI turns all of it into clean, scriptable commands that print JSON** — so you can wire your Mac into shell scripts, automations, and especially LLM agents.
+```bash
+curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
+```
 
-- 🤖 **Built for AI agents.** Point Claude, Ollama, or any tool-calling model at it and your assistant can read your calendar, triage your inbox, move windows, and click buttons *by name*.
-- 🪶 **One tiny binary.** Native Swift, ~7 MB, zero runtime dependencies. No interpreter, no `node_modules`, no glue code.
-- 🧩 **40+ capabilities, one grammar.** Every command follows `macos <area> <action>`; every command that returns data takes `--json`, and under `--json` every failure is JSON too.
-- 🔒 **Local & private.** It talks to your Mac's own frameworks. Nothing leaves your machine.
+![An agent runs three macos commands: doctor, a calendar read that fails with a JSON error, and a contact search](docs/demo.svg)
 
-## Install
+The recording is real: an agent's three calls on a Mac, under a fresh home folder, with a test contact the script creates and deletes ([scripts/demo/record.sh](scripts/demo/record.sh)):
+
+```bash
+macos doctor --for-agent | jq '{ready, missing: .missing[:3]}'
+macos calendar events --json --calendar "Demo Gigs"
+macos contacts search "Quillfeather" --json
+```
+
+## For agents
+
+Add the skill to Claude Code, Codex, Cursor and the other agents [skills.sh](https://skills.sh) knows:
+
+```bash
+npx skills add manuaudio/macos-cli
+```
+
+The agent starts with `macos doctor --for-agent`: every macOS permission, its state and how a person grants it, without showing a single prompt. Then it calls `macos <area> <action> --json` and reads one JSON value from stdout. A failure is JSON too, with stderr empty:
+
+```jsonc
+// macos calendar events --json --calendar "Demo Gigs"
+{ "ok": false, "status": "error", "error": "calendar_not_found",
+  "message": "No calendar is named 'Demo Gigs'.",
+  "hint": "Run `macos calendar calendars` to see the names.",
+  "calendar": "Demo Gigs", "exit_code": 3 }
+```
+
+The exit code says what kind of failure it was: 64 a bad command line, 3 not found, 4 not allowed, 5 timed out, 6 the app failed ([the full table](#errors-and-exit-codes)). Sending mail and messages, deleting, clicking, typing and the keychain start turned off; only a person at a terminal can turn one on, in a policy file the agent cannot change ([the policy file](#the-policy-file-only-a-person-widens-it)).
+
+## What it can do
+
+| Area | Examples |
+|---|---|
+| **Calendar** | list, rich JSON export, create (custom alarms), update, delete (by id or title) across all linked calendars |
+| **Reminders** | create, complete, list by list, due dates |
+| **Contacts** | search, read, create, update, by name, email or phone |
+| **Messages** | send iMessage/SMS, read threads, search |
+| **Mail** | search, read, draft, send, reply, manage mailboxes |
+| **Notes** | read, create, search Apple Notes |
+| **Music** | now playing, play/pause, skip, library queries |
+| **Safari** | read the current tab, list tabs, open URLs |
+| **Screen** | full/window/region screenshots, screen recording check |
+| **OCR** | extract text from the screen, a region, or any image |
+| **Windows** | list, move, resize, focus app windows |
+| **Input** | type text, send shortcuts, move and click the mouse |
+| **Accessibility** | find and click UI elements by name, dump the UI tree |
+| **System** | battery, focus modes, processes, disks, defaults, network |
+| **Keychain** | read/write passwords and secrets (with your approval) |
+| **Files and PDF** | search files, read metadata, extract PDF text |
+
+`macos commands --json` lists every command, its flags and whether it writes. `macos <area> --help` explains one area.
+
+## Compared with
+
+Three tools an agent might use on a Mac instead, as of 2026-11-10:
+
+| | Scope | Install | JSON | Permissions | GitHub stars |
+|---|---|---|---|---|---|
+| **macos-cli** | 40+ areas: calendar, contacts, mail, messages, notes, reminders, windows, screen, the Accessibility tree | Homebrew or `curl \| bash`, one signed binary | every data command, errors included | `doctor --for-agent` reports every area without prompting; sends, deletes and input start off, and only a person turns them on | 1 |
+| [remindctl](https://github.com/openclaw/remindctl) | Reminders | Homebrew | `--json` on its commands | `doctor`, `status` and `authorize` for Reminders | 417 |
+| [imsg](https://github.com/openclaw/imsg) | Messages | Homebrew | NDJSON, JSON-RPC | Full Disk Access to read, Automation to send | 1,406 |
+| [apple-mcp](https://github.com/supermemoryai/apple-mcp) | Messages, Notes, Contacts, Mail, Reminders, Calendar, Maps | `npx` into an MCP client, runs on Bun | MCP tool results | macOS Automation prompts per app; no policy of its own | 3,112, archived |
+
+Pick remindctl or imsg when one app is all you need; they go deeper there. macos-cli is for an agent that needs the whole Mac through one binary and one error contract.
+
+## Install in detail
 
 ```bash
 brew install manuaudio/tap/macos-cli
@@ -79,31 +118,8 @@ The installer does **not** grant any macOS privacy permission for you — it pri
 ```bash
 macos --version
 macos doctor      # every macOS permission, its state, and how to get it (never prompts)
-macos setup       # checks every capability end to end — a green ✓ per capability
+macos setup       # checks every capability end to end — one line per capability, passed or failed
 ```
-
-## What it can do
-
-| | Area | Examples |
-|---|---|---|
-| 📅 | **Calendar** | list, rich JSON export, create (custom alarms), update, delete (by id or title) across all linked calendars |
-| ✅ | **Reminders** | create, complete, list by list, due dates |
-| 👤 | **Contacts** | search, read, create, update — by name, email, or phone |
-| 💬 | **Messages** | send iMessage/SMS, read threads, search |
-| ✉️ | **Mail** | search, read, draft, send, reply, manage mailboxes |
-| 📝 | **Notes** | read, create, search Apple Notes |
-| 🎵 | **Music** | now playing, play/pause, skip, library queries |
-| 🌐 | **Safari** | read the current tab, list tabs, open URLs |
-| 📸 | **Screen** | full/window/region screenshots, screen recording check |
-| 🔤 | **OCR** | extract text from the screen, a region, or any image |
-| 🪟 | **Windows** | list, move, resize, focus app windows |
-| 🖱️ | **Input** | type text, send shortcuts, move & click the mouse |
-| ♿ | **Accessibility** | find & click UI elements *by name*, dump the UI tree |
-| 🔋 | **System** | battery, focus modes, processes, disks, defaults, network |
-| 🔑 | **Keychain** | read/write passwords and secrets (with your approval) |
-| 📄 | **Files & PDF** | search files, read metadata, extract PDF text |
-
-…and more. Run `macos --help` for the full list, or `macos <area> --help` for any area.
 
 ## Quick taste
 
@@ -136,7 +152,7 @@ macos system battery --json
 # {"charging": false, "level": 87, "plugged_in": true, "time_remaining_minutes": 13}
 ```
 
-## 🤖 Use it with AI agents
+## Agents in detail
 
 macOS CLI is **one binary and nothing else** — no MCP server, no HTTP bridge, no daemon. An agent drives it exactly the way you do: it runs `macos <area> <action> --json` as a subprocess and parses the result. That is the whole integration. Point your agent framework's shell/exec tool at `$HOME/.local/bin/macos` and it can read your calendar, triage your inbox, move windows, and click buttons by name.
 
@@ -146,7 +162,7 @@ macOS CLI is **one binary and nothing else** — no MCP server, no HTTP bridge, 
 "$HOME/.local/bin/macos" calendar events --json
 ```
 
-### Add it as a skill
+### The skill
 
 The repo's [`SKILL.md`](SKILL.md) teaches an agent the tool: check permissions first, then every
 command, which ones write, the error envelope and the exit codes. One line adds it to Claude Code,

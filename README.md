@@ -65,11 +65,11 @@ The exit code says what kind of failure it was: 64 a bad command line, 3 not fou
 | **Keychain** | read/write passwords and secrets (with your approval) |
 | **Files and PDF** | search files, read metadata, extract PDF text |
 
-`macos commands --json` lists every command, its flags and whether it writes. `macos <area> --help` explains one area.
+`macos <area> --help` explains one area, and [`SKILL.md`](SKILL.md) lists every command, its flags and whether it writes.
 
 ## Compared with
 
-Three tools an agent might use on a Mac instead, as of 2026-11-10:
+Three tools an agent might use on a Mac instead, as of 2026-11-11:
 
 | | Scope | Install | JSON | Permissions | GitHub stars |
 |---|---|---|---|---|---|
@@ -149,7 +149,12 @@ Commands that return data take `--json` for clean, parseable output:
 
 ```bash
 macos system battery --json
-# {"charging": false, "level": 87, "plugged_in": true, "time_remaining_minutes": 13}
+# {
+#   "charging" : false,
+#   "level" : 87,
+#   "plugged_in" : false,
+#   "time_remaining_minutes" : 312
+# }
 ```
 
 ## Agents in detail
@@ -178,12 +183,9 @@ Hermes Agent takes it from its URL:
 hermes skills install https://raw.githubusercontent.com/manuaudio/macos-cli/main/SKILL.md
 ```
 
-The skill's command list is generated from the binary (`bash scripts/gen-skill.sh`), and the binary
-prints the same list itself, with each command's flags and whether it writes:
-
-```bash
-macos commands --json
-```
+The skill's command list is generated from the binary (`bash scripts/gen-skill.sh`). A build from
+`main` prints the same list itself with `macos commands --json`, each command's flags and whether it
+writes; the 0.9.0 Release does not have that command yet.
 
 ### What may this agent do? `macos doctor --for-agent`
 

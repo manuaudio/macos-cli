@@ -9,11 +9,11 @@
 
 SHELL := /bin/bash
 
-.PHONY: build install install-adhoc test test-swift test-installer test-readme stage clean help
+.PHONY: build install install-adhoc test test-swift test-installer test-readme test-public stage clean help
 
 help:
 	@echo "make build          — release build"
-	@echo "make test           — hermetic tests (Swift core + installer contract + README examples)"
+	@echo "make test           — hermetic tests (Swift core + installer contract + README examples + public tree)"
 	@echo "make install        — build, sign (Developer ID) and install via install.sh"
 	@echo "make install-adhoc  — same, contributor ad-hoc signature (permissions reset on rebuild)"
 	@echo "make stage          — build + sign a staging artifact and record its hashes (no install)"
@@ -30,7 +30,7 @@ install:
 install-adhoc:
 	MACOS_CLI_SIGN_MODE=adhoc ./install.sh
 
-test: test-swift test-installer test-readme
+test: test-swift test-installer test-readme test-public
 
 test-swift:
 	swift run MacCLICoreTestRunner
@@ -40,6 +40,9 @@ test-installer:
 
 test-readme:
 	bash scripts/tests/readme_examples_test.sh
+
+test-public:
+	bash scripts/tests/public_tree_test.sh
 
 stage:
 	./scripts/stage-release.sh

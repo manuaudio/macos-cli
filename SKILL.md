@@ -51,8 +51,8 @@ What you cannot do yourself, ask the person to do:
 - `macos reminders complete --id ID` is a dry run unless `--approve` matches the
   `APPLE_EVENTKIT_APPROVE_TOKEN` the person set in your environment.
 
-The list below has every command with its flags, one line of help and whether it writes; a build
-newer than 0.9.0 prints it as `macos commands --json`. Run `macos help <area> <action>` for a
+The list below has every command with its flags, one line of help and whether it writes;
+`macos commands --json` prints it. Run `macos help <area> <action>` for a
 command's arguments.
 
 ## Commands that only read

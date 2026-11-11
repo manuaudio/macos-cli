@@ -183,9 +183,9 @@ Hermes Agent takes it from its URL:
 hermes skills install https://raw.githubusercontent.com/manuaudio/macos-cli/main/SKILL.md
 ```
 
-The skill's command list is generated from the binary (`bash scripts/gen-skill.sh`). A build from
-`main` prints the same list itself with `macos commands --json`, each command's flags and whether it
-writes; the 0.9.0 Release does not have that command yet.
+The skill's command list is generated from the binary (`bash scripts/gen-skill.sh`). The binary
+prints the same list itself with `macos commands --json`, each command's flags and whether it
+writes.
 
 ### What may this agent do? `macos doctor --for-agent`
 

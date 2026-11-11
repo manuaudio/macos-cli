@@ -25,8 +25,8 @@ metadata:
 # macos-cli
 
 `macos` is one signed binary that drives a Mac: `macos <area> <action>`. It runs on macOS 13 or later
-on Apple silicon. Install it with `brew install manuaudio/tap/macos-cli`, or with
-`curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash`.
+on Apple silicon. Install it with `brew install manuaudio/tap/macos-cli`; the
+[README](https://github.com/manuaudio/macos-cli#install) has the other ways.
 
 ## Step one: ask what you may do
 

@@ -39,6 +39,12 @@ In Claude Code it is also a plugin:
 /plugin install macos-cli@macos-cli
 ```
 
+OpenClaw takes it from [ClawHub](https://clawhub.ai/manuaudio/skills/macos-cli):
+
+```bash
+clawhub install macos-cli
+```
+
 The agent starts with `macos doctor --for-agent`: every macOS permission, its state and how a person grants it, without showing a single prompt. Then it calls `macos <area> <action> --json` and reads one JSON value from stdout. A failure is JSON too, with stderr empty:
 
 ```jsonc

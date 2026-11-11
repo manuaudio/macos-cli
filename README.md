@@ -44,18 +44,20 @@ macOS hides its best features behind GUI apps and brittle AppleScript. **macOS C
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
-```
-
-Downloads the [Release](https://github.com/manuaudio/macos-cli/releases), a single `macos` binary signed with a Developer ID and notarized by Apple, checks its sha256, Developer ID signature, team and version, and installs it to `$HOME/.local/bin/macos`. No Xcode, no sudo, no background service, no second executable.
-
-With Homebrew:
-
-```bash
 brew install manuaudio/tap/macos-cli
 ```
 
-Update in place, at the same path, so the permissions you granted stay with it (`--check` only reports):
+Homebrew installs the [Release](https://github.com/manuaudio/macos-cli/releases): a single `macos` binary for Apple silicon, signed with a Developer ID and notarized by Apple. `brew upgrade macos-cli` updates it, and the permissions you granted stay, because every release carries the same signature. Type the full name: Homebrew refuses a short `brew install macos-cli` from a tap you have not trusted.
+
+No Homebrew:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
+```
+
+The same signed, notarized binary, without Homebrew: the script checks its sha256, Developer ID signature, team and version, and installs it to `$HOME/.local/bin/macos`. No Xcode, no sudo, no background service, no second executable.
+
+Update the curl install in place, at the same path, so the permissions you granted stay with it (`--check` only reports):
 
 ```bash
 macos update

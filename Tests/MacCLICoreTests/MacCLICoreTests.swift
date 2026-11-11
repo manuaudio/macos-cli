@@ -690,3 +690,54 @@ final class ReleaseTests: XCTestCase {
         XCTAssertNil(Release.expectedSHA256(""))
     }
 }
+
+final class CatalogueTests: XCTestCase {
+    /// A trimmed `--experimental-dump-help` document: a group with a nested group, a hidden
+    /// command, ArgumentParser's own `help`, and a command the writes table does not name.
+    let dump = #"""
+    {"serializationVersion":0,"command":{"commandName":"macos","arguments":[
+      {"kind":"flag","names":[{"kind":"long","name":"version"}],"shouldDisplay":true,"isOptional":true,"isRepeating":false},
+      {"kind":"flag","names":[{"kind":"short","name":"h"},{"kind":"long","name":"help"}],"shouldDisplay":true,"isOptional":true,"isRepeating":false}],
+     "subcommands":[
+      {"commandName":"system","abstract":"System controls","subcommands":[
+        {"commandName":"battery","abstract":"Battery status","arguments":[
+          {"kind":"flag","names":[{"kind":"long","name":"json"}],"shouldDisplay":true,"isOptional":true,"isRepeating":false}]},
+        {"commandName":"wifi","subcommands":[
+          {"commandName":"join","abstract":"Join a Wi-Fi network","arguments":[
+            {"kind":"positional","names":[{"kind":"long","name":"ssid"}],"shouldDisplay":true,"isOptional":false,"isRepeating":false},
+            {"kind":"option","names":[{"kind":"long","name":"from"},{"kind":"long","name":"start"}],"shouldDisplay":true,"isOptional":true,"isRepeating":false},
+            {"kind":"option","names":[{"kind":"short","name":"o"}],"shouldDisplay":true,"isOptional":true,"isRepeating":false},
+            {"kind":"flag","names":[{"kind":"long","name":"secret"}],"shouldDisplay":false,"isOptional":true,"isRepeating":false}]}]}]},
+      {"commandName":"ghost","abstract":"Hidden","shouldDisplay":false},
+      {"commandName":"new-thing","abstract":"Not in the table"},
+      {"commandName":"help","abstract":"Show subcommand help information."}]}}
+    """#
+
+    func testListsEveryRunnableCommandSortedWithItsFlagsAndWrites() throws {
+        let writes = ["system battery": false, "system wifi join": true]
+        let entries = try MacCLICore.commandCatalogue(dumpHelp: Data(dump.utf8), writes: writes)
+        XCTAssertEqual(entries, [
+            .init(path: "new-thing", flags: [], help: "Not in the table", writes: true),
+            .init(path: "system battery", flags: ["--json"], help: "Battery status", writes: false),
+            .init(path: "system wifi join", flags: ["--from", "-o"], help: "Join a Wi-Fi network", writes: true),
+        ])
+    }
+
+    func testAnEntryIsFourKeysWithABoolWrites() throws {
+        let entry = try XCTUnwrap(MacCLICore.commandCatalogue(dumpHelp: Data(dump.utf8), writes: [:]).first)
+        XCTAssertEqual(Set(entry.json.keys), ["path", "flags", "help", "writes"])
+        XCTAssertTrue(entry.json["writes"] is Bool)
+    }
+
+    func testTableMarksTheWrites() throws {
+        let entries = try MacCLICore.commandCatalogue(dumpHelp: Data(dump.utf8), writes: ["system battery": false])
+        let lines = MacCLICore.catalogueTable(entries).components(separatedBy: "\n")
+        XCTAssertEqual(lines.count, 4)
+        XCTAssertTrue(lines[0].hasPrefix("COMMAND"))
+        XCTAssertTrue(lines[2].contains("system battery    no      Battery status"), lines[2])
+    }
+
+    func testNotADumpIsAnError() {
+        XCTAssertThrowsError(try MacCLICore.commandCatalogue(dumpHelp: Data("[]".utf8)))
+    }
+}

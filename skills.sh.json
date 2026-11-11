@@ -1,0 +1,10 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "groupings": [
+    {
+      "title": "macOS CLI",
+      "description": "Drive a Mac from the terminal with the macos command: check permissions first, then read and change Calendar, Reminders, Contacts, Mail, Notes, files, windows and settings, with JSON answers.",
+      "skills": ["macos-cli"]
+    }
+  ]
+}

@@ -104,64 +104,29 @@ struct MailCommand: ParsableCommand {
     // MARK: - Search
 
     struct Search: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Search Apple Mail messages")
+        static let configuration = CommandConfiguration(
+            abstract: "Search Apple Mail messages by subject, sender or body")
 
-        @Argument(help: "Search query")
+        @Argument(help: "Search query (case-insensitive)")
         var query: String
 
+        @Option(name: .long, help: "Only this mailbox (e.g. INBOX); far faster than every mailbox") var mailbox: String?
+        @Option(name: .long, help: "Only this account") var account: String?
         @Option(name: .long, help: "Max results (default: 10)") var limit: Int = 10
+        @Option(name: .long, help: "Seconds to wait for Mail (default: 45)") var timeout: Double = 45
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
             try Auth.check("mail.read")
-            let escaped = jxaEscape(query)
-            let script = """
-            const Mail = Application('Mail');
-            const q = '\(escaped)'.toLowerCase();
-            const results = [];
-            Mail.accounts().forEach(acct => {
-                try {
-                    acct.mailboxes().forEach(mb => {
-                        try {
-                            mb.messages().slice(0, 500).forEach(m => {
-                                try {
-                                    const subj = (m.subject() || '').toLowerCase();
-                                    const from = (m.sender() || '').toLowerCase();
-                                    const cont = (m.content() || '').toLowerCase();
-                                    if (subj.includes(q) || from.includes(q) || cont.includes(q)) {
-                                        results.push({
-                                            subject: m.subject(),
-                                            from: m.sender(),
-                                            date: m.dateSent() ? m.dateSent().toISOString().split('T')[0] : '',
-                                            mailbox: mb.name()
-                                        });
-                                    }
-                                } catch(e) {}
-                            });
-                        } catch(e) {}
-                    });
-                } catch(e) {}
-            });
-            JSON.stringify(results.slice(0, \(limit)));
-            """
-            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 45),
-                  !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw CLIFailure.timeout("Mail search timed out — large mailboxes may take longer. Try a more specific query.")
-            }
-            let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let data = raw.data(using: .utf8),
-                  let msgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw CLIFailure.appError("Could not search Mail — check Automation permission\n\(raw.prefix(200))")
-            }
+            let msgs = try findMail(.query(query), mailbox: mailbox, account: account, limit: limit,
+                                    withContent: false, timeout: timeout)
             if json {
                 printJSON(msgs)
             } else {
                 for m in msgs {
-                    let subj = m["subject"] as? String ?? ""
-                    let from = m["from"]    as? String ?? ""
-                    let date = m["date"]    as? String ?? ""
-                    print("[\(date)] \(subj)")
-                    print("  From: \(from)")
+                    print("[\(m["date"] as? String ?? "")] \(m["subject"] as? String ?? "")")
+                    print("  From: \(m["from"] as? String ?? "")  Mailbox: \(m["mailbox"] as? String ?? "")")
+                    print("  Message-ID: \(m["message_id"] as? String ?? "")")
                 }
                 print("\(msgs.count) message(s)")
             }
@@ -226,69 +191,41 @@ struct MailCommand: ParsableCommand {
     // MARK: - Read
 
     struct Read: ParsableCommand {
-        static let configuration = CommandConfiguration(commandName: "read", abstract: "Read full message content for messages matching a query")
+        static let configuration = CommandConfiguration(
+            commandName: "read", abstract: "Read full message content, by Message-ID or by query")
 
-        @Option(name: .long, help: "Search query") var query: String
+        @Option(name: .long, help: "The Message-ID header (from `mail search --json`, message_id)") var id: String?
+        @Option(name: .long, help: "Search query") var query: String?
+        @Option(name: .long, help: "Only this mailbox (e.g. INBOX)") var mailbox: String?
+        @Option(name: .long, help: "Only this account") var account: String?
         @Option(name: .long, help: "Max results (default: 1)") var limit: Int = 1
+        @Option(name: .long, help: "Seconds to wait for Mail (default: 60)") var timeout: Double = 60
 
         @Flag(name: .long, help: "Output JSON") var json = false
 
+        func validate() throws {
+            guard (id == nil) != (query == nil) else {
+                throw ValidationError("Give --id or --query, not both and not neither.")
+            }
+        }
+
         func run() throws {
             try Auth.check("mail.read")
-            let escaped = jxaEscape(query)
-            let script = """
-            const Mail = Application('Mail');
-            const q = '\(escaped)'.toLowerCase();
-            const results = [];
-            Mail.accounts().forEach(acct => {
-                try {
-                    acct.mailboxes().forEach(mb => {
-                        try {
-                            mb.messages().slice(0, 500).forEach(m => {
-                                try {
-                                    const subj = (m.subject() || '').toLowerCase();
-                                    const from = (m.sender() || '').toLowerCase();
-                                    const cont = (m.content() || '').toLowerCase();
-                                    if (subj.includes(q) || from.includes(q) || cont.includes(q)) {
-                                        const fullContent = m.content() || '';
-                                        results.push({
-                                            subject: m.subject(),
-                                            from: m.sender(),
-                                            date: m.dateSent() ? m.dateSent().toISOString().split('T')[0] : '',
-                                            mailbox: mb.name(),
-                                            content: fullContent.substring(0, 2000)
-                                        });
-                                    }
-                                } catch(e) {}
-                            });
-                        } catch(e) {}
-                    });
-                } catch(e) {}
-            });
-            JSON.stringify(results.slice(0, \(limit)));
-            """
-            guard let rawOpt = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 60),
-                  !rawOpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw CLIFailure.timeout("Mail read timed out — try a more specific query.")
-            }
-            let raw = rawOpt.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let data = raw.data(using: .utf8),
-                  let msgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw CLIFailure.appError("Could not read Mail messages — check Automation permission\n\(raw.prefix(200))")
+            let match: MailMatch = id.map { .messageId($0) } ?? .query(query ?? "")
+            let msgs = try findMail(match, mailbox: mailbox, account: account, limit: limit,
+                                    withContent: true, timeout: timeout)
+            if let id = id, msgs.isEmpty {
+                throw CLIFailure.notFound("No message has the Message-ID '\(id)'.",
+                                          hint: mailbox == nil ? nil : "It may be in another mailbox; drop --mailbox.")
             }
             if json {
                 printJSON(msgs)
             } else {
                 for m in msgs {
-                    let subj = m["subject"] as? String ?? ""
-                    let from = m["from"]    as? String ?? ""
-                    let date = m["date"]    as? String ?? ""
-                    let mbox = m["mailbox"] as? String ?? ""
-                    let cont = m["content"] as? String ?? ""
-                    print("[\(date)] \(subj)")
-                    print("  From: \(from)  Mailbox: \(mbox)")
+                    print("[\(m["date"] as? String ?? "")] \(m["subject"] as? String ?? "")")
+                    print("  From: \(m["from"] as? String ?? "")  Mailbox: \(m["mailbox"] as? String ?? "")")
                     print("---")
-                    print(cont)
+                    print(m["content"] as? String ?? "")
                     print("")
                 }
                 print("\(msgs.count) message(s)")
@@ -580,4 +517,96 @@ struct MailCommand: ParsableCommand {
             }
         }
     }
+}
+
+// MARK: - Finding messages
+
+enum MailMatch {
+    case query(String)
+    case messageId(String)
+}
+
+/// Find messages with one Apple-event query per mailbox (`whose`), which Mail answers
+/// itself, instead of three or four events per message. `--mailbox` and `--account`
+/// skip the rest. An unknown mailbox or account is `not_found`, never zero results.
+func findMail(_ match: MailMatch, mailbox: String?, account: String?, limit: Int,
+              withContent: Bool, timeout: Double) throws -> [[String: Any]] {
+    let filter: String
+    switch match {
+    case .query(let q):
+        let e = jxaEscape(q)
+        filter = "{_or: [{subject: {_contains: '\(e)'}}, {sender: {_contains: '\(e)'}}, {content: {_contains: '\(e)'}}]}"
+    case .messageId(let id):
+        let bare = id.trimmingCharacters(in: CharacterSet(charactersIn: "<> "))
+        filter = "{messageId: '\(jxaEscape(bare))'}"
+    }
+    let script = """
+    const Mail = Application('Mail');
+    const wantMailbox = \(mailbox.map { "'\(jxaEscape($0))'" } ?? "null");
+    const wantAccount = \(account.map { "'\(jxaEscape($0))'" } ?? "null");
+    const limit = \(max(limit, 0));
+    const out = [];
+    let sawAccount = false, sawMailbox = false;
+    outer:
+    for (const acct of Mail.accounts()) {
+        let acctName;
+        try { acctName = acct.name(); } catch (e) { continue; }
+        if (wantAccount !== null && acctName !== wantAccount) continue;
+        sawAccount = true;
+        let boxes;
+        try { boxes = acct.mailboxes(); } catch (e) { continue; }
+        for (const mb of boxes) {
+            let mbName;
+            try { mbName = mb.name(); } catch (e) { continue; }
+            if (wantMailbox !== null && mbName !== wantMailbox) continue;
+            sawMailbox = true;
+            if (out.length >= limit) break outer;
+            try {
+                const found = mb.messages.whose(\(filter));
+                const ids = found.id();
+                if (!ids.length) continue;
+                const subjects = found.subject(), senders = found.sender();
+                const dates = found.dateSent(), mids = found.messageId();
+                for (let i = 0; i < ids.length && out.length < limit; i++) {
+                    const sent = dates[i] ? dates[i].toISOString() : null;
+                    const row = { id: ids[i], message_id: mids[i], subject: subjects[i], from: senders[i],
+                                  date: sent ? sent.split('T')[0] : '', date_sent: sent,
+                                  mailbox: mbName, account: acctName };
+                    if (\(withContent)) {
+                        try { row.content = (found[i].content() || '').substring(0, 2000); } catch (e) { row.content = null; }
+                    }
+                    out.push(row);
+                }
+            } catch (e) {}
+        }
+    }
+    JSON.stringify({ messages: out, sawAccount: sawAccount, sawMailbox: sawMailbox });
+    """
+    let result = Process.captureWithStderr(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script],
+                                           timeout: timeout)
+    let raw = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !raw.isEmpty else {
+        if result.exitCode == -1 {
+            throw CLIFailure.timeout("Mail did not answer within \(Int(timeout)) s.",
+                                     hint: "Name the mailbox with --mailbox, or raise --timeout.")
+        }
+        if result.stderr.contains("-1743") || result.stderr.lowercased().contains("not allowed") {
+            throw CLIFailure(code: "access_denied", message: "macOS does not let this binary control Mail.",
+                             hint: "With Mail open, a person runs `macos authorize automation.mail` and clicks OK.",
+                             extra: ["area": "automation.mail"])
+        }
+        throw CLIFailure.appError("Mail refused the search: \(result.stderr.prefix(200))")
+    }
+    guard let data = raw.data(using: .utf8),
+          let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let messages = body["messages"] as? [[String: Any]] else {
+        throw CLIFailure.appError("Mail returned something that is not a result: \(raw.prefix(200))")
+    }
+    if let account = account, body["sawAccount"] as? Bool != true {
+        throw CLIFailure.notFound("No Mail account is named '\(account)'.", hint: "Run `macos mail accounts`.")
+    }
+    if let mailbox = mailbox, body["sawMailbox"] as? Bool != true {
+        throw CLIFailure.notFound("No mailbox is named '\(mailbox)'.", hint: "Run `macos mail mailboxes`.")
+    }
+    return messages
 }

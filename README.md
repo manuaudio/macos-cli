@@ -146,6 +146,29 @@ macOS CLI is **one binary and nothing else** — no MCP server, no HTTP bridge, 
 "$HOME/.local/bin/macos" calendar events --json
 ```
 
+### Add it as a skill
+
+The repo's [`SKILL.md`](SKILL.md) teaches an agent the tool: check permissions first, then every
+command, which ones write, the error envelope and the exit codes. One line adds it to Claude Code,
+Codex, Cursor and the other agents [skills.sh](https://skills.sh) knows:
+
+```bash
+npx skills add manuaudio/macos-cli
+```
+
+Hermes Agent takes it from its URL:
+
+```bash
+hermes skills install https://raw.githubusercontent.com/manuaudio/macos-cli/main/SKILL.md
+```
+
+The skill's command list is generated from the binary (`bash scripts/gen-skill.sh`), and the binary
+prints the same list itself, with each command's flags and whether it writes:
+
+```bash
+macos commands --json
+```
+
 ### What may this agent do? `macos doctor --for-agent`
 
 Before an agent reads anything, it can ask the binary what macOS allows it, without

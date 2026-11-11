@@ -534,6 +534,15 @@ do {
     eq(MacCLICore.exitCode(forErrorCode: "person_required"), 4, "person_required exits 4")
 }
 
+// MARK: - Command catalogue
+do {
+    let dump = #"{"command":{"commandName":"macos","subcommands":[{"commandName":"a","subcommands":[{"commandName":"b","arguments":[{"kind":"flag","names":[{"kind":"long","name":"json"}]},{"kind":"flag","names":[{"kind":"long","name":"help"}]}]}]},{"commandName":"z"},{"commandName":"help"}]}}"#
+    let entries = (try? MacCLICore.commandCatalogue(dumpHelp: Data(dump.utf8), writes: ["a b": false])) ?? []
+    eq(entries.map { $0.path }, ["a b", "z"], "leaves only, sorted, no help")
+    eq(entries.first?.flags ?? [], ["--json"], "--help left out")
+    eq(entries.map { $0.writes }, [false, true], "unknown is a write")
+}
+
 // MARK: - Summary
 if failures == 0 {
     print("ok — \(checks) checks passed")

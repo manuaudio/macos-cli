@@ -91,33 +91,120 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(run.stderr, "", "stderr stays empty under --json", file: file, line: line)
     }
 
-    // MARK: - The README's table is the code's table
+    // MARK: - The README's and the skill's tables are the code's table
 
-    /// Every row of the README's exit-code table, read from the file, against
+    /// Every row of an exit-code table, read from the file, against
     /// `MacCLICore.exitCode(forErrorCode:)`: each code it lists exits with its row's status.
-    func testReadmeExitCodeTableMatchesTheCode() throws {
-        let readme = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("README.md")
-        let text = try String(contentsOf: readme, encoding: .utf8)
-        guard let section = text.components(separatedBy: "### Errors and exit codes").dropFirst().first else {
-            return XCTFail("README has no 'Errors and exit codes' section")
+    func assertExitCodeTable(in doc: String, heading: String, file: StaticString = #filePath, line: UInt = #line) throws {
+        let text = try String(contentsOf: Self.repoRoot.appendingPathComponent(doc), encoding: .utf8)
+        guard let section = text.components(separatedBy: heading + "\n").dropFirst().first else {
+            return XCTFail("\(doc) has no '\(heading)' section", file: file, line: line)
         }
+        let level = String(heading.prefix { $0 == "#" })
         var checked = 0
-        for line in (section.components(separatedBy: "\n### ").first ?? "").components(separatedBy: "\n") {
-            let cells = line.split(separator: "|", omittingEmptySubsequences: false)
+        for row in (section.components(separatedBy: "\n\(level) ").first ?? "").components(separatedBy: "\n") {
+            let cells = row.split(separator: "|", omittingEmptySubsequences: false)
                 .map { $0.trimmingCharacters(in: .whitespaces) }
             guard cells.count >= 4, let status = Int32(cells[1]), status != 0 else { continue }
             let codes = cells[3].components(separatedBy: "`").enumerated()
                 .filter { $0.offset % 2 == 1 }.map(\.element)
                 .filter { $0.allSatisfy { $0 == "_" || ($0.isLetter && $0.isLowercase) } }
-            XCTAssertFalse(codes.isEmpty, "row \(status) names no code")
+            XCTAssertFalse(codes.isEmpty, "\(doc) row \(status) names no code", file: file, line: line)
             for code in codes {
-                XCTAssertEqual(MacCLICore.exitCode(forErrorCode: code), status, "README row for `\(code)`")
+                XCTAssertEqual(MacCLICore.exitCode(forErrorCode: code), status, "\(doc) row for `\(code)`",
+                               file: file, line: line)
                 checked += 1
             }
         }
-        XCTAssertGreaterThan(checked, 10, "the table was read")
+        XCTAssertGreaterThan(checked, 10, "the table in \(doc) was read", file: file, line: line)
+    }
+
+    func testReadmeExitCodeTableMatchesTheCode() throws {
+        try assertExitCodeTable(in: "README.md", heading: "### Errors and exit codes")
+    }
+
+    func testSkillExitCodeTableMatchesTheCode() throws {
+        try assertExitCodeTable(in: "SKILL.md", heading: "## Answers and errors")
+    }
+
+    // MARK: - The command catalogue and the skill
+
+    static var repoRoot: URL {
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    }
+
+    /// Every runnable command ArgumentParser itself knows, from its own dump of the tree.
+    func registeredCommands() throws -> Set<String> {
+        let dump = try run(["--experimental-dump-help"])
+        XCTAssertEqual(dump.status, 0, dump.stderr)
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(dump.stdout.utf8)) as? [String: Any])
+        var paths = Set<String>()
+        func walk(_ node: [String: Any], _ path: [String]) {
+            if node["shouldDisplay"] as? Bool == false { return }
+            let subs = node["subcommands"] as? [[String: Any]] ?? []
+            if subs.isEmpty { paths.insert(path.joined(separator: " ")); return }
+            for sub in subs where !(path.isEmpty && sub["commandName"] as? String == "help") {
+                walk(sub, path + [sub["commandName"] as? String ?? ""])
+            }
+        }
+        walk(try XCTUnwrap(root["command"] as? [String: Any]), [])
+        return paths
+    }
+
+    func testCommandsJSONListsEveryRegisteredCommandWithWrites() throws {
+        let registered = try registeredCommands()
+        XCTAssertGreaterThan(registered.count, 200, "the tree was read")
+
+        let result = try run(["commands", "--json"])
+        XCTAssertEqual(result.status, 0, result.stderr)
+        let list = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [[String: Any]])
+        let paths = list.compactMap { $0["path"] as? String }
+        XCTAssertEqual(paths.count, registered.count)
+        XCTAssertEqual(Set(paths), registered)
+        XCTAssertEqual(paths, paths.sorted(), "sorted by path")
+        for entry in list {
+            XCTAssertTrue(entry["writes"] is Bool, "\(entry["path"] ?? "?") has writes")
+            XCTAssertTrue(entry["flags"] is [String], "\(entry["path"] ?? "?") has flags")
+        }
+        XCTAssertEqual(Set(MacCLICore.commandWrites.keys), registered,
+                       "commandWrites names every command once: missing \(registered.subtracting(MacCLICore.commandWrites.keys).sorted()), "
+                       + "extra \(Set(MacCLICore.commandWrites.keys).subtracting(registered).sorted())")
+        XCTAssertEqual(list.first { $0["path"] as? String == "calendar delete" }?["writes"] as? Bool, true)
+        XCTAssertEqual(list.first { $0["path"] as? String == "calendar events" }?["writes"] as? Bool, false)
+
+        let table = try run(["commands"])
+        XCTAssertEqual(table.status, 0, table.stderr)
+        XCTAssertEqual(table.stdout.split(separator: "\n").count, registered.count + 1, "a header and one row each")
+    }
+
+    /// Runs one of the repo's shell tests against this binary; on failure the message
+    /// carries the script's failing lines, joined, so a remote check shows them.
+    func runScript(_ name: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [Self.repoRoot.appendingPathComponent("scripts/tests/\(name)").path]
+        var environment = ProcessInfo.processInfo.environment
+        environment["MACOS_BIN"] = Self.binary.path
+        environment["HOME"] = home.path
+        process.environment = environment
+        let out = Pipe()
+        process.standardOutput = out
+        process.standardError = out
+        try process.run()
+        let output = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        let failing = output.components(separatedBy: "\n")
+            .filter { $0.hasPrefix("-") || $0.hasPrefix("+") || $0.contains("✗") }
+            .prefix(40).joined(separator: " ⏎ ")
+        XCTAssertEqual(process.terminationStatus, 0, "\(name): \(failing)")
+    }
+
+    func testSkillIsCurrent() throws {
+        try runScript("skill_is_current_test.sh")
+    }
+
+    func testReadmeAndSkillExamplesAreRealCommands() throws {
+        try runScript("readme_examples_test.sh")
     }
 
     func testMissingDirectoryIsNotFound() throws {

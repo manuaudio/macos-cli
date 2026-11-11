@@ -248,7 +248,7 @@ struct AxCommand: ParsableCommand {
             if let n = click {
                 try Auth.check("ax.write")
                 guard n >= 1 && n <= elements.count else {
-                    throw ValidationError("Hint \(n) out of range (1–\(elements.count))")
+                    throw CLIFailure.notFound("Hint \(n) out of range (1–\(elements.count))")
                 }
                 let el = elements[n - 1]
                 var err: AXError = .success

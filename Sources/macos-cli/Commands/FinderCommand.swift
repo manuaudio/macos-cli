@@ -314,7 +314,7 @@ struct FinderCommand: ParsableCommand {
             let expanded = (path as NSString).expandingTildeInPath
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir), isDir.boolValue else {
-                throw ValidationError("Not a directory: \(expanded)")
+                throw CLIFailure.notFound("Not a directory: \(expanded)")
             }
             let escaped = jxaEscape(expanded)
             let script = """

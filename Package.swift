@@ -72,6 +72,7 @@ let package = Package(
         // exit codes, the JSON error envelope, --json on the exports. Reads nothing private.
         .testTarget(
             name: "CLITests",
+            dependencies: ["MacCLICore"],
             path: "Tests/CLITests"
         ),
         // Dependency-free mirror of the XCTest assertions, runnable on a

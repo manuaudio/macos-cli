@@ -32,7 +32,7 @@ struct PdfCommand: ParsableCommand {
 
             let pageCount = doc.pageCount
             if let p = page, (p < 1 || p > pageCount) {
-                throw ValidationError("Page \(p) out of range — document has \(pageCount) pages")
+                throw CLIFailure.notFound("Page \(p) out of range — document has \(pageCount) pages")
             }
 
             let indices = page.map { [$0 - 1] } ?? Array(0..<pageCount)

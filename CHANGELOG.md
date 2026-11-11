@@ -11,6 +11,7 @@ An agent can find out what it may do, and cannot widen it; calendars by id; fast
 - **`mail read --id MESSAGE_ID`**, and `--mailbox`/`--account` on `mail search` and `mail read`; results carry `message_id`, `account` and `date_sent`.
 
 ### Changed
+- **Not found is exit 3, not a usage error.** A missing directory (`file list`, `finder`), a PDF page, a Space, an accessibility hint or an audio device that does not exist now fails with `not_found` (exit 3); a file that is not UTF-8 text with `app_error` (exit 6). They used to exit 64 with usage text.
 - **Widening the policy needs a person.** `auth grant`, `auth reset` and `auth setup` ask for a typed confirmation on the terminal; without one they refuse with `person_required` (exit 4). `auth setup --yes` is gone.
 - **No unanswerable prompts.** Calendars, Reminders and Contacts are requested only when a person is at a terminal; elsewhere an undecided permission fails at once with `state: not_determined` instead of a 15 s timeout. The Contacts request is bounded.
 - **A write by a shared calendar name is refused** (`ambiguous_calendar`, exit 64) with every matching id; it used to go to the first calendar of that name.

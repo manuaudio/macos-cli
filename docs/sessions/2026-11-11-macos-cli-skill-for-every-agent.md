@@ -33,3 +33,11 @@ install it, even with `--force`. The skill names the Homebrew install and links 
   installed and inspected it by its raw URL, the fetch answered from the local file. SKILL.md here was
   generated from a mirror of the command tree read from the sources; `skill_is_current_test.sh` on a Mac is
   what holds it to the binary.
+
+## Finished on the mini (lane macos-cli-skill-for-every-agent-finish, 2026-11-10)
+
+The branch came over from the VPS as a git bundle and was pushed from here. On the Mac, `bash scripts/gen-skill.sh`
+left SKILL.md unchanged, so the Linux-generated file was already right. `swift test --filter 'CLITests|MacCLICoreTests'`
+passed (33, one skipped by its own guard), `skill_is_current_test.sh` passed, `readme_examples_test.sh` passed 41/41,
+and `macos commands --json` lists 220 commands, each with `writes` (115 writes). The GitHub page now has the
+description, the manuaudio.com homepage and the topics macos, cli, ai-agents, claude-code, swift, agent-skills.

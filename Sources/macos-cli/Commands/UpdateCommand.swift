@@ -5,7 +5,7 @@ import MacCLICore
 
 /// `macos update`: the newest signed Release replaces this binary at the same path, so the
 /// permissions macOS granted to it stay with it (docs/SIGNING.md). Nothing is replaced
-/// until the download's hash, signature, Gatekeeper verdict, identity and version check out.
+/// until the download's hash, signature, Developer ID authority, identity and version check out.
 struct UpdateCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "update",
@@ -70,7 +70,7 @@ struct UpdateCommand: ParsableCommand {
         if json { printJSON(report) } else { print(line) }
     }
 
-    /// The same checks install.sh makes: a strict signature, Gatekeeper's verdict, our
+    /// The same checks install.sh makes: a strict signature, a Developer ID authority, our
     /// identifier and team, and the version the Release names.
     private func verify(_ binary: URL, version: String) throws {
         func refuse(_ why: String) -> CLIFailure {
@@ -80,13 +80,13 @@ struct UpdateCommand: ParsableCommand {
         guard Process.captureWithStderr(args: ["/usr/bin/codesign", "--verify", "--strict", binary.path], timeout: 30).exitCode == 0 else {
             throw refuse("has no valid signature")
         }
-        guard Process.captureWithStderr(args: ["/usr/sbin/spctl", "--assess", "--type", "execute", binary.path], timeout: 60).exitCode == 0 else {
-            throw refuse("is not accepted by Gatekeeper")
-        }
-        let details = Process.captureWithStderr(args: ["/usr/bin/codesign", "-dv", binary.path], timeout: 30).stderr
+        // Not spctl: Gatekeeper gives a bare command-line binary no verdict, notarized or not.
+        let details = Process.captureWithStderr(args: ["/usr/bin/codesign", "-dv", "--verbose=2", binary.path], timeout: 30).stderr
         guard details.contains("Identifier=\(Release.bundleIdentifier)\n"),
-              details.contains("TeamIdentifier=\(Release.teamIdentifier)\n") else {
-            throw refuse("is not signed as \(Release.bundleIdentifier) by team \(Release.teamIdentifier)")
+              details.contains("TeamIdentifier=\(Release.teamIdentifier)\n"),
+              details.range(of: "Authority=Developer ID Application: [^\n]*\\(\(Release.teamIdentifier)\\)\n",
+                            options: .regularExpression) != nil else {
+            throw refuse("is not signed with Developer ID as \(Release.bundleIdentifier) by team \(Release.teamIdentifier)")
         }
         let reported = Process.captureWithStderr(args: [binary.path, "--version"], timeout: 30).stdout
         guard reported.trimmingCharacters(in: .whitespacesAndNewlines) == version else {

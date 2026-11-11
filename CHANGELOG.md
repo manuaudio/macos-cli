@@ -5,7 +5,7 @@
 An agent can find out what it may do, and cannot widen it; calendars by id; faster Mail, Contacts and Reminders.
 
 ### Added
-- **A signed, notarized Release, installed with one line.** `curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash` downloads the Release binary and checks its sha256, signature, Gatekeeper verdict and version before installing it; no Xcode needed. A source build is `MACOS_CLI_SIGN_MODE=adhoc ./install.sh`.
+- **A signed, notarized Release, installed with one line.** `curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash` downloads the Release binary and checks its sha256, Developer ID signature, team and version before installing it; no Xcode needed. A source build is `MACOS_CLI_SIGN_MODE=adhoc ./install.sh`.
 - **`macos update [--check]`.** Replaces the binary with the newest Release at the same path, after the same checks, so the permissions macOS granted it stay with it.
 - **Homebrew:** `brew install manuaudio/tap/macos-cli`.
 - **`macos doctor [--for-agent | --json]`.** Every macOS privacy area this binary may need, its state and the fix, plus the binary's identity, the session and the resolved `auth.json` policy. It never prompts.

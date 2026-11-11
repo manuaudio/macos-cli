@@ -7,7 +7,7 @@
 #
 # By default it downloads this version's Release: a binary signed with the
 # project's Developer ID and notarized by Apple. It checks the zip's sha256, the
-# signature (codesign --verify --strict), Gatekeeper's verdict (spctl), the
+# signature (codesign --verify --strict), the Developer ID authority, the
 # identifier and team, and the version, then installs. No Xcode, no Swift.
 #
 # Build from source instead (permissions must be re-granted after each rebuild):
@@ -120,18 +120,17 @@ install_release() (   # a subshell: its cleanup trap and `set -e` stay its own
     if ! codesign --verify --strict "$bin" 2>/dev/null; then
         echo "❌  The downloaded binary's signature does not verify. Nothing was installed."; return 1
     fi
-    if ! spctl --assess --type execute "$bin" 2>/dev/null; then
-        echo "❌  Gatekeeper does not accept the downloaded binary. Nothing was installed."; return 1
-    fi
-    details="$(codesign -dv "$bin" 2>&1)"
-    if ! grep -qx "Identifier=$BUNDLE_ID" <<<"$details" || ! grep -qx "TeamIdentifier=$TEAM_ID" <<<"$details"; then
-        echo "❌  The downloaded binary is not signed as $BUNDLE_ID by team $TEAM_ID. Nothing was installed."; return 1
+    # Not spctl: Gatekeeper gives a bare command-line binary no verdict, notarized or not.
+    details="$(codesign -dv --verbose=2 "$bin" 2>&1)"
+    if ! grep -qx "Identifier=$BUNDLE_ID" <<<"$details" || ! grep -qx "TeamIdentifier=$TEAM_ID" <<<"$details" ||
+        ! grep -q "^Authority=Developer ID Application: .*($TEAM_ID)$" <<<"$details"; then
+        echo "❌  The downloaded binary is not signed with Developer ID as $BUNDLE_ID by team $TEAM_ID. Nothing was installed."; return 1
     fi
     reported="$("$bin" --version 2>/dev/null || true)"
     if [ "$reported" != "$VERSION" ]; then
         echo "❌  The downloaded binary reports version '$reported', not $VERSION. Nothing was installed."; return 1
     fi
-    echo "✅  Signed by $TEAM_ID as $BUNDLE_ID, accepted by Gatekeeper, version $VERSION"
+    echo "✅  Developer ID signature of team $TEAM_ID as $BUNDLE_ID, version $VERSION"
 
     # Staged in the destination directory, then one rename onto `macos`.
     mkdir -p "$INSTALL_DIR" || { echo "❌  Could not create $INSTALL_DIR (no sudo is used by design)."; return 1; }

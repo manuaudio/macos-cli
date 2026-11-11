@@ -865,9 +865,8 @@ group "install.sh downloads the Release (local HTTP server, no network)"
 ########################################################################
 # A staged Release served from 127.0.0.1: a stand-in `macos` that reports the
 # installer's version, zipped as the Release names it, with its .sha256. The
-# signature and Gatekeeper checks run through stand-in `codesign` and `spctl`
-# on PATH (as the hermetic suite does with `security`), so a refusal from
-# either can be staged.
+# signature checks run through a stand-in `codesign` on PATH (as the hermetic
+# suite does with `security`), so a bad signature or a foreign authority can be staged.
 if [ -f "$INSTALL_SH" ]; then
     inst_version="$(sed -nE 's/^VERSION="([^"]+)"$/\1/p' "$INSTALL_SH")"
     assert_eq "install.sh fetches the version Version.swift names" "$inst_version" "$EXPECTED_VERSION"
@@ -881,12 +880,11 @@ if [ -f "$INSTALL_SH" ]; then
     printf '%064d  %s\n' 0 "$zip_name" > "$srv/badsha/v$inst_version/$zip_name.sha256"
     cat > "$shims/codesign" <<'SHIM'
 #!/bin/sh
-if [ "$1" = "-dv" ]; then printf 'Identifier=com.manuaudio.macos-cli\nTeamIdentifier=4M72M3J3UN\n' >&2; exit 0; fi
+if [ "$1" = "-dv" ]; then printf 'Identifier=com.manuaudio.macos-cli\nAuthority=%s\nTeamIdentifier=4M72M3J3UN\n' "${SHIM_AUTHORITY:-Developer ID Application: A Name (4M72M3J3UN)}" >&2; exit 0; fi
 exit "${SHIM_CODESIGN_RC:-0}"
 SHIM
-    printf '#!/bin/sh\nexit "${SHIM_SPCTL_RC:-0}"\n' > "$shims/spctl"
     printf '#!/bin/sh\nexit 1\n' > "$shims/swift"
-    chmod +x "$shims/codesign" "$shims/spctl" "$shims/swift"
+    chmod +x "$shims/codesign" "$shims/swift"
 
     # The server prints its port once it listens; reading that line is the wait.
     # `exec` makes $! the server itself; its stderr goes nowhere, so a pipe on this
@@ -910,17 +908,17 @@ s=http.server.HTTPServer(("127.0.0.1",0),h); print(s.server_port,flush=True); s.
     assert_eq "download: install exits 0" "$rc" "0"
     assert_eq "download: the installed macos reports the Release's version" \
         "$("$TMPROOT/dl-good/macos" --version 2>/dev/null)" "$inst_version"
-    if [[ "$out" == *"sha256 matches"* && "$out" == *"accepted by Gatekeeper"* ]]; then ok "download: says what it verified"
+    if [[ "$out" == *"sha256 matches"* && "$out" == *"Developer ID signature"* ]]; then ok "download: says what it verified"
     else bad "download: says what it verified" "${out:0:400}"; fi
 
     out="$(dl badsha "$TMPROOT/dl-badsha")"; rc=$?
     if [ "$rc" -ne 0 ] && [ ! -e "$TMPROOT/dl-badsha" ]; then ok "download: a sha256 mismatch installs nothing"
     else bad "download: a sha256 mismatch installs nothing" "rc=$rc ${out:0:300}"; fi
 
-    out="$(dl good "$TMPROOT/dl-spctl" SHIM_SPCTL_RC=3)"; rc=$?
-    if [ "$rc" -ne 0 ] && [ ! -e "$TMPROOT/dl-spctl" ] && [[ "$out" == *Gatekeeper* ]]; then
-        ok "download: a Gatekeeper refusal installs nothing"
-    else bad "download: a Gatekeeper refusal installs nothing" "rc=$rc ${out:0:300}"; fi
+    out="$(dl good "$TMPROOT/dl-foreign" SHIM_AUTHORITY="Apple Development: Someone (ZZZZZZZZZZ)")"; rc=$?
+    if [ "$rc" -ne 0 ] && [ ! -e "$TMPROOT/dl-foreign" ] && [[ "$out" == *"Developer ID"* ]]; then
+        ok "download: a signature that is not our Developer ID installs nothing"
+    else bad "download: a signature that is not our Developer ID installs nothing" "rc=$rc ${out:0:300}"; fi
 
     out="$(dl good "$TMPROOT/dl-unsigned" SHIM_CODESIGN_RC=1)"; rc=$?
     if [ "$rc" -ne 0 ] && [ ! -e "$TMPROOT/dl-unsigned" ]; then ok "download: a bad signature installs nothing"

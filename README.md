@@ -47,7 +47,7 @@ macOS hides its best features behind GUI apps and brittle AppleScript. **macOS C
 curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
 ```
 
-Downloads the [Release](https://github.com/manuaudio/macos-cli/releases), a single `macos` binary signed with a Developer ID and notarized by Apple, checks its sha256, signature, Gatekeeper verdict and version, and installs it to `$HOME/.local/bin/macos`. No Xcode, no sudo, no background service, no second executable.
+Downloads the [Release](https://github.com/manuaudio/macos-cli/releases), a single `macos` binary signed with a Developer ID and notarized by Apple, checks its sha256, Developer ID signature, team and version, and installs it to `$HOME/.local/bin/macos`. No Xcode, no sudo, no background service, no second executable.
 
 With Homebrew:
 

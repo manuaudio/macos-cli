@@ -1,0 +1,17 @@
+{
+  "name": "macos-cli",
+  "description": "macos-cli, one signed binary that gives an agent the Mac's own apps as JSON, and its skill.",
+  "owner": {
+    "name": "manuaudio",
+    "url": "https://github.com/manuaudio"
+  },
+  "plugins": [
+    {
+      "name": "macos-cli",
+      "source": "./",
+      "description": "The macos-cli skill: drive a Mac's Calendar, Reminders, Contacts, Mail, Notes, files, windows and settings with the macos command, JSON out, permissions checked first.",
+      "homepage": "https://github.com/manuaudio/macos-cli",
+      "license": "MIT"
+    }
+  ]
+}

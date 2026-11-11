@@ -1,0 +1,9 @@
+{
+  "name": "macos-cli",
+  "description": "The macos-cli skill: drive a Mac's Calendar, Reminders, Contacts, Mail, Notes, files, windows and settings with the macos command, JSON out, permissions checked first.",
+  "author": { "name": "manuaudio", "url": "https://github.com/manuaudio" },
+  "homepage": "https://github.com/manuaudio/macos-cli",
+  "repository": "https://github.com/manuaudio/macos-cli",
+  "license": "MIT",
+  "skills": ["./"]
+}

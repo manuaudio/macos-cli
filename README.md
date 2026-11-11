@@ -32,6 +32,13 @@ Add the skill to Claude Code, Codex, Cursor and the other agents [skills.sh](htt
 npx skills add manuaudio/macos-cli
 ```
 
+In Claude Code it is also a plugin:
+
+```text
+/plugin marketplace add manuaudio/macos-cli
+/plugin install macos-cli@macos-cli
+```
+
 The agent starts with `macos doctor --for-agent`: every macOS permission, its state and how a person grants it, without showing a single prompt. Then it calls `macos <area> <action> --json` and reads one JSON value from stdout. A failure is JSON too, with stderr empty:
 
 ```jsonc
@@ -176,6 +183,8 @@ Codex, Cursor and the other agents [skills.sh](https://skills.sh) knows:
 ```bash
 npx skills add manuaudio/macos-cli
 ```
+
+Claude Code also installs it as a plugin: `/plugin marketplace add manuaudio/macos-cli`, then `/plugin install macos-cli@macos-cli`. The plugin is this repository's `SKILL.md`, nothing more.
 
 Hermes Agent takes it from its URL:
 

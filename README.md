@@ -67,7 +67,8 @@ The installer does **not** grant any macOS privacy permission for you — it pri
 
 ```bash
 macos --version
-macos setup       # checks every permission — a green ✓ per capability
+macos doctor      # every macOS permission, its state, and how to get it (never prompts)
+macos setup       # checks every capability end to end — a green ✓ per capability
 ```
 
 ## What it can do
@@ -134,6 +135,54 @@ macOS CLI is **one binary and nothing else** — no MCP server, no HTTP bridge, 
 "$HOME/.local/bin/macos" calendar events --json
 ```
 
+### What may this agent do? `macos doctor --for-agent`
+
+Before an agent reads anything, it can ask the binary what macOS allows it, without
+triggering a single prompt:
+
+```jsonc
+// macos doctor --for-agent   (trimmed)
+{
+  "ok": true,
+  "ready": false,
+  "missing": ["calendars", "full_disk_access"],
+  "areas": [
+    { "area": "calendars", "state": "not_determined", "granted": false, "needed_by": ["calendar"],
+      "hint": "A person runs `macos authorize calendars`, or turns it on in System Settings › Privacy & Security › Calendars.",
+      "authorize": "macos authorize calendars" },
+    { "area": "reminders", "state": "granted", "granted": true, "needed_by": ["reminders"],
+      "hint": null, "authorize": "macos authorize reminders" }
+  ],
+  "binary": { "path": "…/macos", "bundle_id": "com.manuaudio.macos-cli", "version": "…", "signature": "…", "team_id": "…" },
+  "session": { "terminal": false, "gui_session": true, "note": "…" },
+  "capabilities": { "calendar.read": true, "mail.send": false }
+}
+```
+
+Areas: `calendars`, `reminders`, `contacts`, `full_disk_access`, `accessibility`, `screen_recording`,
+`location`, and `automation.<app>` for Mail, Messages, Notes, Safari, Music, Photos, Finder and
+System Events. A state is `granted`, `denied`, `not_determined`, `restricted`, `write_only` or
+`unknown` (macOS answers Automation only for a running app). `capabilities` is the `auth.json`
+policy below, resolved.
+
+`macos authorize <area>` asks macOS for one area: it shows the system prompt (waiting at most
+`--timeout` seconds, default 60), or opens the settings pane for the areas macOS never prompts for
+again. A person clicks Allow; the agent cannot.
+
+A command never waits on a prompt nobody can see. When Calendars, Reminders or Contacts are
+undecided and no person is at a terminal (an agent's shell, cron, launchd), the command fails at
+once with `access_denied`, `"state": "not_determined"` and the `authorize` command to run. Notes
+reads without Full Disk Access fail with `access_denied`, `"area": "full_disk_access"`, never
+`count: 0`.
+
+### The policy file: only a person widens it
+
+`~/.config/macos-cli/auth.json` turns capabilities on and off (`macos auth list`). Turning one
+**on** — `auth grant`, `auth reset`, `auth setup` — asks the person at the terminal to type a
+confirmation, read from `/dev/tty`, so piped input cannot answer it. Without a terminal it refuses
+with `person_required` (exit 4) and the policy is unchanged: the agent the policy restricts cannot
+lift it. `auth deny` needs no confirmation.
+
 ### Agent-safe surfaces (0.8.0)
 
 These commands are built for unattended, read-mostly automation — stable JSON, fail-closed filters, and a machine-readable error contract:
@@ -145,6 +194,7 @@ These commands are built for unattended, read-mostly automation — stable JSON,
 | `macos reminders export --timeout N` | A fetch timeout is a **hard error** — prints `{"status":"error","error":"fetch_timeout",…}` on stdout and exits `5`, so a hang can never be mistaken for "zero reminders." |
 | `macos reminders complete --id ID` | The **only** way to complete a reminder. Defaults to a **dry run**; it writes only when `--approve` exactly matches a non-empty `APPLE_EVENTKIT_APPROVE_TOKEN` environment variable. `complete-safe` is a kept alias. |
 | `macos calendar export --json` | Rich read-only export as a single envelope `{ok,status,count,filter,calendars,events}`. Enumerates **all linked calendars from all sources** by default; `--calendar NAME` is **fail-closed** (unknown name ⇒ zero events *and* zero calendars, never all). `--from`/`--to` validate `from ≤ to` and emit a structured `invalid_date_range`/`invalid_date` error + exit `64` on bad input. |
+| `macos calendar … --calendar-id ID` | `events`, `export`, `create`, `update` and `delete` take the id `calendar calendars --json` prints (with `source`, `writable` and `color`). A write by a `--calendar NAME` that two calendars share is refused with `ambiguous_calendar` (exit 64) and both ids, never sent to the first one found. |
 | `macos calendar delete --id ID` | Deletes exactly one event by stable identifier (`EKSpanThisEvent`). `--id` and `--title`/`--date` are **mutually exclusive**; a missing id prints `{"error":"event_not_found",…,"deleted":false}` and exits `3`. Result carries only `id` + `deleted` — no private event content. |
 | `macos notes export --json` | Read-only Notes export straight from the local store (Unicode-preserving), with a fail-closed `--folder` filter. |
 
@@ -178,9 +228,9 @@ Under `--json` a failure is one JSON object on stdout, and stderr stays empty. T
 | Exit | Meaning | `error` codes |
 |---|---|---|
 | 0 | Success | — |
-| 64 | The command line was rejected: unknown option, missing argument, a value that doesn't parse | `usage`, `invalid_date`, `invalid_date_range`, `invalid_alarm`, `invalid_delete_mode` |
+| 64 | The command line was rejected: unknown option, missing argument, a value that doesn't parse | `usage`, `invalid_argument`, `invalid_date`, `invalid_date_range`, `invalid_alarm`, `invalid_delete_mode`, `invalid_timezone`, `ambiguous_calendar` |
 | 3 | The named thing does not exist | `not_found`, `calendar_not_found`, `event_not_found` |
-| 4 | Not allowed | `capability_denied` (turned off in `auth.json`), `access_denied` (macOS privacy settings) |
+| 4 | Not allowed | `capability_denied` (turned off in `auth.json`), `access_denied` (macOS privacy settings), `person_required` (a policy change only a person may make) |
 | 5 | No answer in time | `timeout`, `fetch_timeout` |
 | 6 | The system or an app reported an error | `app_error` |
 
@@ -223,7 +273,9 @@ Two read shapes, chosen for compatibility:
 }
 ```
 
-Dates are ISO8601 UTC. `--from` is inclusive, `--to` is the exclusive upper bound; both default to a bounded ±1-year window and accept explicit multi-year ranges (a single EventKit query spans at most ~4 years — chunk beyond that). An unknown `--calendar` returns a valid envelope with `count: 0` and `calendars: []` — never all.
+Dates are ISO8601 UTC unless `--timezone America/Los_Angeles` (any IANA name) asks for another zone, which is also the zone `--from`/`--to` are read in. `--start`/`--end` are accepted for `--from`/`--to`. `export --since 2026-11-01` (or an ISO 8601 date-time) keeps only events created or changed since then. `--from` is inclusive, `--to` is the exclusive upper bound; both default to a bounded ±1-year window and accept explicit multi-year ranges (a single EventKit query spans at most ~4 years — chunk beyond that). An unknown `--calendar` returns a valid envelope with `count: 0` and `calendars: []` — never all.
+
+`calendar update --id ID --alarm 15 --alarm 60` replaces an event's alarms; `--clear-alarms` removes them.
 
 **Create with custom alarms** (each `--alarm` is minutes-before and repeatable; with no `--alarm` the event has no alarms; the result echoes the minute list, never notes):
 
@@ -247,9 +299,15 @@ macos contacts get "$ID" --json | jq -r .job_title            # → "Tour Manage
 
 The written value appears verbatim in the very next `get`/`export`, so the write can be confirmed rather than assumed.
 
+`contacts export` carries a `history_token`. Pass it back as `--since TOKEN` and the export holds only the contacts added or changed since, plus `deleted_ids`, and a new `history_token`.
+
+### Mail by Message-ID
+
+`mail search QUERY --json` returns each message's `message_id` (the Message-ID header), `account` and `mailbox`; `mail read --id MESSAGE_ID` reads that one message. Both take `--mailbox NAME` and `--account NAME`, which skip every other mailbox; an unknown one is `not_found`, not zero results.
+
 ## Permissions
 
-macOS gates these capabilities behind privacy permissions — by design. On first use you'll be prompted to grant **Automation**, **Calendars**, **Contacts**, **Accessibility**, **Screen Recording**, etc. Run `macos setup` any time to see exactly what's granted and what's missing. Nothing is bypassed; you stay in control.
+macOS gates these capabilities behind privacy permissions — by design. On first use you'll be prompted to grant **Automation**, **Calendars**, **Contacts**, **Accessibility**, **Screen Recording**, etc. Run `macos doctor` any time to see exactly what's granted and what's missing, and `macos authorize <area>` to ask for one. Nothing is bypassed; you stay in control.
 
 ## Build from source
 

@@ -1,5 +1,6 @@
 import ArgumentParser
 import Contacts
+import ContactsHistory
 import Foundation
 import MacCLICore
 
@@ -26,13 +27,15 @@ struct ContactsCommand: ParsableCommand {
         @Option(name: .long, help: "Max contacts to export (default: all)")
         var limit: Int?
 
+        @Option(name: .long, help: "Only contacts added, changed or deleted since this history_token (from an earlier export)")
+        var since: String?
+
         @Flag(name: .long, help: "Accepted for consistency; export always prints JSON")
         var json = false
 
         func run() throws {
             try Auth.check("contacts.read")
-            let store = CNContactStore()
-            try requestAccess(store)
+            let store = try PrivacyAccess.contactsStore()
 
             let keys: [CNKeyDescriptor] = [
                 CNContactIdentifierKey as CNKeyDescriptor,
@@ -55,22 +58,54 @@ struct ContactsCommand: ParsableCommand {
                 CNContactTypeKey as CNKeyDescriptor,
             ]
 
+            if let since = since {
+                guard let token = Data(base64Encoded: since) else {
+                    throw CLIFailure(code: "invalid_argument",
+                                     message: "--since takes the history_token of an earlier export.",
+                                     hint: "Run `macos contacts export` once and pass its history_token.")
+                }
+                var refusal: NSError?
+                guard let changes = MCContactChangesSince(store, token, keys, &refusal) else {
+                    throw CLIFailure(code: "invalid_argument",
+                                     message: "Contacts refused the history token: "
+                                         + (refusal?.localizedDescription ?? "no reason given"),
+                                     hint: "Tokens expire; run a full `macos contacts export` for a new one.")
+                }
+                var changed = changes.changed
+                let truncated = limit.map { changed.count > $0 } ?? false
+                if let lim = limit { changed = Array(changed.prefix(lim)) }
+                printJSON([
+                    "contacts": changed.map(contactExportDict),
+                    "count": changed.count,
+                    "deleted_ids": changes.deletedIdentifiers,
+                    "truncated": truncated,
+                    "since": since,
+                    "history_token": changes.token.map { $0.base64EncodedString() as Any } ?? NSNull(),
+                ])
+                return
+            }
+
+            // Unsorted is the store's own order: sorting 2 000 contacts by the user's
+            // name order cost most of the export's time.
+            let token = store.currentHistoryToken
             let req = CNContactFetchRequest(keysToFetch: keys)
-            req.sortOrder = .userDefault
+            req.sortOrder = .none
             var out: [[String: Any]] = []
             var reachedLimit = false
             try store.enumerateContacts(with: req) { c, stop in
-                out.append(contactExportDict(c))
                 if let lim = limit, out.count >= lim {
                     reachedLimit = true
                     stop.pointee = true
+                    return
                 }
+                out.append(contactExportDict(c))
             }
 
             printJSON([
                 "contacts": out,
                 "count": out.count,
                 "truncated": reachedLimit,
+                "history_token": token.map { $0.base64EncodedString() as Any } ?? NSNull(),
             ])
         }
     }
@@ -192,18 +227,7 @@ struct ContactsCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("contacts.read")
-            let store = CNContactStore()
-
-            let sema = DispatchSemaphore(value: 0)
-            var authGranted = false
-            store.requestAccess(for: .contacts) { granted, _ in
-                authGranted = granted
-                sema.signal()
-            }
-            sema.wait()
-            guard authGranted else {
-                throw CLIFailure.permission("Contacts access denied — grant in Privacy & Security")
-            }
+            let store = try PrivacyAccess.contactsStore()
 
             let keys: [CNKeyDescriptor] = [
                 CNContactGivenNameKey as CNKeyDescriptor,
@@ -253,18 +277,7 @@ struct ContactsCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("contacts.read")
-            let store = CNContactStore()
-
-            let sema = DispatchSemaphore(value: 0)
-            var authGranted = false
-            store.requestAccess(for: .contacts) { granted, _ in
-                authGranted = granted
-                sema.signal()
-            }
-            sema.wait()
-            guard authGranted else {
-                throw CLIFailure.permission("Contacts access denied")
-            }
+            let store = try PrivacyAccess.contactsStore()
 
             let keys: [CNKeyDescriptor] = [
                 CNContactGivenNameKey as CNKeyDescriptor,
@@ -323,8 +336,7 @@ struct ContactsCommand: ParsableCommand {
             guard !firstName.isEmpty || !lastName.isEmpty || organization != nil else {
                 throw ValidationError("Provide at least --first-name, --last-name, or --organization")
             }
-            let store = CNContactStore()
-            try requestAccess(store)
+            let store = try PrivacyAccess.contactsStore()
 
             let contact = CNMutableContact()
             contact.givenName  = firstName
@@ -374,8 +386,7 @@ struct ContactsCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("contacts.write")
-            let store = CNContactStore()
-            try requestAccess(store)
+            let store = try PrivacyAccess.contactsStore()
 
             let allKeys: [CNKeyDescriptor] = [
                 CNContactGivenNameKey as CNKeyDescriptor,
@@ -432,8 +443,7 @@ struct ContactsCommand: ParsableCommand {
 
         func run() throws {
             try Auth.check("contacts.delete")
-            let store = CNContactStore()
-            try requestAccess(store)
+            let store = try PrivacyAccess.contactsStore()
 
             let keys: [CNKeyDescriptor] = [
                 CNContactGivenNameKey as CNKeyDescriptor,
@@ -457,14 +467,6 @@ struct ContactsCommand: ParsableCommand {
 }
 
 // MARK: - Contacts helpers
-
-private func requestAccess(_ store: CNContactStore) throws {
-    let sema = DispatchSemaphore(value: 0)
-    var granted = false
-    store.requestAccess(for: .contacts) { ok, _ in granted = ok; sema.signal() }
-    sema.wait()
-    guard granted else { throw CLIFailure.permission("Contacts access denied — grant in Privacy & Security") }
-}
 
 private func cnLabel(_ label: String) -> String {
     switch label.lowercased() {

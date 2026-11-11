@@ -1,3 +1,4 @@
+import AppKit
 import ArgumentParser
 import EventKit
 import Foundation
@@ -50,7 +51,12 @@ private func calAlarmMinutes(_ event: EKEvent) -> [Int] {
 
 /// Extract every EventKit field this build can read and hand plain values to the
 /// pure `MacCLICore.calendarEventJSON` assembler (which owns the machine contract).
-private func calRichEventDict(_ e: EKEvent) -> [String: Any] {
+private func calRichEventDict(_ e: EKEvent, in zone: TimeZone? = nil) -> [String: Any] {
+    let calISO = zone.map { tz -> ISO8601DateFormatter in
+        let f = ISO8601DateFormatter()
+        f.timeZone = tz
+        return f
+    } ?? calISO
     let attendees = (e.attendees ?? []).compactMap(calParticipantString)
     return MacCLICore.calendarEventJSON(
         id: e.eventIdentifier ?? "",
@@ -79,6 +85,48 @@ extension CLIFailure {
     static func calendarNotFound(_ name: String) -> CLIFailure {
         CLIFailure(code: "calendar_not_found", message: "No calendar is named '\(name)'.",
                    hint: "Run `macos calendar calendars` to see the names.", extra: ["calendar": name])
+    }
+}
+
+/// `--calendar` / `--calendar-id` against the store's calendars. Nil when neither is
+/// given. A write by a name two calendars share is refused with both ids.
+private func pickCalendars(_ all: [EKCalendar], name: String?, id: String?, forWrite: Bool) throws -> [EKCalendar]? {
+    let refs = all.map { MacCLICore.CalendarRef(id: $0.calendarIdentifier, title: $0.title, source: $0.source.title) }
+    switch MacCLICore.selectCalendar(refs, name: name, id: id, forWrite: forWrite) {
+    case .none: return nil
+    case .calendar(let index): return [all[index]]
+    case .calendars(let indices): return indices.map { all[$0] }
+    case .failure(let envelope): throw CLIFailure(envelope: envelope)
+    }
+}
+
+/// `--timezone <IANA name>`: the zone dates on the command line are read in and the
+/// zone times are printed in. Default: this Mac's zone for input, UTC for output.
+private func parseTimeZone(_ name: String?) throws -> TimeZone? {
+    guard let name = name else { return nil }
+    guard let zone = TimeZone(identifier: name) else {
+        throw CLIFailure(code: "invalid_timezone", message: "'\(name)' is not a time zone.",
+                         hint: "Use an IANA name such as America/Los_Angeles or UTC.", extra: ["value": name])
+    }
+    return zone
+}
+
+/// Hex `#RRGGBB` of a calendar's color, nil when it has none.
+private func calColorHex(_ cal: EKCalendar) -> String? {
+    guard let color = cal.color?.usingColorSpace(.sRGB) else { return nil }
+    let channel = { (v: CGFloat) in Int((v * 255).rounded()) }
+    return String(format: "#%02X%02X%02X", channel(color.redComponent), channel(color.greenComponent),
+                  channel(color.blueComponent))
+}
+
+private func calTypeName(_ type: EKCalendarType) -> String {
+    switch type {
+    case .local: return "local"
+    case .calDAV: return "caldav"
+    case .exchange: return "exchange"
+    case .subscription: return "subscription"
+    case .birthday: return "birthday"
+    @unknown default: return "unknown"
     }
 }
 
@@ -113,14 +161,20 @@ struct CalendarCommand: ParsableCommand {
     struct Events: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "List events in a date range")
 
-        @Option(name: .long, help: "Start date YYYY-MM-DD (default: today)")
+        @Option(name: [.customLong("from"), .customLong("start")], help: "Start date YYYY-MM-DD (default: today)")
         var from: String?
 
-        @Option(name: .long, help: "End date YYYY-MM-DD (default: 7 days from start)")
+        @Option(name: [.customLong("to"), .customLong("end")], help: "End date YYYY-MM-DD (default: 7 days from start)")
         var to: String?
 
-        @Option(name: .long, help: "Calendar name filter")
+        @Option(name: .long, help: "Calendar name filter (every calendar of that name)")
         var calendar: String?
+
+        @Option(name: .customLong("calendar-id"), help: "Exactly one calendar, by the id `calendar calendars --json` prints")
+        var calendarId: String?
+
+        @Option(name: .long, help: "IANA time zone the dates are read in and times printed in")
+        var timezone: String?
 
         @Flag(name: .long, help: "Output JSON")
         var json = false
@@ -130,7 +184,8 @@ struct CalendarCommand: ParsableCommand {
             // dates (e.g. 2026-02-30) instead of rolling them over.
             let df = DateFormatter()
             df.locale = Locale(identifier: "en_US_POSIX")
-            df.timeZone = TimeZone.current
+            let zone = try parseTimeZone(timezone)
+            df.timeZone = zone ?? TimeZone.current
             df.isLenient = false
             df.dateFormat = "yyyy-MM-dd"
 
@@ -169,13 +224,8 @@ struct CalendarCommand: ParsableCommand {
             let store = try EventKitStore.authorized(for: .event)
 
             let allCalendars = store.calendars(for: .event)
-            let targetCals: [EKCalendar]
-            if let name = calendar {
-                targetCals = allCalendars.filter { $0.title == name }
-                if targetCals.isEmpty { throw CLIFailure.calendarNotFound(name) }
-            } else {
-                targetCals = Array(allCalendars)
-            }
+            let targetCals = try pickCalendars(allCalendars, name: calendar, id: calendarId, forWrite: false)
+                ?? allCalendars
 
             let pred = store.predicateForEvents(withStart: start, end: end, calendars: targetCals)
             let events = store.events(matching: pred).sorted { $0.startDate < $1.startDate }
@@ -184,7 +234,7 @@ struct CalendarCommand: ParsableCommand {
                 // Backward-compatible ARRAY (unchanged shape); each element now carries
                 // the six legacy keys plus additive rich fields. For the ingestion
                 // envelope (events/count/calendars/filter) use `calendar export`.
-                printJSON(events.map { calRichEventDict($0) })
+                printJSON(events.map { calRichEventDict($0, in: zone) })
             } else {
                 let display = DateFormatter()
                 display.dateFormat = "EEE MMM d, h:mm a"
@@ -202,14 +252,23 @@ struct CalendarCommand: ParsableCommand {
         static let configuration = CommandConfiguration(
             abstract: "Export events as a rich JSON envelope (events/count/calendars/filter) for ingestion")
 
-        @Option(name: .long, help: "Start date YYYY-MM-DD (default: 1 year ago). Inclusive.")
+        @Option(name: [.customLong("from"), .customLong("start")], help: "Start date YYYY-MM-DD (default: 1 year ago). Inclusive.")
         var from: String?
 
-        @Option(name: .long, help: "End date YYYY-MM-DD (default: 1 year ahead). Exclusive upper bound.")
+        @Option(name: [.customLong("to"), .customLong("end")], help: "End date YYYY-MM-DD (default: 1 year ahead). Exclusive upper bound.")
         var to: String?
 
         @Option(name: .long, help: "Exact calendar name filter (fail-closed: unknown name => zero events, never all)")
         var calendar: String?
+
+        @Option(name: .customLong("calendar-id"), help: "Exactly one calendar, by id (unknown id => calendar_not_found)")
+        var calendarId: String?
+
+        @Option(name: .long, help: "Only events created or changed since: ISO 8601 date-time, or YYYY-MM-DD")
+        var since: String?
+
+        @Option(name: .long, help: "IANA time zone the dates are read in and times printed in")
+        var timezone: String?
 
         @Flag(name: .long, help: "Accepted for consistency; export always prints JSON")
         var json = false
@@ -219,7 +278,8 @@ struct CalendarCommand: ParsableCommand {
             // dates (e.g. 2026-02-30) instead of rolling them over.
             let df = DateFormatter()
             df.locale = Locale(identifier: "en_US_POSIX")
-            df.timeZone = TimeZone.current
+            let zone = try parseTimeZone(timezone)
+            df.timeZone = zone ?? TimeZone.current
             df.isLenient = false
             df.dateFormat = "yyyy-MM-dd"
 
@@ -255,6 +315,17 @@ struct CalendarCommand: ParsableCommand {
                                                                          to: to ?? df.string(from: end)))
             }
 
+            var sinceDate: Date?
+            if let since = since {
+                guard let date = MacCLICore.parseSince(since, timeZone: df.timeZone) else {
+                    throw CLIFailure(code: "invalid_date",
+                                     message: "Could not parse the --since value; use an ISO 8601 date-time "
+                                         + "(2026-11-10T09:00:00-08:00) or YYYY-MM-DD.",
+                                     extra: ["field": "since", "value": since])
+                }
+                sinceDate = date
+            }
+
             // Validation passed — NOW touch TCC. A policy denial (`capability_denied`), a
             // macOS denial (`access_denied`) and an unanswered request (`timeout`) are
             // distinct codes; none carries calendar content.
@@ -264,20 +335,31 @@ struct CalendarCommand: ParsableCommand {
             // Enumerate ALL linked event calendars from ALL sources, then resolve the
             // optional filter fail-closed (an unknown name never broadens to all).
             let allCals = store.calendars(for: .event)
-            let resolution = MacCLICore.resolveCalendarFilter(allTitles: allCals.map { $0.title }, filter: calendar)
-            let targetCals = resolution.indices.map { allCals[$0] }
+            let targetCals: [EKCalendar]
+            if calendarId != nil {
+                targetCals = try pickCalendars(allCals, name: calendar, id: calendarId, forWrite: false) ?? []
+            } else {
+                let resolution = MacCLICore.resolveCalendarFilter(allTitles: allCals.map { $0.title }, filter: calendar)
+                targetCals = resolution.indices.map { allCals[$0] }
+            }
             let calendarNames = targetCals.map { $0.title }
+            let filter = calendar ?? calendarId
 
             // Empty target set (fail-closed unknown filter, or no calendars): honest zero.
             guard !targetCals.isEmpty else {
-                printJSON(MacCLICore.calendarExportEnvelope(events: [], calendars: calendarNames, filter: calendar))
+                printJSON(MacCLICore.calendarExportEnvelope(events: [], calendars: calendarNames, filter: filter))
                 return
             }
 
             let pred = store.predicateForEvents(withStart: start, end: end, calendars: targetCals)
-            let events = store.events(matching: pred).sorted { $0.startDate < $1.startDate }
-            let dicts = events.map { calRichEventDict($0) }
-            printJSON(MacCLICore.calendarExportEnvelope(events: dicts, calendars: calendarNames, filter: calendar))
+            var events = store.events(matching: pred).sorted { $0.startDate < $1.startDate }
+            if let cutoff = sinceDate {
+                events = events.filter { ($0.lastModifiedDate ?? $0.creationDate ?? .distantPast) >= cutoff }
+            }
+            let dicts = events.map { calRichEventDict($0, in: zone) }
+            var envelope = MacCLICore.calendarExportEnvelope(events: dicts, calendars: calendarNames, filter: filter)
+            if let since = since { envelope["since"] = since }
+            printJSON(envelope)
         }
     }
 
@@ -294,8 +376,14 @@ struct CalendarCommand: ParsableCommand {
         @Option(name: .long, help: "End: YYYY-MM-DD HH:MM (default: 1h after start)")
         var end: String?
 
-        @Option(name: .long, help: "Calendar name")
+        @Option(name: .long, help: "Calendar name (refused when two calendars share it; use --calendar-id)")
         var calendar: String?
+
+        @Option(name: .customLong("calendar-id"), help: "Calendar id, from `calendar calendars --json`")
+        var calendarId: String?
+
+        @Option(name: .long, help: "IANA time zone the start and end are in, and the event keeps (default: this Mac's)")
+        var timezone: String?
 
         @Option(name: .long, help: "Location")
         var location: String?
@@ -321,10 +409,12 @@ struct CalendarCommand: ParsableCommand {
                 throw CLIFailure(envelope: MacCLICore.alarmValidationErrorJSON(invalid: invalidAlarms))
             }
 
+            let zone = try parseTimeZone(timezone)
             let store = try EventKitStore.authorized(for: .event)
 
             let df = DateFormatter()
             df.locale = Locale(identifier: "en_US_POSIX")
+            df.timeZone = zone ?? TimeZone.current
 
             func parseDate(_ s: String) -> Date? {
                 df.dateFormat = "yyyy-MM-dd HH:mm"; if let d = df.date(from: s) { return d }
@@ -350,6 +440,7 @@ struct CalendarCommand: ParsableCommand {
             event.startDate = startDate
             event.endDate = endDate
             event.isAllDay = allDay
+            if let zone = zone, !allDay { event.timeZone = zone }
             if let loc = location { event.location = loc }
             if let n = notes { event.notes = n }
 
@@ -362,14 +453,8 @@ struct CalendarCommand: ParsableCommand {
             }
 
             let allCalendars = store.calendars(for: .event)
-            if let name = calendar {
-                guard let cal = allCalendars.first(where: { $0.title == name }) else {
-                    throw CLIFailure.calendarNotFound(name)
-                }
-                event.calendar = cal
-            } else {
-                event.calendar = store.defaultCalendarForNewEvents
-            }
+            event.calendar = try pickCalendars(allCalendars, name: calendar, id: calendarId, forWrite: true)?.first
+                ?? store.defaultCalendarForNewEvents
 
             do {
                 try store.save(event, span: .thisEvent, commit: true)
@@ -383,6 +468,7 @@ struct CalendarCommand: ParsableCommand {
                     "id": event.eventIdentifier ?? "",
                     "title": event.title ?? "",
                     "calendar": event.calendar?.title ?? "",
+                    "calendar_id": event.calendar?.calendarIdentifier ?? "",
                     "start": ISO8601DateFormatter().string(from: event.startDate),
                     "end": ISO8601DateFormatter().string(from: event.endDate),
                     "all_day": event.isAllDay,
@@ -408,8 +494,11 @@ struct CalendarCommand: ParsableCommand {
         @Option(name: .long, help: "Date YYYY-MM-DD — searches a 1-day window to catch all-day storage variants. Requires --title.")
         var date: String?
 
-        @Option(name: .long, help: "Calendar name filter (title/date mode only)")
+        @Option(name: .long, help: "Calendar name filter (title/date mode only; refused when two calendars share it)")
         var calendar: String?
+
+        @Option(name: .customLong("calendar-id"), help: "Calendar id filter (title/date mode only)")
+        var calendarId: String?
 
         @Flag(name: .long, help: "Match title as substring (default: exact) — title/date mode only")
         var contains = false
@@ -456,13 +545,8 @@ struct CalendarCommand: ParsableCommand {
                 let searchEnd = Calendar(identifier: .gregorian).date(byAdding: .day, value: 1, to: searchStart)!
 
                 let allCalendars = store.calendars(for: .event)
-                let targetCals: [EKCalendar]
-                if let calName = calendar {
-                    targetCals = allCalendars.filter { $0.title == calName }
-                    if targetCals.isEmpty { throw CLIFailure.calendarNotFound(calName) }
-                } else {
-                    targetCals = Array(allCalendars)
-                }
+                let targetCals = try pickCalendars(allCalendars, name: calendar, id: calendarId, forWrite: true)
+                    ?? allCalendars
 
                 let pred = store.predicateForEvents(withStart: searchStart, end: searchEnd, calendars: targetCals)
                 let events = store.events(matching: pred)
@@ -517,17 +601,39 @@ struct CalendarCommand: ParsableCommand {
         @Option(name: .long, help: "New notes")
         var notes: String?
 
-        @Option(name: .long, help: "Move to a different calendar by name")
+        @Option(name: .long, help: "Move to a different calendar by name (refused when two calendars share it)")
         var calendar: String?
+
+        @Option(name: .customLong("calendar-id"), help: "Move to a different calendar by id")
+        var calendarId: String?
+
+        @Option(name: .long, help: "Set the alarms, minutes before start (repeatable); replaces the event's alarms")
+        var alarm: [Int] = []
+
+        @Flag(name: .customLong("clear-alarms"), help: "Remove every alarm")
+        var clearAlarms = false
+
+        @Option(name: .long, help: "IANA time zone --start and --end are in, and the event keeps")
+        var timezone: String?
 
         @Flag(name: .long, help: "Output JSON")
         var json = false
 
         func run() throws {
             try Auth.check("calendar.write")
-            guard title != nil || start != nil || end != nil || location != nil || notes != nil || calendar != nil else {
-                throw ValidationError("Specify at least one field to update: --title, --start, --end, --location, --notes, --calendar")
+            guard title != nil || start != nil || end != nil || location != nil || notes != nil || calendar != nil
+                    || calendarId != nil || !alarm.isEmpty || clearAlarms || timezone != nil else {
+                throw ValidationError("Specify at least one field to update: --title, --start, --end, --location, "
+                    + "--notes, --calendar, --calendar-id, --alarm, --clear-alarms, --timezone")
             }
+            if clearAlarms && !alarm.isEmpty {
+                throw ValidationError("--alarm already replaces the alarms; give it or --clear-alarms, not both.")
+            }
+            let invalidAlarms = MacCLICore.invalidAlarmMinutes(alarm)
+            if !invalidAlarms.isEmpty {
+                throw CLIFailure(envelope: MacCLICore.alarmValidationErrorJSON(invalid: invalidAlarms))
+            }
+            let zone = try parseTimeZone(timezone)
 
             let store = try EventKitStore.authorized(for: .event)
 
@@ -537,6 +643,7 @@ struct CalendarCommand: ParsableCommand {
 
             let df = DateFormatter()
             df.locale = Locale(identifier: "en_US_POSIX")
+            df.timeZone = zone ?? event.timeZone ?? TimeZone.current
 
             func parseDate(_ s: String) -> Date? {
                 df.dateFormat = "yyyy-MM-dd HH:mm"; if let d = df.date(from: s) { return d }
@@ -544,6 +651,7 @@ struct CalendarCommand: ParsableCommand {
                 return nil
             }
 
+            if let zone = zone, !event.isAllDay { event.timeZone = zone }
             if let t = title { event.title = t }
             if let s = start {
                 guard let d = parseDate(s) else {
@@ -559,12 +667,15 @@ struct CalendarCommand: ParsableCommand {
             }
             if let loc = location { event.location = loc }
             if let n = notes { event.notes = n }
-            if let calName = calendar {
-                let allCalendars = store.calendars(for: .event)
-                guard let cal = allCalendars.first(where: { $0.title == calName }) else {
-                    throw CLIFailure.calendarNotFound(calName)
+            if let target = try pickCalendars(store.calendars(for: .event), name: calendar, id: calendarId,
+                                              forWrite: true)?.first {
+                event.calendar = target
+            }
+            if clearAlarms || !alarm.isEmpty {
+                event.alarms?.forEach { event.removeAlarm($0) }
+                for offset in MacCLICore.alarmOffsets(alarm) {
+                    event.addAlarm(EKAlarm(relativeOffset: offset))
                 }
-                event.calendar = cal
             }
 
             do {
@@ -578,9 +689,11 @@ struct CalendarCommand: ParsableCommand {
                     "id": event.eventIdentifier ?? "",
                     "title": event.title ?? "",
                     "calendar": event.calendar?.title ?? "",
+                    "calendar_id": event.calendar?.calendarIdentifier ?? "",
                     "start": ISO8601DateFormatter().string(from: event.startDate),
                     "end": ISO8601DateFormatter().string(from: event.endDate),
                     "all_day": event.isAllDay,
+                    "alarms": calAlarmMinutes(event),
                 ]
                 if let loc = event.location { d["location"] = loc }
                 if let n = event.notes { d["notes"] = n }
@@ -603,9 +716,22 @@ struct CalendarCommand: ParsableCommand {
             let store = try EventKitStore.authorized(for: .event)
             let cals = store.calendars(for: .event)
             if json {
-                printJSON(cals.map { ["name": $0.title, "id": $0.calendarIdentifier, "type": $0.type.rawValue] })
+                printJSON(cals.map { cal -> [String: Any] in
+                    [
+                        "name": cal.title,
+                        "id": cal.calendarIdentifier,
+                        "type": cal.type.rawValue,
+                        "kind": calTypeName(cal.type),
+                        "source": cal.source.title,
+                        "writable": cal.allowsContentModifications,
+                        "color": calColorHex(cal).map { $0 as Any } ?? NSNull(),
+                    ]
+                })
             } else {
-                cals.forEach { print("\($0.title) (\($0.type == .calDAV ? "iCloud" : "local"))") }
+                cals.forEach { cal in
+                    let access = cal.allowsContentModifications ? "" : ", read-only"
+                    print("\(cal.title) (\(cal.source.title)\(access))  \(cal.calendarIdentifier)")
+                }
             }
         }
     }

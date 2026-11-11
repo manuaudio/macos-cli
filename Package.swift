@@ -25,11 +25,19 @@ let package = Package(
             name: "MacCLICore",
             path: "Sources/MacCLICore"
         ),
+        // Contacts' change-history enumerator is Objective-C only (NS_SWIFT_UNAVAILABLE);
+        // `contacts export --since` reads it through this shim.
+        .target(
+            name: "ContactsHistory",
+            path: "Sources/ContactsHistory",
+            linkerSettings: [.linkedFramework("Contacts")]
+        ),
         .executableTarget(
             name: "macos-cli",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "MacCLICore",
+                "ContactsHistory",
             ],
             path: "Sources/macos-cli",
             swiftSettings: [

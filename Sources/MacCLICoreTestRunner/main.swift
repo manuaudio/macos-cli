@@ -516,6 +516,24 @@ do {
     check(!MacCLICore.wantsMachineErrors(arguments: ["script", "run", "--", "--json"]), "--json after -- is an operand")
 }
 
+// MARK: - Calendar selection, doctor, --since
+do {
+    let cals = [MacCLICore.CalendarRef(id: "A", title: "Work", source: "iCloud"),
+                MacCLICore.CalendarRef(id: "B", title: "Home", source: "iCloud"),
+                MacCLICore.CalendarRef(id: "C", title: "Work", source: "Exchange")]
+    eq(MacCLICore.selectCalendar(cals, name: nil, id: "C", forWrite: true), .calendar(2), "id names one")
+    eq(MacCLICore.selectCalendar(cals, name: "Work", id: nil, forWrite: false), .calendars([0, 2]), "read takes all")
+    if case .failure(let env) = MacCLICore.selectCalendar(cals, name: "Work", id: nil, forWrite: true) {
+        eq(env["error"] as? String, "ambiguous_calendar", "shared name refused for a write")
+    } else { check(false, "shared name refused for a write") }
+    eq(MacCLICore.privacyState(eventKitOrContactsRaw: 3), "granted", "raw 3 is granted")
+    let area = MacCLICore.PrivacyArea(id: "contacts", state: "denied", neededBy: [], hint: "h", authorize: nil)
+    let report = MacCLICore.doctorReport(areas: [area], binary: [:], session: [:], capabilities: [:])
+    eq(report["ready"] as? Bool, false, "doctor not ready with a denied area")
+    eq(MacCLICore.parseSince("2026-11-10T09:00:00-08:00")?.timeIntervalSince1970, 1_794_330_000, "since ISO")
+    eq(MacCLICore.exitCode(forErrorCode: "person_required"), 4, "person_required exits 4")
+}
+
 // MARK: - Summary
 if failures == 0 {
     print("ok — \(checks) checks passed")

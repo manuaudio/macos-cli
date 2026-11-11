@@ -215,17 +215,7 @@ struct RemindersCommand: ParsableCommand {
         func run() throws {
             try Auth.check("reminders.delete")
             let store = try EventKitStore.authorized(for: .reminder)
-            let pred = store.predicateForReminders(in: nil)
-            var found: EKReminder?
-            let sema = DispatchSemaphore(value: 0)
-            store.fetchReminders(matching: pred) { reminders in
-                found = reminders?.first { $0.calendarItemIdentifier == self.id }
-                sema.signal()
-            }
-            sema.wait()
-            guard let reminder = found else {
-                throw CLIFailure.notFound("Reminder '\(id)' not found")
-            }
+            let reminder = try EventKitStore.reminder(store, id: id)
             let savedTitle = reminder.title ?? id
             do {
                 try store.remove(reminder, commit: true)
@@ -268,17 +258,7 @@ struct RemindersCommand: ParsableCommand {
                 throw ValidationError("Specify at least one field to update: --title, --due, --notes, --list")
             }
             let store = try EventKitStore.authorized(for: .reminder)
-            let pred = store.predicateForReminders(in: nil)
-            var found: EKReminder?
-            let sema = DispatchSemaphore(value: 0)
-            store.fetchReminders(matching: pred) { reminders in
-                found = reminders?.first { $0.calendarItemIdentifier == self.id }
-                sema.signal()
-            }
-            sema.wait()
-            guard let reminder = found else {
-                throw CLIFailure.notFound("Reminder '\(id)' not found")
-            }
+            let reminder = try EventKitStore.reminder(store, id: id)
 
             if let t = title { reminder.title = t }
             if let n = notes { reminder.notes = n }
@@ -345,17 +325,7 @@ struct RemindersCommand: ParsableCommand {
         func run() throws {
             try Auth.check("reminders.write")
             let store = try EventKitStore.authorized(for: .reminder)
-            let pred = store.predicateForReminders(in: nil)
-            var found: EKReminder?
-            let sema = DispatchSemaphore(value: 0)
-            store.fetchReminders(matching: pred) { reminders in
-                found = reminders?.first { $0.calendarItemIdentifier == self.id }
-                sema.signal()
-            }
-            sema.wait()
-            guard let reminder = found else {
-                throw CLIFailure.notFound("Reminder '\(id)' not found")
-            }
+            let reminder = try EventKitStore.reminder(store, id: id)
             reminder.isCompleted = false
             reminder.completionDate = nil
             do {

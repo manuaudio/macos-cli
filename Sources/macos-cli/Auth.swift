@@ -34,6 +34,24 @@ struct Auth {
             extra: ["capability": capability])
     }
 
+    /// Widening the policy is a person's decision, never the agent's it restricts. The
+    /// person types `answer` on the controlling terminal (`/dev/tty`, so piped input
+    /// cannot answer). Without a terminal, or with any other answer, nothing changes.
+    /// Denying needs no confirmation: narrowing is always safe.
+    static func confirmByPerson(_ question: String, answer: String) throws {
+        guard personAtTerminal else { throw personRequired() }
+        guard askPerson("\(question)\nType \(answer) to confirm: ") == answer else {
+            throw CLIFailure(code: "person_required", message: "Not confirmed; the policy is unchanged.",
+                             hint: "Type \(answer) exactly to confirm.")
+        }
+    }
+
+    static func personRequired() -> CLIFailure {
+        CLIFailure(code: "person_required",
+                   message: "Widening macos-cli's permissions needs a person at a terminal, and this process has none.",
+                   hint: "Ask the Mac's owner to run the same command in Terminal and confirm it.")
+    }
+
     static func load() -> [String: Bool] {
         guard let data = try? Data(contentsOf: configURL),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

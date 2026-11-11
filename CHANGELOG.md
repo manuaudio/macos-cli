@@ -1,5 +1,29 @@
 ## Unreleased
 
+An agent can find out what it may do, and cannot widen it; calendars by id; faster Mail, Contacts and Reminders.
+
+### Added
+- **`macos doctor [--for-agent | --json]`.** Every macOS privacy area this binary may need, its state and the fix, plus the binary's identity, the session and the resolved `auth.json` policy. It never prompts.
+- **`macos authorize <area>`.** Asks macOS for one area (bounded by `--timeout`), or opens its settings pane.
+- **`--calendar-id`** on `calendar events`, `export`, `create`, `update` and `delete`. `calendar calendars --json` adds `kind`, `source`, `writable` and `color`.
+- **`calendar update --alarm/--clear-alarms`**, **`--timezone`** on events, export, create and update, **`calendar export --since`**, and `--start`/`--end` accepted for `--from`/`--to`.
+- **`contacts export --since TOKEN`** with the `history_token` every export now carries.
+- **`mail read --id MESSAGE_ID`**, and `--mailbox`/`--account` on `mail search` and `mail read`; results carry `message_id`, `account` and `date_sent`.
+
+### Changed
+- **Widening the policy needs a person.** `auth grant`, `auth reset` and `auth setup` ask for a typed confirmation on the terminal; without one they refuse with `person_required` (exit 4). `auth setup --yes` is gone.
+- **No unanswerable prompts.** Calendars, Reminders and Contacts are requested only when a person is at a terminal; elsewhere an undecided permission fails at once with `state: not_determined` instead of a 15 s timeout. The Contacts request is bounded.
+- **A write by a shared calendar name is refused** (`ambiguous_calendar`, exit 64) with every matching id; it used to go to the first calendar of that name.
+- **`setup`** exits 4 when something is missing and never reads stdin without a terminal.
+- **Mail search** asks Mail one query per mailbox instead of three or four Apple events per message.
+- **`contacts export`** returns contacts in the store's order (no sort), which was most of its time.
+- **Reminders `update`, `delete` and `uncomplete`** look the reminder up by id instead of fetching every reminder.
+
+### Fixed
+- **Notes without Full Disk Access** reported `count: 0`; Notes reads now fail with `access_denied`, `area: full_disk_access`.
+
+---
+
 One error contract for every command, and `--json` where the README promised it.
 
 ### Fixed

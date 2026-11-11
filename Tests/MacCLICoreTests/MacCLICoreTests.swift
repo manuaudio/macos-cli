@@ -586,3 +586,82 @@ final class ErrorContractTests: XCTestCase {
         XCTAssertFalse(MacCLICore.wantsMachineErrors(arguments: ["script", "run", "--", "--json"]))
     }
 }
+
+final class AgentTrustTests: XCTestCase {
+    let calendars = [
+        MacCLICore.CalendarRef(id: "A", title: "Work", source: "iCloud"),
+        MacCLICore.CalendarRef(id: "B", title: "Home", source: "iCloud"),
+        MacCLICore.CalendarRef(id: "C", title: "Work", source: "Exchange"),
+    ]
+
+    func testCalendarIdNamesExactlyOne() {
+        XCTAssertEqual(MacCLICore.selectCalendar(calendars, name: nil, id: "C", forWrite: true), .calendar(2))
+        guard case .failure(let env) = MacCLICore.selectCalendar(calendars, name: nil, id: "Z", forWrite: false) else {
+            return XCTFail("unknown id is an error")
+        }
+        XCTAssertEqual(env["error"] as? String, "calendar_not_found")
+        XCTAssertEqual(env["exit_code"] as? Int, 3)
+        XCTAssertEqual(env["calendar_id"] as? String, "Z")
+    }
+
+    func testWriteToSharedNameIsRefusedWithBothIds() {
+        guard case .failure(let env) = MacCLICore.selectCalendar(calendars, name: "Work", id: nil, forWrite: true) else {
+            return XCTFail("a write to a shared name must be refused")
+        }
+        XCTAssertEqual(env["error"] as? String, "ambiguous_calendar")
+        XCTAssertEqual(env["exit_code"] as? Int, 64)
+        let ids = (env["candidates"] as? [[String: String]])?.compactMap { $0["id"] }
+        XCTAssertEqual(ids, ["A", "C"])
+        XCTAssertTrue((env["hint"] as? String ?? "").contains("--calendar-id"))
+    }
+
+    func testReadBySharedNameTakesEveryMatch() {
+        XCTAssertEqual(MacCLICore.selectCalendar(calendars, name: "Work", id: nil, forWrite: false), .calendars([0, 2]))
+        XCTAssertEqual(MacCLICore.selectCalendar(calendars, name: "Home", id: nil, forWrite: true), .calendar(1))
+        XCTAssertEqual(MacCLICore.selectCalendar(calendars, name: nil, id: nil, forWrite: true), .none)
+    }
+
+    func testNameAndIdTogetherIsUsage() {
+        guard case .failure(let env) = MacCLICore.selectCalendar(calendars, name: "Home", id: "B", forWrite: true) else {
+            return XCTFail("both is an error")
+        }
+        XCTAssertEqual(env["exit_code"] as? Int, 64)
+    }
+
+    func testPrivacyStateVocabulary() {
+        XCTAssertEqual((0...4).map { MacCLICore.privacyState(eventKitOrContactsRaw: $0) },
+                       ["not_determined", "restricted", "denied", "granted", "write_only"])
+        XCTAssertEqual(MacCLICore.privacyState(eventKitOrContactsRaw: 9), "unknown")
+    }
+
+    func testDoctorReportIsReadyOnlyWhenEveryAreaIsGranted() {
+        let granted = MacCLICore.PrivacyArea(id: "calendars", state: "granted", neededBy: ["calendar"],
+                                             hint: "grant it", authorize: "macos authorize calendars")
+        let missing = MacCLICore.PrivacyArea(id: "contacts", state: "not_determined", neededBy: ["contacts"],
+                                             hint: "grant it", authorize: "macos authorize contacts")
+        XCTAssertNil(granted.hint, "a granted area carries no hint")
+        let report = MacCLICore.doctorReport(areas: [granted, missing], binary: [:], session: [:], capabilities: [:])
+        XCTAssertEqual(report["ready"] as? Bool, false)
+        XCTAssertEqual(report["missing"] as? [String], ["contacts"])
+        let areas = report["areas"] as? [[String: Any]]
+        XCTAssertEqual(areas?.last?["granted"] as? Bool, false)
+        XCTAssertEqual(areas?.last?["hint"] as? String, "grant it")
+        XCTAssertEqual(MacCLICore.doctorReport(areas: [granted], binary: [:], session: [:], capabilities: [:])["ready"]
+                       as? Bool, true)
+    }
+
+    func testSinceTakesISODateTimeOrDay() {
+        let utc = TimeZone(identifier: "UTC")!
+        XCTAssertEqual(MacCLICore.parseSince("2026-11-10T09:00:00-08:00", timeZone: utc)?.timeIntervalSince1970,
+                       1_794_330_000)
+        XCTAssertEqual(MacCLICore.parseSince("2026-11-10", timeZone: utc)?.timeIntervalSince1970, 1_794_268_800)
+        XCTAssertNil(MacCLICore.parseSince("yesterday"))
+        XCTAssertNil(MacCLICore.parseSince("2026-02-30"))
+    }
+
+    func testNewRefusalsHaveTheirExitCodes() {
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "person_required"), 4)
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "ambiguous_calendar"), 64)
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "invalid_timezone"), 64)
+    }
+}

@@ -1,3 +1,4 @@
+import EventKit
 import Foundation
 import XCTest
 
@@ -43,7 +44,7 @@ final class CLITests: XCTestCase {
         try JSONSerialization.data(withJSONObject: body).write(to: dir.appendingPathComponent("auth.json"))
     }
 
-    func run(_ arguments: [String]) throws -> Run {
+    func run(_ arguments: [String], input: String? = nil) throws -> Run {
         let binary = Self.binary
         guard FileManager.default.isExecutableFile(atPath: binary.path) else {
             XCTFail("no built binary at \(binary.path); run `swift build` first")
@@ -58,8 +59,13 @@ final class CLITests: XCTestCase {
         let out = Pipe(), err = Pipe()
         process.standardOutput = out
         process.standardError = err
-        process.standardInput = FileHandle.nullDevice
+        let stdin = Pipe()
+        process.standardInput = input == nil ? FileHandle.nullDevice : stdin
         try process.run()
+        if let input = input {
+            stdin.fileHandleForWriting.write(Data(input.utf8))
+            try stdin.fileHandleForWriting.close()
+        }
         let outData = out.fileHandleForReading.readDataToEndOfFile()
         let errData = err.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
@@ -201,5 +207,158 @@ final class CLITests: XCTestCase {
         let result = try run(["script", "run", "--json", "--jxa", "6 * 7"])
         XCTAssertEqual(result.status, 0, result.stdout)
         XCTAssertEqual(result.json?["output"] as? String, "42")
+    }
+
+    // MARK: - doctor
+
+    func testDoctorForAgentNamesEveryArea() throws {
+        let result = try run(["doctor", "--for-agent"])
+        XCTAssertEqual(result.status, 0, result.stderr)
+        let body = try XCTUnwrap(result.json, result.stdout)
+        let areas = try XCTUnwrap(body["areas"] as? [[String: Any]])
+        let ids = Set(areas.compactMap { $0["area"] as? String })
+        let expected: Set<String> = [
+            "calendars", "reminders", "contacts", "full_disk_access", "accessibility", "screen_recording",
+            "location", "automation.mail", "automation.messages", "automation.notes", "automation.safari",
+            "automation.music", "automation.photos", "automation.finder", "automation.system_events",
+        ]
+        XCTAssertEqual(ids, expected)
+        for area in areas {
+            let state = area["state"] as? String ?? ""
+            XCTAssertTrue(["granted", "denied", "not_determined", "restricted", "write_only", "unknown"].contains(state),
+                          "\(area)")
+            if state != "granted" { XCTAssertNotNil(area["hint"] as? String, "\(area)") }
+        }
+        XCTAssertEqual((body["binary"] as? [String: Any])?["bundle_id"] as? String, "com.manuaudio.macos-cli")
+        XCTAssertEqual((body["session"] as? [String: Any])?["terminal"] as? Bool, false)
+        XCTAssertEqual((body["capabilities"] as? [String: Bool])?["mail.send"], false, "the default policy")
+        XCTAssertEqual(body["ready"] as? Bool, (body["missing"] as? [String])?.isEmpty)
+    }
+
+    // MARK: - Only a person widens the policy
+
+    func policy() throws -> [String: Bool] {
+        let url = home.appendingPathComponent(".config/macos-cli/auth.json")
+        let body = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        return body?["capabilities"] as? [String: Bool] ?? [:]
+    }
+
+    /// An agent granted itself capabilities with `auth grant`. Without a terminal it is
+    /// refused, the answer piped to stdin does not count, and the policy is unchanged.
+    func testAuthGrantWithoutTerminalRefuses() throws {
+        try writePolicy(["mail.send": false])
+        let result = try run(["auth", "grant", "mail.send"], input: "mail.send\ny\n")
+        XCTAssertEqual(result.status, 4)
+        XCTAssertTrue(result.stderr.hasPrefix("Error: Widening macos-cli's permissions needs a person"), result.stderr)
+        XCTAssertEqual(try policy()["mail.send"], false)
+    }
+
+    func testAuthSetupAllAndResetWithoutTerminalRefuse() throws {
+        try writePolicy(["calendar.read": false])
+        for arguments in [["auth", "setup", "--all"], ["auth", "setup"], ["auth", "reset"]] {
+            let result = try run(arguments, input: "all\nreset\ny\n")
+            XCTAssertEqual(result.status, 4, "\(arguments): \(result.stderr)")
+        }
+        XCTAssertEqual(try policy(), ["calendar.read": false])
+        XCTAssertEqual(try run(["auth", "setup", "--all", "--yes"]).status, 64, "--yes no longer skips the person")
+    }
+
+    func testAuthDenyNeedsNoPerson() throws {
+        try writePolicy([:])
+        let result = try run(["auth", "deny", "calendar.read"])
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertEqual(try policy()["calendar.read"], false)
+    }
+
+    // MARK: - Notes behind Full Disk Access
+
+    func notesStore() -> URL {
+        home.appendingPathComponent("Library/Group Containers/group.com.apple.notes/NoteStore.sqlite")
+    }
+
+    /// Without Full Disk Access Notes answered `count: 0`, exit 0. A store this process
+    /// cannot open is now a permission error naming the grant.
+    func testNotesWithoutFullDiskAccessIsPermissionError() throws {
+        let store = notesStore()
+        try FileManager.default.createDirectory(at: store.deletingLastPathComponent(), withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: store.path, contents: Data(), attributes: [.posixPermissions: 0])
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: store.path) }
+        for arguments in [["notes", "list", "--json"], ["notes", "search", "x", "--json"], ["notes", "export"]] {
+            let result = try run(arguments)
+            assertEnvelope(result, code: "access_denied", status: 4)
+            XCTAssertEqual(result.json?["area"] as? String, "full_disk_access", "\(arguments)")
+        }
+    }
+
+    func testNotesWithoutStoreIsNotFound() throws {
+        assertEnvelope(try run(["notes", "list", "--json"]), code: "not_found", status: 3)
+    }
+
+    // MARK: - Calendar flags
+
+    func testStartIsAcceptedAsFrom() throws {
+        let result = try run(["calendar", "export", "--start", "bad"])
+        assertEnvelope(result, code: "invalid_date", status: 64)
+        XCTAssertEqual(result.json?["field"] as? String, "from")
+    }
+
+    func testBadSinceAndTimezoneAreRefusedBeforeAnyRead() throws {
+        let since = try run(["calendar", "export", "--since", "yesterday"])
+        assertEnvelope(since, code: "invalid_date", status: 64)
+        XCTAssertEqual(since.json?["field"] as? String, "since")
+        assertEnvelope(try run(["calendar", "events", "--json", "--timezone", "Mars/Base"]),
+                       code: "invalid_timezone", status: 64)
+    }
+
+    func testUpdateRefusesAlarmAndClearTogether() throws {
+        assertEnvelope(try run(["calendar", "update", "--json", "--id", "x", "--alarm", "10", "--clear-alarms"]),
+                       code: "usage", status: 64)
+    }
+
+    /// Writes only to calendars named by MACOS_CLI_TEST_CALENDAR on the Local source,
+    /// made here and removed at the end. Two of them share the name, so a write by name
+    /// is refused with both ids, and `--calendar-id` reaches the one it names.
+    func testSharedCalendarNameAndCalendarId() throws {
+        guard let name = ProcessInfo.processInfo.environment["MACOS_CLI_TEST_CALENDAR"], !name.isEmpty else {
+            throw XCTSkip("set MACOS_CLI_TEST_CALENDAR to run the calendar write test")
+        }
+        let store = EKEventStore()
+        guard EKEventStore.authorizationStatus(for: .event).rawValue == 3,
+              let local = store.sources.first(where: { $0.sourceType == .local }) else {
+            throw XCTSkip("this test process has no full calendar access, or the Mac has no Local source")
+        }
+        var made: [EKCalendar] = []
+        defer { for cal in made { try? store.removeCalendar(cal, commit: true) } }
+        for _ in 0..<2 {
+            let cal = EKCalendar(for: .event, eventStore: store)
+            cal.title = name
+            cal.source = local
+            try store.saveCalendar(cal, commit: true)
+            made.append(cal)
+        }
+        try writePolicy(["calendar.read": true, "calendar.write": true, "calendar.delete": true])
+
+        let byName = try run(["calendar", "create", "--json", "--title", "t", "--start", "2030-01-01 10:00",
+                              "--calendar", name])
+        assertEnvelope(byName, code: "ambiguous_calendar", status: 64)
+        let ids = (byName.json?["candidates"] as? [[String: String]])?.compactMap { $0["id"] } ?? []
+        XCTAssertEqual(Set(ids), Set(made.map { $0.calendarIdentifier }))
+
+        let target = made[1].calendarIdentifier
+        let created = try run(["calendar", "create", "--json", "--title", "t", "--start", "2030-01-01 10:00",
+                               "--calendar-id", target, "--timezone", "UTC"])
+        XCTAssertEqual(created.status, 0, created.stdout)
+        XCTAssertEqual(created.json?["calendar_id"] as? String, target)
+        let id = try XCTUnwrap(created.json?["id"] as? String)
+
+        let updated = try run(["calendar", "update", "--json", "--id", id, "--alarm", "15", "--alarm", "60"])
+        XCTAssertEqual(updated.status, 0, updated.stdout)
+        XCTAssertEqual(updated.json?["alarms"] as? [Int], [15, 60])
+        let cleared = try run(["calendar", "update", "--json", "--id", id, "--clear-alarms"])
+        XCTAssertEqual(cleared.json?["alarms"] as? [Int], [])
+
+        let export = try run(["calendar", "export", "--calendar-id", target, "--from", "2030-01-01", "--to", "2030-01-02"])
+        XCTAssertEqual(export.json?["count"] as? Int, 1, export.stdout)
+        XCTAssertEqual(try run(["calendar", "delete", "--json", "--id", id]).status, 0)
     }
 }

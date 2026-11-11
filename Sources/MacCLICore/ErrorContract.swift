@@ -14,17 +14,19 @@ extension MacCLICore {
 
     /// Exit status for an error code.
     ///
-    ///  64  usage — the command line or a value in it was rejected (`usage`, `invalid_*`)
+    ///  64  usage — the command line or a value in it was rejected (`usage`, `invalid_*`,
+    ///      `ambiguous_calendar`)
     ///   3  not found — the named calendar, event, file, app … does not exist
-    ///   4  permission — denied by `auth.json` or by macOS privacy settings
+    ///   4  permission — denied by `auth.json` or by macOS privacy settings, or a change
+    ///      to the policy that only a person at a terminal may make (`person_required`)
     ///   5  timeout — the system or the app did not answer in time
     ///   6  app error — anything else the system or an app reported
     public static func exitCode(forErrorCode code: String) -> Int32 {
         switch code {
-        case "usage", "invalid_argument": return 64
+        case "usage", "invalid_argument", "ambiguous_calendar": return 64
         case _ where code.hasPrefix("invalid_"): return 64
         case "not_found", "calendar_not_found", "event_not_found": return 3
-        case "capability_denied", "access_denied": return 4
+        case "capability_denied", "access_denied", "person_required": return 4
         case "timeout", "fetch_timeout": return 5
         default: return 6
         }

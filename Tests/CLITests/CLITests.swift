@@ -1,5 +1,6 @@
 import EventKit
 import Foundation
+import MacCLICore
 import XCTest
 
 /// Runs the built `macos-cli` binary the way an agent does and checks what it promises:
@@ -87,6 +88,40 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(body["exit_code"] as? Int, Int(status), file: file, line: line)
         XCTAssertFalse((body["message"] as? String ?? "").isEmpty, "message", file: file, line: line)
         XCTAssertEqual(run.stderr, "", "stderr stays empty under --json", file: file, line: line)
+    }
+
+    // MARK: - The README's table is the code's table
+
+    /// Every row of the README's exit-code table, read from the file, against
+    /// `MacCLICore.exitCode(forErrorCode:)`: each code it lists exits with its row's status.
+    func testReadmeExitCodeTableMatchesTheCode() throws {
+        let readme = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("README.md")
+        let text = try String(contentsOf: readme, encoding: .utf8)
+        guard let section = text.components(separatedBy: "### Errors and exit codes").dropFirst().first else {
+            return XCTFail("README has no 'Errors and exit codes' section")
+        }
+        var checked = 0
+        for line in (section.components(separatedBy: "\n### ").first ?? "").components(separatedBy: "\n") {
+            let cells = line.split(separator: "|", omittingEmptySubsequences: false)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+            guard cells.count >= 4, let status = Int32(cells[1]), status != 0 else { continue }
+            let codes = cells[3].components(separatedBy: "`").enumerated()
+                .filter { $0.offset % 2 == 1 }.map(\.element)
+                .filter { $0.allSatisfy { $0 == "_" || ($0.isLetter && $0.isLowercase) } }
+            XCTAssertFalse(codes.isEmpty, "row \(status) names no code")
+            for code in codes {
+                XCTAssertEqual(MacCLICore.exitCode(forErrorCode: code), status, "README row for `\(code)`")
+                checked += 1
+            }
+        }
+        XCTAssertGreaterThan(checked, 10, "the table was read")
+    }
+
+    func testMissingDirectoryIsNotFound() throws {
+        let missing = home.appendingPathComponent("no-such-directory").path
+        assertEnvelope(try run(["file", "list", missing, "--json"]), code: "not_found", status: 3)
     }
 
     // MARK: - Success

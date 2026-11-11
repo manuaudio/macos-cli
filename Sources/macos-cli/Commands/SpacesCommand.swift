@@ -100,7 +100,7 @@ struct SpacesCommand: ParsableCommand {
             let (spaces, _) = try SpacesCommand.loadSpaces()
 
             guard index >= 1, index <= spaces.count else {
-                throw ValidationError("Space \(index) out of range — there are \(spaces.count) space(s). Run `macos spaces list` to see them.")
+                throw CLIFailure.notFound("Space \(index) out of range — there are \(spaces.count) space(s).", hint: "Run `macos spaces list` to see them.")
             }
             let targetID = spaces[index - 1]
             let conn = CGSMainConnectionID()

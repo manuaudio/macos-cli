@@ -20,7 +20,7 @@ struct FileCommand: ParsableCommand {
             let url = URL(fileURLWithPath: expanded)
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir), isDir.boolValue else {
-                throw ValidationError("Not a directory: \(path)")
+                throw CLIFailure.notFound("Not a directory: \(path)")
             }
             let keys: [URLResourceKey] = [.nameKey, .fileSizeKey, .isDirectoryKey, .contentModificationDateKey]
             var options: FileManager.DirectoryEnumerationOptions = [.skipsSubdirectoryDescendants]
@@ -204,7 +204,7 @@ struct FileCommand: ParsableCommand {
             let data = try Data(contentsOf: url)
             let slice = data.prefix(maxBytes)
             guard let text = String(data: slice, encoding: .utf8) else {
-                throw ValidationError("File is not valid UTF-8 text: \(path)")
+                throw CLIFailure.appError("File is not valid UTF-8 text: \(path)")
             }
             print(text)
             if data.count > maxBytes {

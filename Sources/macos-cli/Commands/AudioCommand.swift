@@ -98,7 +98,7 @@ struct AudioDeviceCommand: ParsableCommand {
         if let idNum = AudioDeviceID(query), ids.contains(idNum) {
             guard hasScope(idNum, input: input) else {
                 let kind = input ? "input" : "output"
-                throw ValidationError("Device \(idNum) is not an \(kind) device. Run `macos audio list` to see devices.")
+                throw CLIFailure.notFound("Device \(idNum) is not an \(kind) device.", hint: "Run `macos audio list` to see devices.")
             }
             return idNum
         }

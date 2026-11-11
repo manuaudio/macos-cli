@@ -822,7 +822,7 @@ if [ -f "$INSTALL_SH" ]; then
     # differently from stage-release.sh.
     assert_grep "sign_verify.sh signs with --options runtime" '\-\-options runtime' "$LIB"
     assert_grep "install.sh signs via the shared library" 'sv_sign_binary' "$INSTALL_SH"
-    assert_not_grep "install.sh does not hand-roll its own codesign call" '^[^#]*codesign ' "$INSTALL_SH"
+    assert_not_grep "install.sh signs only through the shared library" '^[^#]*codesign [^#]*(--sign|-s )' "$INSTALL_SH"
     assert_grep "install.sh pins the stable identifier" "$BUNDLE_ID" "$INSTALL_SH"
     assert_grep "install.sh verifies the embedded plist" 'sv_verify_info_plist' "$INSTALL_SH"
     assert_grep "install.sh verifies the designated requirement" 'sv_verify_signature' "$INSTALL_SH"
@@ -842,10 +842,10 @@ if [ -f "$INSTALL_SH" ]; then
     # Signing configuration is validated BEFORE the (slow) build, and a misconfigured
     # run must never create or write the install directory.
     idir="$TMPROOT/never-created/bin"
-    out="$(cd "$REPO_ROOT" && run_with_timeout 25 env -u MACOS_CLI_SIGN_MODE -u MACOS_CLI_SIGN_IDENTITY \
-        -u MACOS_CLI_SIGN_CONFIG MACOS_CLI_INSTALL_DIR="$idir" bash "$INSTALL_SH" 2>&1)"; rc=$?
-    if [ "$rc" -ne 0 ]; then ok "install.sh without signing input exits non-zero"
-    else bad "install.sh without signing input exits non-zero" "exited 0"; fi
+    out="$(cd "$REPO_ROOT" && run_with_timeout 25 env -u MACOS_CLI_SIGN_IDENTITY \
+        -u MACOS_CLI_SIGN_CONFIG MACOS_CLI_SIGN_MODE=developer-id MACOS_CLI_INSTALL_DIR="$idir" bash "$INSTALL_SH" 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ]; then ok "install.sh source build without an identity exits non-zero"
+    else bad "install.sh source build without an identity exits non-zero" "exited 0"; fi
     if [ "$rc" -eq "$TIMED_OUT_RC" ]; then bad "install.sh fails fast (before building)" "timed out — validation happens after the build"; else ok "install.sh fails fast (before building)"; fi
     if [ ! -e "$idir" ]; then ok "install.sh leaves the install dir untouched on config failure"
     else bad "install.sh leaves the install dir untouched on config failure" "created $idir"; fi
@@ -861,6 +861,83 @@ else
 fi
 
 ########################################################################
+group "install.sh downloads the Release (local HTTP server, no network)"
+########################################################################
+# A staged Release served from 127.0.0.1: a stand-in `macos` that reports the
+# installer's version, zipped as the Release names it, with its .sha256. The
+# signature and Gatekeeper checks run through stand-in `codesign` and `spctl`
+# on PATH (as the hermetic suite does with `security`), so a refusal from
+# either can be staged.
+if [ -f "$INSTALL_SH" ]; then
+    inst_version="$(sed -nE 's/^VERSION="([^"]+)"$/\1/p' "$INSTALL_SH")"
+    assert_eq "install.sh fetches the version Version.swift names" "$inst_version" "$EXPECTED_VERSION"
+    zip_name="macos-cli-$inst_version-arm64.zip"
+    srv="$TMPROOT/srv"; payload="$TMPROOT/payload"; shims="$TMPROOT/shims"
+    mkdir -p "$srv/good/v$inst_version" "$srv/badsha/v$inst_version" "$srv/missing" "$payload" "$shims"
+    printf '#!/bin/sh\necho %s\n' "$inst_version" > "$payload/macos"; chmod +x "$payload/macos"
+    (cd "$payload" && zip -q "$srv/good/v$inst_version/$zip_name" macos)
+    (cd "$srv/good/v$inst_version" && shasum -a 256 "$zip_name" > "$zip_name.sha256")
+    cp "$srv/good/v$inst_version/$zip_name" "$srv/badsha/v$inst_version/"
+    printf '%064d  %s\n' 0 "$zip_name" > "$srv/badsha/v$inst_version/$zip_name.sha256"
+    cat > "$shims/codesign" <<'SHIM'
+#!/bin/sh
+if [ "$1" = "-dv" ]; then printf 'Identifier=com.manuaudio.macos-cli\nTeamIdentifier=4M72M3J3UN\n' >&2; exit 0; fi
+exit "${SHIM_CODESIGN_RC:-0}"
+SHIM
+    printf '#!/bin/sh\nexit "${SHIM_SPCTL_RC:-0}"\n' > "$shims/spctl"
+    printf '#!/bin/sh\nexit 1\n' > "$shims/swift"
+    chmod +x "$shims/codesign" "$shims/spctl" "$shims/swift"
+
+    # The server prints its port once it listens; reading that line is the wait.
+    # `exec` makes $! the server itself; its stderr goes nowhere, so a pipe on this
+    # test's output closes when the test ends.
+    exec 3< <(exec python3 -I -c 'import functools,http.server,sys
+h=functools.partial(http.server.SimpleHTTPRequestHandler,directory=sys.argv[1])
+h.log_message=lambda *a:None
+s=http.server.HTTPServer(("127.0.0.1",0),h); print(s.server_port,flush=True); s.serve_forever()' "$srv" 2>/dev/null)
+    server_pid=$!
+    read -r port <&3
+    dl() {   # dl ROOT INSTALL_DIR [ENV...] — run install.sh against one served root
+        local root="$1" dir="$2"; shift 2
+        (cd "$TMPROOT" && run_with_timeout 60 env -u MACOS_CLI_SIGN_MODE -u MACOS_CLI_SIGN_IDENTITY \
+            -u MACOS_CLI_SIGN_CONFIG HOME="$TMPROOT/home" PATH="$shims:$PATH" \
+            MACOS_CLI_RELEASE_BASE="http://127.0.0.1:$port/$root" MACOS_CLI_INSTALL_DIR="$dir" "$@" \
+            bash "$INSTALL_SH" 2>&1)
+    }
+    mkdir -p "$TMPROOT/home"
+
+    out="$(dl good "$TMPROOT/dl-good")"; rc=$?
+    assert_eq "download: install exits 0" "$rc" "0"
+    assert_eq "download: the installed macos reports the Release's version" \
+        "$("$TMPROOT/dl-good/macos" --version 2>/dev/null)" "$inst_version"
+    if [[ "$out" == *"sha256 matches"* && "$out" == *"accepted by Gatekeeper"* ]]; then ok "download: says what it verified"
+    else bad "download: says what it verified" "${out:0:400}"; fi
+
+    out="$(dl badsha "$TMPROOT/dl-badsha")"; rc=$?
+    if [ "$rc" -ne 0 ] && [ ! -e "$TMPROOT/dl-badsha" ]; then ok "download: a sha256 mismatch installs nothing"
+    else bad "download: a sha256 mismatch installs nothing" "rc=$rc ${out:0:300}"; fi
+
+    out="$(dl good "$TMPROOT/dl-spctl" SHIM_SPCTL_RC=3)"; rc=$?
+    if [ "$rc" -ne 0 ] && [ ! -e "$TMPROOT/dl-spctl" ] && [[ "$out" == *Gatekeeper* ]]; then
+        ok "download: a Gatekeeper refusal installs nothing"
+    else bad "download: a Gatekeeper refusal installs nothing" "rc=$rc ${out:0:300}"; fi
+
+    out="$(dl good "$TMPROOT/dl-unsigned" SHIM_CODESIGN_RC=1)"; rc=$?
+    if [ "$rc" -ne 0 ] && [ ! -e "$TMPROOT/dl-unsigned" ]; then ok "download: a bad signature installs nothing"
+    else bad "download: a bad signature installs nothing" "rc=$rc ${out:0:300}"; fi
+
+    # No asset for this version: the source build, ad-hoc, said in plain words. The
+    # stand-in `swift` fails, so the test stops before a real compile.
+    out="$(cd "$REPO_ROOT" && run_with_timeout 60 env -u MACOS_CLI_SIGN_MODE -u MACOS_CLI_SIGN_IDENTITY \
+        -u MACOS_CLI_SIGN_CONFIG HOME="$TMPROOT/home" PATH="$shims:$PATH" \
+        MACOS_CLI_RELEASE_BASE="http://127.0.0.1:$port/missing" MACOS_CLI_INSTALL_DIR="$TMPROOT/dl-missing" \
+        bash "$INSTALL_SH" 2>&1)"; rc=$?
+    if [[ "$out" == *"no Release for"* && "$out" == *"will not survive"* && "$out" == *"adhoc"* ]]; then
+        ok "download: no asset falls back to an ad-hoc source build and says so"
+    else bad "download: no asset falls back to an ad-hoc source build and says so" "${out:0:400}"; fi
+    kill "$server_pid" 2>/dev/null; exec 3<&-
+fi
+
 group "Makefile"
 ########################################################################
 MK="$REPO_ROOT/Makefile"

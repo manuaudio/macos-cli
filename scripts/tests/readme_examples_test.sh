@@ -93,6 +93,16 @@ check_examples() {
 check_examples README.md
 check_examples SKILL.md
 
+# The recording's three commands are README examples, so the checks above cover them too.
+echo "The recording's commands are in the README"
+readme_examples="$(examples "$REPO_ROOT/README.md")"
+recorded=0
+while IFS= read -r cmd; do
+    recorded=$((recorded + 1))
+    if grep -qxF -- "$cmd" <<< "$readme_examples"; then pass "$cmd"; else fail "$cmd  — recorded in docs/demo.cast but not shown in the README"; fi
+done < <(sed -nE "s/^run '(.*)'$/\1/p; s/^run \"(.*)\"$/\1/p" "$REPO_ROOT/scripts/demo/agent.sh" | sed 's/\\"/"/g')
+(( recorded == 3 )) || fail "found $recorded recorded commands in scripts/demo/agent.sh, expected 3"
+
 echo "Read-only commands that need no permission"
 json_keys() { /usr/bin/python3 -I -c 'import json,sys; d=json.load(sys.stdin); print(" ".join(sorted(d)))'; }
 
@@ -114,6 +124,15 @@ if (( rc == 0 )) && [[ " $keys " == *" authorization "* ]]; then
     pass "macos reminders status --json → {$keys}"
 else
     fail "macos reminders status --json → exit $rc, keys '$keys'"
+fi
+
+# doctor never prompts; under a fresh HOME it reads the default policy.
+out="$(HOME="$(mktemp -d)" "$MACOS_BIN" doctor --for-agent)"; rc=$?
+keys="$(json_keys <<< "$out" 2>/dev/null)"
+if (( rc == 0 )) && [[ " $keys " == *" ready "* && " $keys " == *" missing "* && " $keys " == *" areas "* && " $keys " == *" capabilities "* ]]; then
+    pass "macos doctor --for-agent → {$keys}"
+else
+    fail "macos doctor --for-agent → exit $rc, keys '$keys'"
 fi
 
 out="$("$MACOS_BIN" commands --json)"; rc=$?

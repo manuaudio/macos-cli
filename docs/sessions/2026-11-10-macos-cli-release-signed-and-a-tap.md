@@ -1,0 +1,8 @@
+# 2026-11-10 macos-cli-release-signed-and-a-tap
+
+**What.** v0.9.0 is a public GitHub Release: `macos-cli-0.9.0-arm64.zip` (the `macos` binary, Developer ID, team 4M72M3J3UN, hardened runtime), its `.sha256` (5b0485d3…41edb) and the signing manifest. Notarization id **6709cd8a-7387-4b07-a1a8-b472a1ea2734** (Accepted, no issues), from release commit 53ef04e. Cut with `factory/bin/tool-release macos-cli 0.9.0`. A bare executable cannot be stapled; the manifest carries the id.
+`install.sh` downloads the Release by default (the README line is `curl -fsSL …/install.sh | bash`), checks sha256, strict signature, Developer ID authority, team, identifier and version; the source build only on `MACOS_CLI_SIGN_*` or when no asset exists. `macos update [--check]` replaces the binary at its own path after the same checks. Homebrew: `manuaudio/homebrew-tap`, `brew install manuaudio/tap/macos-cli`.
+
+**Why spctl is not a check.** The first cut (notarization 4bbd4538-fcf1-46b2-b65e-c8131a1fb3fe) was rejected by `spctl --assess --type execute` as "Unnotarized Developer ID" while Apple's ticket service held its cdhash: Gatekeeper gives a bare command-line binary no verdict (Apple forums threads 128683, 696235). That cut was deleted at 0 downloads and re-cut with the check replaced.
+
+**How proven.** A fresh HOME ran the install line from 53ef04e: `macos --version` 0.9.0, `macos update --check` "up to date". `brew install manuaudio/tap/macos-cli` in a temp Homebrew prefix: 0.9.0. `scripts/tests/installer_contract_test.sh` 208/208 (download path against a local HTTP server); `swift test --filter CLITests|MacCLICoreTests` green. Not proven live: a replace by `macos update`, which needs a newer Release; the hash refusal and no-replace paths are tested.

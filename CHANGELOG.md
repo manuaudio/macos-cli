@@ -1,7 +1,5 @@
 ## Unreleased
 
-## 0.9.0 — 2026-11-10
-
 An agent can find out what it may do, and cannot widen it; calendars by id; faster Mail, Contacts and Reminders.
 
 ### Added

@@ -45,7 +45,7 @@ final class CLITests: XCTestCase {
         try JSONSerialization.data(withJSONObject: body).write(to: dir.appendingPathComponent("auth.json"))
     }
 
-    func run(_ arguments: [String], input: String? = nil) throws -> Run {
+    func run(_ arguments: [String], input: String? = nil, environment extra: [String: String] = [:]) throws -> Run {
         let binary = Self.binary
         guard FileManager.default.isExecutableFile(atPath: binary.path) else {
             XCTFail("no built binary at \(binary.path); run `swift build` first")
@@ -56,6 +56,7 @@ final class CLITests: XCTestCase {
         process.arguments = arguments
         var environment = ProcessInfo.processInfo.environment
         environment["HOME"] = home.path
+        environment.merge(extra) { $1 }
         process.environment = environment
         let out = Pipe(), err = Pipe()
         process.standardOutput = out
@@ -395,5 +396,56 @@ final class CLITests: XCTestCase {
         let export = try run(["calendar", "export", "--calendar-id", target, "--from", "2030-01-01", "--to", "2030-01-02"])
         XCTAssertEqual(export.json?["count"] as? Int, 1, export.stdout)
         XCTAssertEqual(try run(["calendar", "delete", "--json", "--id", id]).status, 0)
+    }
+
+    // MARK: - update
+
+    /// A Release described the way GitHub's API does, served from files in the test's HOME.
+    func release(_ tag: String, zip: Data, sha: String) throws -> [String: String] {
+        let version = String(tag.dropFirst())
+        let zipURL = home.appendingPathComponent("macos-cli-\(version)-arm64.zip")
+        let shaURL = home.appendingPathComponent("macos-cli-\(version)-arm64.zip.sha256")
+        try zip.write(to: zipURL)
+        try Data("\(sha)  \(zipURL.lastPathComponent)\n".utf8).write(to: shaURL)
+        let body: [String: Any] = ["tag_name": tag, "assets": [
+            ["name": zipURL.lastPathComponent, "browser_download_url": zipURL.absoluteString],
+            ["name": shaURL.lastPathComponent, "browser_download_url": shaURL.absoluteString],
+        ]]
+        let latest = home.appendingPathComponent("latest.json")
+        try JSONSerialization.data(withJSONObject: body).write(to: latest)
+        return ["MACOS_CLI_RELEASES_URL": latest.absoluteString]
+    }
+
+    func testUpdateCheckSaysUpToDateOnTheSameVersion() throws {
+        let version = try run(["--version"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        let env = try release("v\(version)", zip: Data(), sha: "")
+        let checked = try run(["update", "--check", "--json"], environment: env)
+        XCTAssertEqual(checked.status, 0, checked.stdout)
+        XCTAssertEqual(checked.json?["update_available"] as? Bool, false)
+        XCTAssertEqual(checked.json?["latest"] as? String, version)
+        XCTAssertTrue(try run(["update"], environment: env).stdout.contains("is up to date"))
+    }
+
+    func testUpdateCheckReportsANewerReleaseAndReplacesNothing() throws {
+        let before = try Data(contentsOf: Self.binary)
+        let checked = try run(["update", "--check", "--json"], environment: try release("v99.0.0", zip: Data(), sha: ""))
+        XCTAssertEqual(checked.status, 0, checked.stdout)
+        XCTAssertEqual(checked.json?["update_available"] as? Bool, true)
+        XCTAssertEqual(checked.json?["updated"] as? Bool, false)
+        XCTAssertEqual(try Data(contentsOf: Self.binary), before)
+    }
+
+    func testUpdateRefusesADownloadWhoseHashDiffers() throws {
+        let before = try Data(contentsOf: Self.binary)
+        let env = try release("v99.0.0", zip: Data("not the release".utf8), sha: String(repeating: "0", count: 64))
+        let failed = try run(["update", "--json"], environment: env)
+        assertEnvelope(failed, code: "verification_failed", status: 6)
+        XCTAssertEqual(try Data(contentsOf: Self.binary), before, "the binary is untouched")
+    }
+
+    func testUpdateWithNoReleaseIsNotFound() throws {
+        let missing = home.appendingPathComponent("nothing.json").absoluteString
+        assertEnvelope(try run(["update", "--check", "--json"], environment: ["MACOS_CLI_RELEASES_URL": missing]),
+                       code: "not_found", status: 3)
     }
 }

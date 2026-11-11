@@ -215,6 +215,28 @@ The rollback path is exercised by the contract suite with a forced post-swap
 verification failure; it has not been exercised against a real Developer ID
 install on this machine (see *Not covered here*).
 
+## The Release, `install.sh` and `macos update`
+
+Each Release carries `macos-cli-<version>-arm64.zip` (the `macos` binary, signed
+with the project's Developer ID as `com.manuaudio.macos-cli`, team `4M72M3J3UN`,
+and submitted to Apple's notary service), its `.sha256`, and the staging
+manifest. A bare executable cannot carry a stapled ticket, and `spctl` gives a bare
+command-line binary no verdict, so the installer does not ask Gatekeeper; the
+notarization record is the Release manifest's `notarization_id`.
+
+With no `MACOS_CLI_SIGN_*` input and no `signing.env`, `install.sh` downloads the
+zip for its own version and installs it only after the sha256 matches,
+`codesign --verify --strict` passes, the signing authority is a Developer ID
+Application certificate of that team, the identifier is the one above, and `macos --version` prints the
+expected version. When that version has no Release asset, it says so and builds
+from source in ad-hoc mode.
+
+`macos update` reads the newest Release and makes the same checks on the
+download, then renames it onto the running binary's own path. Same identity,
+same path: the grant macOS stored is expected to apply to the new binary.
+`macos update --check` only reports. A copy installed by Homebrew is updated
+with `brew upgrade macos-cli`.
+
 ## Staging a release
 
 ```bash

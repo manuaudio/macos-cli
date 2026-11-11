@@ -44,25 +44,34 @@ macOS hides its best features behind GUI apps and brittle AppleScript. **macOS C
 ## Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | MACOS_CLI_SIGN_MODE=adhoc bash
+curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
 ```
 
-Builds from source, signs, verifies, and installs exactly **one** binary — `macos` — to `$HOME/.local/bin/macos`. No sudo, no background service, no second executable. ~30 seconds.
+Downloads the [Release](https://github.com/manuaudio/macos-cli/releases), a single `macos` binary signed with a Developer ID and notarized by Apple, checks its sha256, Developer ID signature, team and version, and installs it to `$HOME/.local/bin/macos`. No Xcode, no sudo, no background service, no second executable.
 
-An ad-hoc signature is all a personal install needs, with one catch: macOS ties privacy grants to the signature, so it asks again for Calendars, Contacts and the rest after every rebuild. With a Developer ID certificate in your keychain, drop `MACOS_CLI_SIGN_MODE=adhoc` and set `MACOS_CLI_SIGN_IDENTITY` instead; grants then survive rebuilds. [docs/SIGNING.md](docs/SIGNING.md) has the details.
+With Homebrew:
+
+```bash
+brew install manuaudio/tap/macos-cli
+```
+
+Update in place, at the same path, so the permissions you granted stay with it (`--check` only reports):
+
+```bash
+macos update
+```
 
 Install somewhere else on your `PATH`:
 
 ```bash
-MACOS_CLI_INSTALL_DIR="$HOME/bin" ./install.sh
+curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | MACOS_CLI_INSTALL_DIR="$HOME/bin" bash
 ```
 
-Signed, notarized binaries will be on the [Releases](https://github.com/manuaudio/macos-cli/releases) page; the first one is on its way. Until then, the installer above builds from source.
+Build from source instead with `MACOS_CLI_SIGN_MODE=adhoc ./install.sh` (needs Xcode Command Line Tools and Swift 5.9+), or with your own certificate by setting `MACOS_CLI_SIGN_IDENTITY`. An ad-hoc build has one catch: macOS ties privacy grants to the signature, so it asks again for Calendars, Contacts and the rest after every rebuild. [docs/SIGNING.md](docs/SIGNING.md) has the details.
 
 The installer does **not** grant any macOS privacy permission for you — it prints guidance and leaves you in control (see [Permissions](#permissions)).
 
-> **Requirements:** macOS 13 (Ventura)+ and Swift 5.9+ (ships with Xcode Command Line Tools).
-> No CLT yet? `xcode-select --install`, then re-run the command above.
+> **Requirements:** macOS 13 (Ventura)+ on Apple silicon.
 > Make sure `$HOME/.local/bin` is on your `PATH` (the installer reminds you if it isn't).
 
 ```bash

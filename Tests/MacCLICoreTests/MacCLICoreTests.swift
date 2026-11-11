@@ -665,3 +665,28 @@ final class AgentTrustTests: XCTestCase {
         XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "invalid_timezone"), 64)
     }
 }
+
+final class ReleaseTests: XCTestCase {
+    func testVersionsCompareNumericallyPartByPart() {
+        XCTAssertTrue(Release.isNewer("0.10.0", than: "0.9.0"))
+        XCTAssertTrue(Release.isNewer("1.0", than: "0.9.9"))
+        XCTAssertTrue(Release.isNewer("0.9.1", than: "0.9"))
+        XCTAssertFalse(Release.isNewer("0.9.0", than: "0.9.0"))
+        XCTAssertFalse(Release.isNewer("0.8.1", than: "0.9.0"))
+    }
+
+    func testReleaseBodyGivesVersionAndAssets() throws {
+        let body = #"{"tag_name":"v0.9.0","assets":[{"name":"macos-cli-0.9.0-arm64.zip","browser_download_url":"https://x/z"}]}"#
+        let release = try XCTUnwrap(Release.parse(Data(body.utf8)))
+        XCTAssertEqual(release.version, "0.9.0")
+        XCTAssertEqual(release.assets[Release.zipName(version: "0.9.0")], "https://x/z")
+        XCTAssertNil(Release.parse(Data(#"{"message":"Not Found"}"#.utf8)))
+    }
+
+    func testShaFileGivesItsHashOrNothing() {
+        let hex = String(repeating: "aB", count: 32)
+        XCTAssertEqual(Release.expectedSHA256("\(hex)  macos-cli-0.9.0-arm64.zip\n"), hex.lowercased())
+        XCTAssertNil(Release.expectedSHA256("not a hash  file"))
+        XCTAssertNil(Release.expectedSHA256(""))
+    }
+}

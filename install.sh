@@ -1,25 +1,29 @@
 #!/bin/bash
 # macOS CLI installer
 #
-# Builds, SIGNS and installs exactly ONE artifact: the `macos` command.
+# Installs exactly ONE artifact: the `macos` command.
 #
-# Usage:
-#   git clone https://github.com/manuaudio/macos-cli && cd macos-cli
-#   export MACOS_CLI_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-#   ./install.sh
+#   curl -fsSL https://raw.githubusercontent.com/manuaudio/macos-cli/main/install.sh | bash
 #
-#   # Contributor / local build (permissions must be re-granted after each rebuild):
+# By default it downloads this version's Release: a binary signed with the
+# project's Developer ID and notarized by Apple. It checks the zip's sha256, the
+# signature (codesign --verify --strict), the Developer ID authority, the
+# identifier and team, and the version, then installs. No Xcode, no Swift.
+#
+# Build from source instead (permissions must be re-granted after each rebuild):
 #   MACOS_CLI_SIGN_MODE=adhoc ./install.sh
+# or with your own certificate:
+#   MACOS_CLI_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./install.sh
 #
-# Signing is not optional and there is no silent fallback between the two modes.
 # macOS ties every privacy (TCC) permission to the binary's code identity, so an
-# unsigned build loses every granted permission on each rebuild. See docs/SIGNING.md.
+# ad-hoc build loses every granted permission on each rebuild. See docs/SIGNING.md.
 #
 # Install location (default): $HOME/.local/bin/macos
 #   Override with:  MACOS_CLI_INSTALL_DIR=/somewhere/on/your/PATH ./install.sh
 #
-# Configuration inputs (environment, or ~/.config/macos-cli/signing.env):
-#   MACOS_CLI_SIGN_MODE        developer-id (default) | adhoc
+# Source-build inputs (environment, or ~/.config/macos-cli/signing.env); setting
+# any of them, or having that file, chooses the source build:
+#   MACOS_CLI_SIGN_MODE        developer-id | adhoc
 #   MACOS_CLI_SIGN_IDENTITY    Developer ID Application identity label
 #   MACOS_CLI_SIGN_TIMESTAMP   1 (default) | 0   — secure timestamp, needed to notarize
 #   MACOS_CLI_SIGN_CONFIG      alternate path to the config file
@@ -37,11 +41,124 @@ BINARY_NAME="macos"
 # The SwiftPM product name (the built executable file) — installed AS `macos`.
 PRODUCT_NAME="macos-cli"
 CLONE_DIR="/tmp/macos-cli-install"
+# The Release this installer fetches; CLITests and the contract test hold it to Version.swift.
+VERSION="0.9.0"
+RELEASE_BASE="${MACOS_CLI_RELEASE_BASE:-https://github.com/manuaudio/macos-cli/releases/download}"
+BUNDLE_ID="com.manuaudio.macos-cli"
+TEAM_ID="4M72M3J3UN"
+ZIP_NAME="macos-cli-$VERSION-arm64.zip"
 
 echo ""
 echo "macOS CLI installer"
 echo "==================="
 echo ""
+
+# ── After either path: PATH hint and permissions guidance ────────────────────
+after_install() {   # after_install DEST MODE
+    local dest="$1" mode="$2"
+    case ":$PATH:" in
+        *":$INSTALL_DIR:"*) : ;;  # already on PATH
+        *)
+            echo "⚠️   $INSTALL_DIR is not on your PATH."
+            echo "    Add this to your shell profile (~/.zshrc or ~/.bash_profile):"
+            echo "      export PATH=\"$INSTALL_DIR:\$PATH\""
+            echo ""
+            ;;
+    esac
+    echo "Next: grant the macOS privacy permissions you want this tool to use."
+    echo ""
+    echo "  • Calendar, Contacts and Reminders ask the first time a command touches"
+    echo "    them, or pre-authorize: $BINARY_NAME authorize calendar"
+    echo "  • Full Disk Access has NO Info.plist key and is never requested by a"
+    echo "    prompt: add $dest yourself under"
+    echo "    System Settings ▸ Privacy & Security ▸ Full Disk Access if you want the"
+    echo "    commands that read protected databases (Notes, Messages, Safari) to work."
+    echo ""
+    echo "  Check what's granted at any time (this never prompts):"
+    echo "      $BINARY_NAME doctor"
+    echo ""
+    if [ "$mode" = "adhoc" ]; then
+        echo "⚠️   Ad-hoc build: the permissions you grant will be dropped by macOS the next"
+        echo "    time you rebuild. Install the Release (no MACOS_CLI_SIGN_* set) for durable grants."
+    else
+        echo "This binary has a stable Developer ID code identity at a fixed path, which is"
+        echo "what macOS matches a stored grant against, so grants are expected to survive"
+        echo "'$BINARY_NAME update' and a reinstall. Confirm with '$BINARY_NAME doctor' after one."
+    fi
+    echo "This installer intentionally does not grant any permission for you."
+    echo "🎉  Done — one binary, no background services."
+}
+
+# ── The Release: download, verify, install ───────────────────────────────────
+# Returns 2 when this version has no Release asset, 1 on any other failure.
+# Nothing is written to the install directory until every check has passed.
+install_release() (   # a subshell: its cleanup trap and `set -e` stay its own
+    local work url code expected actual details reported staged
+    work="$(mktemp -d "${TMPDIR:-/tmp}/macos-cli-release.XXXXXX")" || return 1
+    trap 'rm -rf "$work"' EXIT
+    url="$RELEASE_BASE/v$VERSION/$ZIP_NAME"
+    echo "📦  Downloading macos $VERSION..."
+    code="$(curl -sSL -w '%{http_code}' -o "$work/$ZIP_NAME" "$url" 2>"$work/curl.err")" || code="${code:-000}"
+    case "$code" in
+        200) ;;
+        404) return 2 ;;
+        *) echo "❌  Could not download $url (HTTP $code): $(cat "$work/curl.err")"; return 1 ;;
+    esac
+    if ! curl -fsSL -o "$work/$ZIP_NAME.sha256" "$url.sha256"; then
+        echo "❌  Could not download $url.sha256."; return 1
+    fi
+    expected="$(awk 'NR==1{print tolower($1)}' "$work/$ZIP_NAME.sha256")"
+    actual="$(shasum -a 256 "$work/$ZIP_NAME" | awk '{print $1}')"
+    if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+        echo "❌  The download's sha256 ($actual) does not match the Release ($expected). Nothing was installed."
+        return 1
+    fi
+    echo "✅  sha256 matches"
+    mkdir "$work/x" && ditto -x -k "$work/$ZIP_NAME" "$work/x" || { echo "❌  Could not unpack $ZIP_NAME."; return 1; }
+    local bin="$work/x/$BINARY_NAME"
+    [ -f "$bin" ] || { echo "❌  $ZIP_NAME holds no $BINARY_NAME binary."; return 1; }
+    if ! codesign --verify --strict "$bin" 2>/dev/null; then
+        echo "❌  The downloaded binary's signature does not verify. Nothing was installed."; return 1
+    fi
+    # Not spctl: Gatekeeper gives a bare command-line binary no verdict, notarized or not.
+    details="$(codesign -dv --verbose=2 "$bin" 2>&1)"
+    if ! grep -qx "Identifier=$BUNDLE_ID" <<<"$details" || ! grep -qx "TeamIdentifier=$TEAM_ID" <<<"$details" ||
+        ! grep -q "^Authority=Developer ID Application: .*($TEAM_ID)$" <<<"$details"; then
+        echo "❌  The downloaded binary is not signed with Developer ID as $BUNDLE_ID by team $TEAM_ID. Nothing was installed."; return 1
+    fi
+    reported="$("$bin" --version 2>/dev/null || true)"
+    if [ "$reported" != "$VERSION" ]; then
+        echo "❌  The downloaded binary reports version '$reported', not $VERSION. Nothing was installed."; return 1
+    fi
+    echo "✅  Developer ID signature of team $TEAM_ID as $BUNDLE_ID, version $VERSION"
+
+    # Staged in the destination directory, then one rename onto `macos`.
+    mkdir -p "$INSTALL_DIR" || { echo "❌  Could not create $INSTALL_DIR (no sudo is used by design)."; return 1; }
+    staged="$(mktemp "$INSTALL_DIR/.$BINARY_NAME.tmp.XXXXXX")" || { echo "❌  Could not write to $INSTALL_DIR."; return 1; }
+    cat "$bin" > "$staged" && chmod 755 "$staged" && mv -f "$staged" "$INSTALL_DIR/$BINARY_NAME" || {
+        rm -f "$staged"; echo "❌  Could not install into $INSTALL_DIR."; return 1; }
+    echo "✅  Installed: $("$INSTALL_DIR/$BINARY_NAME" --version) at $INSTALL_DIR/$BINARY_NAME"
+    echo ""
+    return 0
+)
+
+source_build_requested() {
+    [ -n "${MACOS_CLI_SIGN_MODE:-}${MACOS_CLI_SIGN_IDENTITY:-}${MACOS_CLI_SIGN_CONFIG:-}" ] ||
+        [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/macos-cli/signing.env" ]
+}
+
+if ! source_build_requested; then
+    rc=0
+    install_release || rc=$?
+    case "$rc" in
+        0) after_install "$INSTALL_DIR/$BINARY_NAME" developer-id; exit 0 ;;
+        2) echo "⚠️   There is no Release for $VERSION, so this builds from source with an ad-hoc signature."
+           echo "    The permissions macOS grants to an ad-hoc build will not survive the next rebuild."
+           echo ""
+           export MACOS_CLI_SIGN_MODE=adhoc ;;
+        *) exit 1 ;;
+    esac
+fi
 
 # ── Locate the repo (clone only if we are not already inside it) ─────────────
 if [ -f "Package.swift" ] && [ -d "Sources" ]; then
@@ -195,42 +312,4 @@ fi
 echo "✅  Installed: $("$DEST" --version)"
 echo ""
 
-# ── PATH hint ────────────────────────────────────────────────────────────────
-case ":$PATH:" in
-    *":$INSTALL_DIR:"*) : ;;  # already on PATH
-    *)
-        echo "⚠️   $INSTALL_DIR is not on your PATH."
-        echo "    Add this to your shell profile (~/.zshrc or ~/.bash_profile):"
-        echo "      export PATH=\"$INSTALL_DIR:\$PATH\""
-        echo ""
-        ;;
-esac
-
-# ── Permissions guidance (NOT granted automatically) ─────────────────────────
-echo "Next: grant the macOS privacy permissions you want this tool to use."
-echo ""
-echo "  • Reminders and Notes work read-only with no extra setup on most Macs."
-echo "  • Calendar and Contacts require you to grant access the first time a"
-echo "    command touches them — macOS will prompt, or you can pre-authorize in"
-echo "    System Settings ▸ Privacy & Security."
-echo "  • Full Disk Access has NO Info.plist key and is never requested by a"
-echo "    prompt: add $DEST yourself under"
-echo "    System Settings ▸ Privacy & Security ▸ Full Disk Access if you want the"
-echo "    commands that read protected databases (Notes, Messages, Safari) to work."
-echo ""
-echo "  Check what's granted at any time (this never prompts):"
-echo "      $BINARY_NAME reminders status --json"
-echo "      $BINARY_NAME setup            # summarizes every capability"
-echo ""
-if [ "$SV_SIGN_MODE" = "developer-id" ]; then
-    echo "This build has a stable Developer ID code identity and was installed to a"
-    echo "fixed path, which is what macOS matches a stored grant against — so grants"
-    echo "are expected to survive a reinstall with the same identity at the same path."
-    echo "That survival has not been verified by this installer. After your next"
-    echo "reinstall, confirm with '$BINARY_NAME setup' before relying on it."
-else
-    echo "⚠️   Ad-hoc build: the permissions you grant will be dropped by macOS the next"
-    echo "    time you rebuild. Re-run with MACOS_CLI_SIGN_IDENTITY set for durable grants."
-fi
-echo "This installer intentionally does not grant any permission for you."
-echo "🎉  Done — one binary, no background services."
+after_install "$DEST" "$SV_SIGN_MODE"

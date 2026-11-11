@@ -42,7 +42,7 @@ BINARY_NAME="macos"
 PRODUCT_NAME="macos-cli"
 CLONE_DIR="/tmp/macos-cli-install"
 # The Release this installer fetches; CLITests and the contract test hold it to Version.swift.
-VERSION="0.9.0"
+VERSION="0.9.1"
 RELEASE_BASE="${MACOS_CLI_RELEASE_BASE:-https://github.com/manuaudio/macos-cli/releases/download}"
 BUNDLE_ID="com.manuaudio.macos-cli"
 TEAM_ID="4M72M3J3UN"

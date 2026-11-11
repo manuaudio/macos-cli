@@ -200,7 +200,7 @@ sv_manifest_set "$MANIFEST_PLIST" designated_requirement    string  "$designated
 sv_manifest_set "$MANIFEST_PLIST" entitlements              string  "$(sv_entitlement_keys "$STAGED" | xargs)"
 sv_manifest_set "$MANIFEST_PLIST" installed                 bool    false
 sv_manifest_set "$MANIFEST_PLIST" notarized                 bool    false
-sv_manifest_set "$MANIFEST_PLIST" notes                     string  "Staging artifact only — not installed, not notarized, not stapled. Contains no secrets: no certificate hashes, no keychain material."
+sv_manifest_set "$MANIFEST_PLIST" notes                     string  "The installed, notarized and stapled fields say what was done to this binary after it was signed. Contains no secrets: no certificate hashes, no keychain material."
 
 if [ "$git_dirty" = true ]; then
     sv_manifest_set "$MANIFEST_PLIST" dirty_patch string "dist/staging/${PRODUCT_NAME}-${git_short}-dirty.patch"

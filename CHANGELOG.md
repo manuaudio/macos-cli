@@ -1,7 +1,14 @@
 ## Unreleased
 
+## 0.9.1 — 2026-11-10
+
 ### Added
 - **`macos commands --json`.** Every command with its flags, one line of help and whether it writes; `SKILL.md` is generated from it (`bash scripts/gen-skill.sh`).
+
+### Fixed
+- **The signing manifest on a Release no longer calls itself a staging artifact.** Its note now points at the `installed`, `notarized` and `stapled` fields, which say what was done to the binary.
+
+---
 
 ## 0.9.0 — 2026-11-10
 

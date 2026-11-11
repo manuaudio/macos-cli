@@ -43,6 +43,7 @@ struct MacOSCLI: ParsableCommand {
             FinderCommand.self,
             SetupCommand.self,
             DoctorCommand.self,
+            UpdateCommand.self,
             AuthorizeCommand.self,
             AuthCommand.self,
             ShortcutsCommand.self,

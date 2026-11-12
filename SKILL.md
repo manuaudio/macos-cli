@@ -76,6 +76,8 @@ These change nothing on the Mac. Saving a screenshot or an export to a path you 
 - `macos contacts get`: Get a contact by ID. Flags: `--json`.
 - `macos contacts get-note`: Read the note field of a contact (works around macOS 13+ entitlement). Flags: `--json`.
 - `macos contacts search`: Search contacts by name, phone, or email. Flags: `--json` `--limit`.
+- `macos daysheets day`: One day's events; an empty list on a day with none. Flags: `--json`.
+- `macos daysheets days`: The tour's days with their events, oldest first. Flags: `--from` `--to` `--json`.
 - `macos defaults list-domains`: List all defaults domains. Flags: `--json`.
 - `macos defaults read`: Read a defaults domain or key. Flags: `--domain` `--key` `--json`.
 - `macos disk info`: Show detailed info for a disk or volume. Flags: `--json`.
@@ -101,6 +103,14 @@ These change nothing on the Mac. Saving a screenshot or an export to a path you 
 - `macos mail read`: Read full message content, by Message-ID or by query. Flags: `--id` `--query` `--mailbox` `--account` `--limit` `--timeout` `--json`.
 - `macos mail refresh`: Force Mail to check all accounts for new messages now. Flags: `--json`.
 - `macos mail search`: Search Apple Mail messages by subject, sender or body. Flags: `--mailbox` `--account` `--limit` `--timeout` `--json`.
+- `macos mastertour crew`: A tour's crew. Flags: `--json`.
+- `macos mastertour day`: One day: venue, schedule, notes. Flags: `--json`.
+- `macos mastertour events`: A day's events (shows). Flags: `--json`.
+- `macos mastertour guestlist`: An event's guest list. Flags: `--json`.
+- `macos mastertour hotels`: A day's hotels. Flags: `--json`.
+- `macos mastertour summary`: A tour's summary for one date. Flags: `--json`.
+- `macos mastertour tour`: One tour with all its days. Flags: `--json`.
+- `macos mastertour tours`: The tours this key can read. Flags: `--json`.
 - `macos menu list`: List top-level menu items for an app (or the focused app). Flags: `--app` `--json`.
 - `macos messages conversations`: List recent conversations. Flags: `--limit` `--json`.
 - `macos messages read`: Read messages from a conversation. Flags: `--with` `--limit` `--json`.
@@ -189,6 +199,7 @@ These change data, a setting or the state of the Mac, or send, play or show some
 - `macos contacts delete`: Delete a contact by ID. Flags: `--json`.
 - `macos contacts set-note`: Write the note field of a contact (works around macOS 13+ entitlement). Flags: `--text` `--if-empty` `--json`.
 - `macos contacts update`: Update fields on an existing contact. Flags: `--first-name` `--last-name` `--organization` `--job-title` `--add-phone` `--add-phone-label` `--add-email` `--add-email-label` `--json`.
+- `macos daysheets login`: Save the tour's calendar feed URL (on stdin) in the login keychain. Flags: `--json`.
 - `macos defaults delete`: Delete a defaults key. Flags: `--domain` `--key` `--json`.
 - `macos defaults write`: Write a value to a defaults key. Flags: `--domain` `--key` `--value` `--type` `--json`.
 - `macos disk eject`: Eject a disk or volume. Flags: `--json`.
@@ -222,6 +233,7 @@ These change data, a setting or the state of the Mac, or send, play or show some
 - `macos mail mark`: Mark messages as read/unread/flagged. Flags: `--query` `--read` `--unread` `--flagged` `--unflagged` `--limit` `--json`.
 - `macos mail reply`: Reply to a message matching a query. Flags: `--query` `--body` `--limit` `--all` `--json`.
 - `macos mail send`: Send an email immediately via Mail. Flags: `--to` `--subject` `--body` `--cc` `--json`.
+- `macos mastertour login`: Save the Master Tour API key and secret (secret on stdin) in the login keychain. Flags: `--key` `--json`.
 - `macos menu click`: Click a menu item by path, e.g. 'View > Show Sidebar'. Flags: `--app`.
 - `macos messages delete`: Delete a conversation. Flags: `--with` `--json`.
 - `macos messages send`: Send an iMessage or SMS. Flags: `--to` `--text` `--json`.
@@ -308,7 +320,7 @@ stderr stays empty, and the exit status says what kind of failure it was. Branch
 | 0 | Success | |
 | 64 | The command line was rejected | `usage`, `invalid_argument`, `invalid_date`, `invalid_date_range`, `invalid_alarm`, `invalid_delete_mode`, `invalid_timezone`, `ambiguous_calendar` |
 | 3 | The named thing does not exist | `not_found`, `calendar_not_found`, `event_not_found` |
-| 4 | Not allowed | `capability_denied` (the policy), `access_denied` (macOS privacy settings), `person_required` (only a person may do it) |
+| 4 | Not allowed | `capability_denied` (the policy), `access_denied` (macOS privacy settings), `person_required` (only a person may do it), `credentials_missing` / `credentials_refused` (a tour connector has no key, or the service refused it) |
 | 5 | No answer in time | `timeout`, `fetch_timeout` |
 | 6 | The system or an app reported an error | `app_error` |
 
@@ -330,6 +342,14 @@ Find a contact, then leave a draft in Mail for the person to read and send:
 ```bash
 macos contacts search "Ana" --limit 5 --json
 macos mail draft --to ana@example.com --subject "Thursday" --body "Does 3 pm still work?" --json
+```
+
+What the tour does on a show day, from Daysheets or Master Tour (read only; a person saves the
+key once with `macos daysheets login` or `macos mastertour login`):
+
+```bash
+macos daysheets day 2026-12-04
+macos mastertour tours
 ```
 
 Add a reminder to a named list:

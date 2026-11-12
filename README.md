@@ -77,6 +77,7 @@ The exit code says what kind of failure it was: 64 a bad command line, 3 not fou
 | **System** | battery, focus modes, processes, disks, defaults, network |
 | **Keychain** | read/write passwords and secrets (with your approval) |
 | **Files and PDF** | search files, read metadata, extract PDF text |
+| **Tours** | Master Tour tours, days, hotels, crew and guest lists; a Daysheets tour's days from its calendar feed |
 
 `macos <area> --help` explains one area, and [`SKILL.md`](SKILL.md) lists every command, its flags and whether it writes.
 
@@ -297,7 +298,7 @@ Under `--json` a failure is one JSON object on stdout, and stderr stays empty. T
 | 0 | Success | — |
 | 64 | The command line was rejected: unknown option, missing argument, a value that doesn't parse | `usage`, `invalid_argument`, `invalid_date`, `invalid_date_range`, `invalid_alarm`, `invalid_delete_mode`, `invalid_timezone`, `ambiguous_calendar` |
 | 3 | The named thing does not exist | `not_found`, `calendar_not_found`, `event_not_found` |
-| 4 | Not allowed | `capability_denied` (turned off in `auth.json`), `access_denied` (macOS privacy settings), `person_required` (a policy change only a person may make) |
+| 4 | Not allowed | `capability_denied` (turned off in `auth.json`), `access_denied` (macOS privacy settings), `person_required` (a policy change only a person may make), `credentials_missing` / `credentials_refused` (a tour connector has no key, or the service refused it) |
 | 5 | No answer in time | `timeout`, `fetch_timeout` |
 | 6 | The system or an app reported an error | `app_error` |
 
@@ -371,6 +372,30 @@ The written value appears verbatim in the very next `get`/`export`, so the write
 ### Mail by Message-ID
 
 `mail search QUERY --json` returns each message's `message_id` (the Message-ID header), `account` and `mailbox`; `mail read --id MESSAGE_ID` reads that one message. Both take `--mailbox NAME` and `--account NAME`, which skip every other mailbox; an unknown one is `not_found`, not zero results.
+
+### Tours: Master Tour and Daysheets
+
+Both read only, and both answer in JSON, with or without `--json`.
+
+**Master Tour** uses Eventric's public API with your API key (my.eventric.com/portal/apikey). Save it once; the secret is read from stdin, never from the command line:
+
+```bash
+pbpaste | macos mastertour login --key YOUR_KEY
+macos mastertour tours
+```
+
+`tour ID` gives every day of a tour with its id; `day ID`, `events DAY_ID`, `hotels DAY_ID`, `summary TOUR_ID YYYY-MM-DD`, `crew TOUR_ID` and `guestlist EVENT_ID` read the rest. Each prints the API's `data` object.
+
+**Daysheets** has no public API, but every tour has a calendar feed (Tour Settings → Add a calendar feed). Its URL opens the tour, so treat it as a password: `macos daysheets login` reads it from stdin and keeps it in the login keychain, and no output or error prints it.
+
+```bash
+pbpaste | macos daysheets login
+macos daysheets days --from 2026-12-01 --to 2026-12-07
+```
+
+`days` is a list of `{date, events}`; `day YYYY-MM-DD` is one of them (an empty `events` on a day with nothing). Each event has `title`, `all_day`, `start`, `end`, `start_time`, `end_time` and `time_zone` (the event's own zone), `location`, `venue` and `city` (LOCATION split at its first comma), `notes` and `uid`.
+
+The environment wins over the keychain: `MASTERTOUR_KEY` and `MASTERTOUR_SECRET`, `DAYSHEETS_FEED_URL`. `MACOS_CLI_KEYCHAIN=off` uses the environment alone. Without a key the answer is `credentials_missing` (exit 4), naming what to set; a key the service refuses is `credentials_refused`. The policy names are `mastertour.read` and `daysheets.read`.
 
 ## Permissions
 

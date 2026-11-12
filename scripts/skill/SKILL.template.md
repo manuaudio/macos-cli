@@ -80,7 +80,7 @@ stderr stays empty, and the exit status says what kind of failure it was. Branch
 | 0 | Success | |
 | 64 | The command line was rejected | `usage`, `invalid_argument`, `invalid_date`, `invalid_date_range`, `invalid_alarm`, `invalid_delete_mode`, `invalid_timezone`, `ambiguous_calendar` |
 | 3 | The named thing does not exist | `not_found`, `calendar_not_found`, `event_not_found` |
-| 4 | Not allowed | `capability_denied` (the policy), `access_denied` (macOS privacy settings), `person_required` (only a person may do it) |
+| 4 | Not allowed | `capability_denied` (the policy), `access_denied` (macOS privacy settings), `person_required` (only a person may do it), `credentials_missing` / `credentials_refused` (a tour connector has no key, or the service refused it) |
 | 5 | No answer in time | `timeout`, `fetch_timeout` |
 | 6 | The system or an app reported an error | `app_error` |
 
@@ -102,6 +102,14 @@ Find a contact, then leave a draft in Mail for the person to read and send:
 ```bash
 macos contacts search "Ana" --limit 5 --json
 macos mail draft --to ana@example.com --subject "Thursday" --body "Does 3 pm still work?" --json
+```
+
+What the tour does on a show day, from Daysheets or Master Tour (read only; a person saves the
+key once with `macos daysheets login` or `macos mastertour login`):
+
+```bash
+macos daysheets day 2026-12-04
+macos mastertour tours
 ```
 
 Add a reminder to a named list:

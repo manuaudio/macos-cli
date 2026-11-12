@@ -741,3 +741,102 @@ final class CatalogueTests: XCTestCase {
         XCTAssertThrowsError(try MacCLICore.commandCatalogue(dumpHelp: Data("[]".utf8)))
     }
 }
+
+final class TourConnectorTests: XCTestCase {
+
+    // MARK: OAuth 1.0
+
+    /// The worked example of the OAuth 1.0 specification (Appendix A.5): its base string
+    /// and its signature, `tR3+Ty81lMeYAr/Fid0kMTYa/WM=`.
+    func testSignatureMatchesTheSpecificationExample() {
+        let base = MacCLICore.oauthBaseString(
+            method: "GET", url: URL(string: "http://photos.example.net/photos")!,
+            parameters: [("file", "vacation.jpg"), ("size", "original"),
+                         ("oauth_consumer_key", "dpf43f3p2l4k3l03"), ("oauth_token", "nnch734d00sl2jdk"),  // gitleaks:allow (test vector)
+                         ("oauth_signature_method", "HMAC-SHA1"), ("oauth_timestamp", "1191242096"),
+                         ("oauth_nonce", "kllo9940pd9333jh"), ("oauth_version", "1.0")])
+        XCTAssertEqual(base, "GET&http%3A%2F%2Fphotos.example.net%2Fphotos&file%3Dvacation.jpg%26oauth_consumer_key%3Ddpf43f3p2l4k3l03%26oauth_nonce%3Dkllo9940pd9333jh%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1191242096%26oauth_token%3Dnnch734d00sl2jdk%26oauth_version%3D1.0%26size%3Doriginal")  // gitleaks:allow (test vector)
+        XCTAssertEqual(MacCLICore.oauthSignature(baseString: base, consumerSecret: "kd94hf93k423kf44",
+                                                 tokenSecret: "pfkkdhi9sl3r4s00"),  // gitleaks:allow (test vector)
+                       "tR3+Ty81lMeYAr/Fid0kMTYa/WM=")
+    }
+
+    /// A consumer-only Master Tour request, signed by hand (Python's hmac) with a secret
+    /// that needs encoding: the query, `version=7` and the oauth parameters are all signed.
+    func testMasterTourHeaderIsSignedWithTheQuery() {
+        let url = MacCLICore.masterTourURL(path: "tour/42", query: [("numPastDays", "0")])
+        XCTAssertEqual(url.absoluteString, "https://my.eventric.com/portal/api/v5/tour/42?version=7&numPastDays=0")
+        let header = MacCLICore.oauthAuthorizationHeader(method: "GET", url: url, consumerKey: "demo-key",
+                                                         consumerSecret: "demo secret+/", nonce: "abc123",
+                                                         timestamp: 1_700_000_000)
+        XCTAssertEqual(header, #"OAuth oauth_consumer_key="demo-key", oauth_nonce="abc123", "#
+            + #"oauth_signature="VTeQ0c6vTGm9ItD9Ll4XpAcOk9s%3D", oauth_signature_method="HMAC-SHA1", "#  // gitleaks:allow (test vector)
+            + #"oauth_timestamp="1700000000", oauth_version="1.0""#)
+    }
+
+    func testMissingAndRefusedCredentialsArePermissionErrors() {
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "credentials_missing"), 4)
+        XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "credentials_refused"), 4)
+        XCTAssertTrue(MacCLICore.wantsMachineErrors(arguments: ["mastertour", "tours"]))
+        XCTAssertTrue(MacCLICore.wantsMachineErrors(arguments: ["daysheets", "days"]))
+    }
+
+    // MARK: Daysheets feed
+
+    static var fixture: String {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/tour.ics")
+        return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+    }
+
+    func testFixtureParsesToDays() throws {
+        let events = MacCLICore.parseICS(Self.fixture, timeZone: TimeZone(identifier: "America/Chicago")!)
+        XCTAssertEqual(events.count, 4, "the VALARM is not an event")
+        let days = MacCLICore.tourDays(events)
+        XCTAssertEqual(days.map { $0["date"] as? String }, ["2026-12-04", "2026-12-05", "2026-12-06"])
+
+        let first = try XCTUnwrap(days[0]["events"] as? [[String: Any]])
+        XCTAssertEqual(first.map { $0["title"] as? String }, ["Austin", "Load in", "Show"])
+        XCTAssertEqual(first[0]["all_day"] as? Bool, true)
+        XCTAssertEqual(first[0]["start"] as? String, "2026-12-04")
+
+        let load = first[1]
+        XCTAssertEqual(load["start"] as? String, "2026-12-04T11:00:00-06:00", "17:00Z in the reading zone")
+        XCTAssertEqual(load["start_time"] as? String, "11:00")
+        XCTAssertEqual(load["notes"] as? String, "Dock on the east side of the building.", "folded lines")
+        XCTAssertEqual(load["venue"] as? String, "The Example Hall")
+        XCTAssertTrue(load["city"] is NSNull)
+
+        let show = first[2]
+        XCTAssertEqual(show["start"] as? String, "2026-12-04T20:00:00-06:00")
+        XCTAssertEqual(show["end_time"] as? String, "22:00")
+        XCTAssertEqual(show["time_zone"] as? String, "America/Chicago")
+        XCTAssertEqual(show["location"] as? String, "The Example Hall, Austin, TX")
+        XCTAssertEqual(show["venue"] as? String, "The Example Hall")
+        XCTAssertEqual(show["city"] as? String, "Austin, TX")
+        XCTAssertEqual(show["notes"] as? String, "Doors 19:00\nCurfew 23:00; no pyro", "escapes, not the alarm's text")
+
+        XCTAssertEqual((days[1]["events"] as? [[String: Any]])?.first?["title"] as? String, "Travel days")
+        XCTAssertEqual((days[2]["events"] as? [[String: Any]])?.first?["end"] as? String, "2026-12-06",
+                       "an all-day DTEND is exclusive")
+    }
+
+    func testTimesStayInTheEventsOwnZone() throws {
+        let events = MacCLICore.parseICS(Self.fixture, timeZone: TimeZone(identifier: "Europe/Madrid")!)
+        let day = try XCTUnwrap(MacCLICore.tourDays(events, from: "2026-12-04", to: "2026-12-04").first)
+        let titles = (day["events"] as? [[String: Any]] ?? []).map { "\($0["title"] ?? "") \($0["start"] ?? "")" }
+        XCTAssertEqual(titles, ["Austin 2026-12-04", "Load in 2026-12-04T18:00:00+01:00",
+                                "Show 2026-12-04T20:00:00-06:00"])
+    }
+
+    func testFromAndToBoundTheDays() {
+        let events = MacCLICore.parseICS(Self.fixture, timeZone: TimeZone(identifier: "America/Chicago")!)
+        XCTAssertEqual(MacCLICore.tourDays(events, from: "2026-12-05").map { $0["date"] as? String },
+                       ["2026-12-05", "2026-12-06"])
+        XCTAssertEqual(MacCLICore.tourDays(events, to: "2026-12-04").count, 1)
+        XCTAssertTrue(MacCLICore.tourDays(events, from: "2027-01-01").isEmpty)
+        XCTAssertTrue(MacCLICore.isDay("2026-12-04"))
+        XCTAssertFalse(MacCLICore.isDay("2026-13-04"))
+        XCTAssertFalse(MacCLICore.isDay("12/04/2026"))
+    }
+}

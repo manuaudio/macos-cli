@@ -202,6 +202,9 @@ struct Auth {
         ("apps.launch",        true,  "Launch applications"),
         // Voice Memos
         ("voicememos.read",    false, "List and export Voice Memo recordings"),
+        // Tour connectors
+        ("mastertour.read",    true,  "Read tours, days, hotels, crew and guest lists from Master Tour"),
+        ("daysheets.read",     true,  "Read a Daysheets tour's days from its calendar feed"),
     ]
 
     static var defaultCapabilities: [String: Bool] {

@@ -1,5 +1,16 @@
 ## Unreleased
 
+## 0.10.0 — 2026-11-12
+
+An agent can read the tour: Master Tour and Daysheets.
+
+### Added
+- **`macos mastertour`** `tours`, `tour`, `day`, `summary`, `events`, `hotels`, `crew`, `guestlist`: Master Tour's public API (v5), signed with your API key (OAuth 1.0, HMAC-SHA1). `macos mastertour login --key KEY` keeps the key in the login keychain, the secret read from stdin; or `MASTERTOUR_KEY` and `MASTERTOUR_SECRET`.
+- **`macos daysheets days [--from] [--to]`** and **`daysheets day DATE`**: a Daysheets tour's calendar feed, grouped into days. `macos daysheets login` keeps the feed URL in the login keychain (from stdin); or `DAYSHEETS_FEED_URL`. The URL is never printed.
+- **`credentials_missing`** and **`credentials_refused`** (exit 4), and the policy names `mastertour.read` and `daysheets.read`.
+
+---
+
 ## 0.9.1 — 2026-11-10
 
 ### Added

@@ -65,6 +65,9 @@ struct MacOSCLI: ParsableCommand {
             DefaultsCommand.self,
             KeychainCommand.self,
             NetworkCommand.self,
+            // 0.10.0 — tour connectors
+            MasterTourCommand.self,
+            DaysheetsCommand.self,
         ]
     )
 }

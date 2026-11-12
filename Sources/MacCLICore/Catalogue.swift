@@ -140,6 +140,10 @@ extension MacCLICore {
         "contacts set-note": true,
         "contacts update": true,
 
+        "daysheets day": false,
+        "daysheets days": false,
+        "daysheets login": true,
+
         "defaults delete": true,
         "defaults list-domains": false,
         "defaults read": false,
@@ -210,6 +214,16 @@ extension MacCLICore {
         "mail reply": true,
         "mail search": false,
         "mail send": true,
+
+        "mastertour crew": false,
+        "mastertour day": false,
+        "mastertour events": false,
+        "mastertour guestlist": false,
+        "mastertour hotels": false,
+        "mastertour login": true,
+        "mastertour summary": false,
+        "mastertour tour": false,
+        "mastertour tours": false,
 
         "menu click": true,
         "menu list": false,

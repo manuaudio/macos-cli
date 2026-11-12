@@ -543,6 +543,33 @@ do {
     eq(entries.map { $0.writes }, [false, true], "unknown is a write")
 }
 
+// MARK: - Tour connectors (mirrors TourConnectorTests)
+do {
+    let base = MacCLICore.oauthBaseString(
+        method: "GET", url: URL(string: "http://photos.example.net/photos")!,
+        parameters: [("file", "vacation.jpg"), ("size", "original"),
+                     ("oauth_consumer_key", "dpf43f3p2l4k3l03"), ("oauth_token", "nnch734d00sl2jdk"),  // gitleaks:allow (test vector)
+                     ("oauth_signature_method", "HMAC-SHA1"), ("oauth_timestamp", "1191242096"),
+                     ("oauth_nonce", "kllo9940pd9333jh"), ("oauth_version", "1.0")])
+    eq(MacCLICore.oauthSignature(baseString: base, consumerSecret: "kd94hf93k423kf44", tokenSecret: "pfkkdhi9sl3r4s00"),  // gitleaks:allow (test vector)
+       "tR3+Ty81lMeYAr/Fid0kMTYa/WM=", "OAuth 1.0 specification example")
+    let url = MacCLICore.masterTourURL(path: "tour/42", query: [("numPastDays", "0")])
+    let header = MacCLICore.oauthAuthorizationHeader(method: "GET", url: url, consumerKey: "demo-key",
+                                                     consumerSecret: "demo secret+/", nonce: "abc123",
+                                                     timestamp: 1_700_000_000)
+    check(header.contains(#"oauth_signature="VTeQ0c6vTGm9ItD9Ll4XpAcOk9s%3D""#), "Master Tour signature")  // gitleaks:allow (test vector)
+    eq(MacCLICore.exitCode(forErrorCode: "credentials_missing"), 4, "credentials_missing exit")
+
+    let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/tour.ics")
+    let text = (try? String(contentsOf: fixture, encoding: .utf8)) ?? ""
+    let days = MacCLICore.tourDays(MacCLICore.parseICS(text, timeZone: TimeZone(identifier: "America/Chicago")!))
+    eq(days.map { $0["date"] as? String ?? "" }, ["2026-12-04", "2026-12-05", "2026-12-06"], "feed days")
+    let first = days.first?["events"] as? [[String: Any]] ?? []
+    eq(first.map { $0["title"] as? String ?? "" }, ["Austin", "Load in", "Show"], "day order")
+    eq(first.dropFirst().first?["notes"] as? String ?? "", "Dock on the east side of the building.", "unfolded")
+}
+
 // MARK: - Summary
 if failures == 0 {
     print("ok — \(checks) checks passed")

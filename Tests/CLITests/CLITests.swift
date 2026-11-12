@@ -535,4 +535,57 @@ final class CLITests: XCTestCase {
         assertEnvelope(try run(["update", "--check", "--json"], environment: ["MACOS_CLI_RELEASES_URL": missing]),
                        code: "not_found", status: 3)
     }
+
+    // MARK: - Tour connectors (no network: credentials missing, or a feed on disk)
+
+    /// No variables, no keychain: the documented code, naming what to set, never a crash.
+    func testMasterTourWithoutCredentialsSaysWhatToSet() throws {
+        let offline = ["MACOS_CLI_KEYCHAIN": "off", "MASTERTOUR_KEY": "", "MASTERTOUR_SECRET": ""]
+        let result = try run(["mastertour", "tours"], environment: offline)
+        assertEnvelope(result, code: "credentials_missing", status: 4)
+        let message = result.json?["message"] as? String ?? ""
+        XCTAssertTrue(message.contains("MASTERTOUR_KEY and MASTERTOUR_SECRET"), message)
+        XCTAssertTrue((result.json?["hint"] as? String ?? "").contains("macos mastertour login"))
+
+        let half = try run(["mastertour", "crew", "7"], environment: offline.merging(["MASTERTOUR_KEY": "k"]) { $1 })
+        assertEnvelope(half, code: "credentials_missing", status: 4)
+        XCTAssertTrue((half.json?["message"] as? String ?? "").contains("MASTERTOUR_SECRET is not set"))
+    }
+
+    func testDaysheetsWithoutAFeedSaysWhatToSet() throws {
+        let result = try run(["daysheets", "days"], environment: ["MACOS_CLI_KEYCHAIN": "off", "DAYSHEETS_FEED_URL": ""])
+        assertEnvelope(result, code: "credentials_missing", status: 4)
+        XCTAssertTrue((result.json?["message"] as? String ?? "").contains("DAYSHEETS_FEED_URL"))
+    }
+
+    func testDaysheetsReadsAFeedAndNeverPrintsItsURL() throws {
+        let feed = Self.repoRoot.appendingPathComponent("Tests/Fixtures/tour.ics")
+        let environment = ["MACOS_CLI_KEYCHAIN": "off", "DAYSHEETS_FEED_URL": feed.absoluteString, "TZ": "America/Chicago"]
+        let days = try run(["daysheets", "days", "--from", "2026-12-05"], environment: environment)
+        XCTAssertEqual(days.status, 0, days.stdout)
+        let list = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(days.stdout.utf8)) as? [[String: Any]])
+        XCTAssertEqual(list.map { $0["date"] as? String }, ["2026-12-05", "2026-12-06"])
+        XCTAssertFalse(days.stdout.contains(feed.path))
+
+        let day = try run(["daysheets", "day", "2026-12-04", "--json"], environment: environment)
+        XCTAssertEqual(day.status, 0, day.stdout)
+        XCTAssertEqual((day.json?["events"] as? [[String: Any]])?.map { $0["title"] as? String }, ["Austin", "Load in", "Show"])
+
+        let empty = try run(["daysheets", "day", "2027-01-01"], environment: environment)
+        XCTAssertEqual(empty.status, 0)
+        XCTAssertEqual((empty.json?["events"] as? [Any])?.count, 0, "a day off is an empty list")
+
+        assertEnvelope(try run(["daysheets", "day", "04/12/2026"], environment: environment), code: "invalid_date", status: 64)
+        let missing = environment.merging(["DAYSHEETS_FEED_URL": feed.appendingPathExtension("gone").absoluteString]) { $1 }
+        let gone = try run(["daysheets", "days"], environment: missing)
+        assertEnvelope(gone, code: "not_found", status: 3)
+        XCTAssertFalse(gone.stdout.contains("tour.ics"), "the feed URL is the key; no message carries it")
+    }
+
+    func testTourReadsFollowThePolicy() throws {
+        try writePolicy(["daysheets.read": false])
+        let feed = Self.repoRoot.appendingPathComponent("Tests/Fixtures/tour.ics")
+        assertEnvelope(try run(["daysheets", "days"], environment: ["DAYSHEETS_FEED_URL": feed.absoluteString]),
+                       code: "capability_denied", status: 4)
+    }
 }

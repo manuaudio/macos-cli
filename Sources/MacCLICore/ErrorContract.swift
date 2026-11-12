@@ -17,8 +17,10 @@ extension MacCLICore {
     ///  64  usage — the command line or a value in it was rejected (`usage`, `invalid_*`,
     ///      `ambiguous_calendar`)
     ///   3  not found — the named calendar, event, file, app … does not exist
-    ///   4  permission — denied by `auth.json` or by macOS privacy settings, or a change
-    ///      to the policy that only a person at a terminal may make (`person_required`)
+    ///   4  permission — denied by `auth.json` or by macOS privacy settings, a change
+    ///      to the policy that only a person at a terminal may make (`person_required`),
+    ///      or a service's credentials missing or refused (`credentials_missing`,
+    ///      `credentials_refused`)
     ///   5  timeout — the system or the app did not answer in time
     ///   6  app error — anything else the system or an app reported
     public static func exitCode(forErrorCode code: String) -> Int32 {
@@ -26,7 +28,8 @@ extension MacCLICore {
         case "usage", "invalid_argument", "ambiguous_calendar": return 64
         case _ where code.hasPrefix("invalid_"): return 64
         case "not_found", "calendar_not_found", "event_not_found": return 3
-        case "capability_denied", "access_denied", "person_required": return 4
+        case "capability_denied", "access_denied", "person_required",
+             "credentials_missing", "credentials_refused": return 4
         case "timeout", "fetch_timeout": return 5
         default: return 6
         }
@@ -47,12 +50,13 @@ extension MacCLICore {
     }
 
     /// True when a failure should be reported as JSON: the caller asked for `--json`,
-    /// or the command is one of the exports, which only ever speak JSON.
+    /// or the command is one of the exports or a tour connector, which only ever speak JSON.
     public static func wantsMachineErrors(arguments: [String]) -> Bool {
         let operands = arguments.prefix { $0 != "--" }
         if operands.contains("--json") { return true }
         let words = operands.filter { !$0.hasPrefix("-") }
         guard words.count >= 2 else { return false }
+        if ["mastertour", "daysheets"].contains(words[0]) { return true }
         return ["calendar", "contacts", "notes", "reminders"].contains(words[0]) && words[1] == "export"
     }
 }

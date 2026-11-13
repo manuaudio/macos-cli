@@ -1,9 +1,6 @@
 ## Unreleased
 
-### Fixed
-- `macos mastertour` sends its OAuth parameters in the query string, where the Master Tour API reads them (as a header it answered 400 "Missing oauth_consumer_key parameter").
-
-## 0.10.0 — 2026-11-12
+## 0.10.0 — 2026-11-13
 
 An agent can read the tour: Master Tour and Daysheets.
 

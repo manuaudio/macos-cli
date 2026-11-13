@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.10.0 — 2026-11-13
+
 An agent can read the tour: Master Tour and Daysheets.
 
 ### Added

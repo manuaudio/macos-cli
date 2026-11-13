@@ -774,6 +774,17 @@ final class TourConnectorTests: XCTestCase {
             + #"oauth_timestamp="1700000000", oauth_version="1.0""#)
     }
 
+    /// Master Tour reads the oauth parameters from the query: the signed URL carries the same signature.
+    func testMasterTourSignedURLCarriesTheOAuthParameters() {
+        let url = MacCLICore.masterTourURL(path: "tour/42", query: [("numPastDays", "0")])
+        let signed = MacCLICore.oauthSignedURL(method: "GET", url: url, consumerKey: "demo-key",
+                                               consumerSecret: "demo secret+/", nonce: "abc123",
+                                               timestamp: 1_700_000_000)
+        XCTAssertEqual(signed.absoluteString, "https://my.eventric.com/portal/api/v5/tour/42?version=7&numPastDays=0"
+            + "&oauth_consumer_key=demo-key&oauth_nonce=abc123&oauth_signature_method=HMAC-SHA1"
+            + "&oauth_timestamp=1700000000&oauth_version=1.0&oauth_signature=VTeQ0c6vTGm9ItD9Ll4XpAcOk9s%3D")  // gitleaks:allow (test vector)
+    }
+
     func testMissingAndRefusedCredentialsArePermissionErrors() {
         XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "credentials_missing"), 4)
         XCTAssertEqual(MacCLICore.exitCode(forErrorCode: "credentials_refused"), 4)

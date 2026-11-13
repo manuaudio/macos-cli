@@ -47,11 +47,10 @@ struct MasterTourCommand: ParsableCommand {
         try Auth.check("mastertour.read")
         let creds = try credentials()
         let url = MacCLICore.masterTourURL(path: path, query: query)
-        var request = URLRequest(url: url)
-        request.setValue(MacCLICore.oauthAuthorizationHeader(
+        var request = URLRequest(url: MacCLICore.oauthSignedURL(
             method: "GET", url: url, consumerKey: creds.key, consumerSecret: creds.secret,
             nonce: UUID().uuidString.replacingOccurrences(of: "-", with: ""),
-            timestamp: Int(Date().timeIntervalSince1970)), forHTTPHeaderField: "Authorization")
+            timestamp: Int(Date().timeIntervalSince1970)))
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (status, body) = try TourAccess.get(request)
         let json = try? JSONSerialization.jsonObject(with: body)

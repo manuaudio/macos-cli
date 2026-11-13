@@ -559,6 +559,11 @@ do {
                                                      timestamp: 1_700_000_000)
     check(header.contains(#"oauth_signature="VTeQ0c6vTGm9ItD9Ll4XpAcOk9s%3D""#), "Master Tour signature")  // gitleaks:allow (test vector)
     eq(MacCLICore.exitCode(forErrorCode: "credentials_missing"), 4, "credentials_missing exit")
+    let signed = MacCLICore.oauthSignedURL(method: "GET", url: url, consumerKey: "demo-key",
+                                           consumerSecret: "demo secret+/", nonce: "abc123", timestamp: 1_700_000_000)
+    check(signed.absoluteString.hasSuffix("&oauth_signature=VTeQ0c6vTGm9ItD9Ll4XpAcOk9s%3D")  // gitleaks:allow (test vector)
+          && signed.absoluteString.contains("?version=7&numPastDays=0&oauth_consumer_key=demo-key"),
+          "Master Tour reads the oauth parameters from the query")
 
     let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/tour.ics")

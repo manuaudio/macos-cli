@@ -40,10 +40,10 @@ extension MacCLICore {
         return Data(mac).base64EncodedString()
     }
 
-    /// The `Authorization: OAuth …` header for a consumer-only (two-legged) request.
+    /// The signed `oauth_*` parameters of a consumer-only (two-legged) request, signature last.
     /// `url` carries the request's query; its parameters are signed with the `oauth_*` ones.
-    public static func oauthAuthorizationHeader(method: String, url: URL, consumerKey: String, consumerSecret: String,
-                                                nonce: String, timestamp: Int) -> String {
+    public static func oauthParameters(method: String, url: URL, consumerKey: String, consumerSecret: String,
+                                       nonce: String, timestamp: Int) -> [(String, String)] {
         var oauth: [(String, String)] = [
             ("oauth_consumer_key", consumerKey),
             ("oauth_nonce", nonce),
@@ -55,9 +55,30 @@ extension MacCLICore {
             .map { ($0.name, $0.value ?? "") }
         let base = oauthBaseString(method: method, url: url, parameters: oauth + query)
         oauth.append(("oauth_signature", oauthSignature(baseString: base, consumerSecret: consumerSecret)))
-        return "OAuth " + oauth.sorted { $0.0 < $1.0 }
+        return oauth
+    }
+
+    /// The `Authorization: OAuth …` header for a consumer-only (two-legged) request.
+    public static func oauthAuthorizationHeader(method: String, url: URL, consumerKey: String, consumerSecret: String,
+                                                nonce: String, timestamp: Int) -> String {
+        "OAuth " + oauthParameters(method: method, url: url, consumerKey: consumerKey, consumerSecret: consumerSecret,
+                                   nonce: nonce, timestamp: timestamp)
+            .sorted { $0.0 < $1.0 }
             .map { "\($0.0)=\"\(oauthPercentEncode($0.1))\"" }
             .joined(separator: ", ")
+    }
+
+    /// The same request with the `oauth_*` parameters in its query, which is where Master Tour reads them
+    /// (sent as a header it answers 400 "Missing oauth_consumer_key parameter").
+    public static func oauthSignedURL(method: String, url: URL, consumerKey: String, consumerSecret: String,
+                                      nonce: String, timestamp: Int) -> URL {
+        let oauth = oauthParameters(method: method, url: url, consumerKey: consumerKey, consumerSecret: consumerSecret,
+                                    nonce: nonce, timestamp: timestamp)
+        var parts = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        let query = (parts.queryItems ?? []).map { ($0.name, $0.value ?? "") } + oauth
+        parts.percentEncodedQuery = query.map { "\(oauthPercentEncode($0.0))=\(oauthPercentEncode($0.1))" }
+            .joined(separator: "&")
+        return parts.url!
     }
 
     // MARK: - Master Tour

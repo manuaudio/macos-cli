@@ -69,10 +69,10 @@ struct MailCommand: ParsableCommand {
 
         func run() throws {
             let sender = try mailSender(from, wait: wait)
-            try Auth.check("mail.send")
+            try Auth.check("mail.draft")
             let result = try createMail(to: to, subject: subject, body: messageBody(body, file: bodyFile), cc: cc,
                                         from: from, sender: sender, send: false, open: open, wait: wait)
-            if json { printJSON(result) } else { print("Draft created from \(from): \(subject)") }
+            if json { printJSON(result) } else { print("Draft saved unsent in \(sender.name) Drafts, from \(from): \(subject)") }
         }
     }
 
@@ -370,6 +370,7 @@ struct MailCommand: ParsableCommand {
 
         @Option(name: .long, help: "Max messages to scan when searching (default: 500)") var limit: Int = 500
         @Flag(name: .long, help: "Reply-all") var all = false
+        @Flag(name: .long, help: "Save the reply unsent in the account's Drafts instead of sending it") var draft = false
         @Flag(name: .long, help: "Output JSON") var json = false
 
         @Option(name: .long, help: "Sending address (must belong to exactly one account)") var from: String
@@ -378,10 +379,10 @@ struct MailCommand: ParsableCommand {
 
         func run() throws {
             let sender = try mailSender(from, wait: wait)
-            try Auth.check("mail.send")
+            try Auth.check(draft ? "mail.draft" : "mail.send")
             let text = try messageBody(body, file: bodyFile)
             let started = Date()
-            let baseline = Set(try messagingRows(envelopeIndex(),MessagingStore.mailQuery(query:nil,limit:1000,after:started.timeIntervalSince1970 - 2,accountIDs:[sender.id])).compactMap { $0["id"] as? Int })
+            let baseline = draft ? [] : Set(try messagingRows(envelopeIndex(),MessagingStore.mailQuery(query:nil,limit:1000,after:started.timeIntervalSince1970 - 2,accountIDs:[sender.id])).compactMap { $0["id"] as? Int })
             let raw = try mailScript("""
             const Mail=Application('Mail');
             const q='\(jxaEscape(query))'.toLowerCase();
@@ -394,13 +395,18 @@ struct MailCommand: ParsableCommand {
                 out.content='\(jxaEscape(text))\\n\\n'+out.content();
                 const subject=out.subject();
                 const id=out.id();
-                if(!out.send()) throw Error('Mail refused to send');
+                \(draft ? "Mail.save(out);" : "if(!out.send()) throw Error('Mail refused to send');")
                 return {subject:subject,id:id};
             }
             return {not_found:true};
             """, wait: wait)
             let result = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String:Any] ?? [:]
             guard let subject = result["subject"] as? String else { throw CLIFailure.notFound("No matching message found.") }
+            if draft {
+                let saved: [String:Any] = ["draft_created":true,"id":result["id"] ?? NSNull(),"from":from,"account":sender.name,"subject":subject]
+                if json { printJSON(saved) } else { print("Reply saved unsent in \(sender.name) Drafts, from \(from): \(subject)") }
+                return
+            }
             let confirmed = try confirmMailSent(from: from, account: sender, subject: subject, started: started, wait: wait, excluding: baseline)
             if json { printJSON(confirmed.merging(["replied":true]) { $1 }) } else { print("Replied from \(from): \(subject)") }
         }

@@ -166,12 +166,12 @@ func createMail(to: String, subject: String, body: String, cc: String?, from: St
     \(cc.map { "msg.ccRecipients.push(Mail.CcRecipient({address:'\(jxaEscape($0))'}));" } ?? "")
     const id=msg.id();
     const actualSender=msg.sender();
-    \(send ? "if(!msg.send()) throw Error('Mail refused to send');" : "")
+    \(send ? "if(!msg.send()) throw Error('Mail refused to send');" : "Mail.save(msg);")
     \(open ? "Mail.activate();" : "")
     return {id:id,from:actualSender};
     """, wait: wait)
     let result = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String:Any] ?? [:]
-    if !send { return ["draft_created":true,"from":result["from"] ?? from,"account":sender.name,"to":to,"subject":subject] }
+    if !send { return ["draft_created":true,"id":result["id"] ?? NSNull(),"from":result["from"] ?? from,"account":sender.name,"to":to,"subject":subject] }
     return try confirmMailSent(from: from, account: sender, subject: subject, started: started, wait: wait, excluding: baseline)
 }
 

@@ -710,10 +710,71 @@ extension CLITests {
 
     func testUnknownMailSenderCannotSend() throws {
         try requireMailPermission()
-        let result=try run(["mail","send","--from","nobody@example.com","--to","reader@example.com","--subject","Sender rejection test","--wait","20","--json"],environment:messagingHome)
+        try writePolicy(["mail.send": false])
+        let result=try run(["mail","send","--from","nobody@example.com","--to","reader@example.com","--subject","Sender rejection test","--wait","20","--json"])
         XCTAssertEqual(result.status,3)
         XCTAssertEqual(result.json?["error"] as? String,"sender_not_found")
         XCTAssertTrue(result.stderr.isEmpty)
+    }
+
+    /// An address one of this Mac's Mail accounts owns, named by MACOS_CLI_TEST_MAIL_FROM.
+    /// The test draft it writes is deleted at once; nothing is ever sent.
+    private func ownedTestSender() throws -> String {
+        guard let from = ProcessInfo.processInfo.environment["MACOS_CLI_TEST_MAIL_FROM"], !from.isEmpty else {
+            throw XCTSkip("set MACOS_CLI_TEST_MAIL_FROM to an address a Mail account owns")
+        }
+        return from
+    }
+
+    /// The senders of drafts with this subject, in every account's Drafts, deleting them when asked.
+    private func draftSenders(subject: String, delete: Bool = false) throws -> [String] {
+        let script = """
+        const M=Application('Mail');const out=[];
+        for(const a of M.accounts()) for(const b of a.mailboxes().filter(b=>/draft/i.test(b.name())))
+          for(const m of b.messages.whose({subject:'\(subject)'})()){out.push(m.sender());\(delete ? "M.delete(m);" : "")}
+        for(const o of M.outgoingMessages()) if(o.subject()==='\(subject)') out.push('outgoing:'+o.sender());
+        JSON.stringify(out)
+        """
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-l", "JavaScript", "-e", script]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return try JSONSerialization.jsonObject(with: data) as? [String] ?? []
+    }
+
+    /// Drafts are not sends: with mail.send denied, a draft from an owned address is saved
+    /// unsent in that account's Drafts, with that sender.
+    func testMailDraftWorksWhileSendIsDenied() throws {
+        try requireMailPermission()
+        let from = try ownedTestSender()
+        try writePolicy(["mail.send": false])
+        let subject = "macos-cli draft test \(UUID().uuidString)"
+        defer { _ = try? draftSenders(subject: subject, delete: true) }
+        let result = try run(["mail", "draft", "--from", from, "--to", "reader@example.com", "--subject", subject,
+                              "--body", "A test draft, deleted at once.", "--wait", "60", "--json"])
+        XCTAssertEqual(result.status, 0, result.stdout + result.stderr)
+        XCTAssertEqual(result.json?["draft_created"] as? Bool, true)
+        XCTAssertNotNil(result.json?["id"])
+        XCTAssertNotNil(result.json?["account"] as? String)
+        let senders = try draftSenders(subject: subject).filter { !$0.hasPrefix("outgoing:") }
+        XCTAssertEqual(senders.count, 1, "one saved draft")
+        XCTAssertTrue(senders.first?.lowercased().contains(from.lowercased()) == true, "\(senders)")
+    }
+
+    /// With mail.send denied, `mail send` from an owned address stops before Mail creates anything.
+    func testMailSendDeniedCreatesNothing() throws {
+        try requireMailPermission()
+        let from = try ownedTestSender()
+        try writePolicy(["mail.send": false])
+        let subject = "macos-cli send denied test \(UUID().uuidString)"
+        let result = try run(["mail", "send", "--from", from, "--to", "reader@example.com", "--subject", subject,
+                              "--body", "Must not be sent.", "--wait", "60", "--json"])
+        assertEnvelope(result, code: "capability_denied", status: 4)
+        XCTAssertEqual(try draftSenders(subject: subject), [], "no draft and no outgoing message")
     }
 
     func testWhatsAppChatsWhenReaderReady() throws {

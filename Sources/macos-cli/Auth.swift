@@ -83,6 +83,7 @@ struct Auth {
         ("whatsapp.send", false, "Send WhatsApp messages"),
         // Mail
         ("mail.read",          true,  "Read emails"),
+        ("mail.draft",         true,  "Create unsent drafts in a sending account's Drafts"),
         ("mail.send",          false, "Send emails"),
         ("mail.write",         false, "Move, mark, or modify emails"),
         ("mail.delete",        false, "Delete emails"),

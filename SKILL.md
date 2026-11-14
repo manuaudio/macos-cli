@@ -55,6 +55,10 @@ The list below has every command with its flags, one line of help and whether it
 `macos commands --json` prints it. Run `macos help <area> <action>` for a
 command's arguments.
 
+From a person's accounts, agents draft; a person sends. `mail draft` and `mail reply --draft`
+need only `mail.draft` (on by default): the message is saved unsent in the owning account's
+Drafts and the answer carries its `id` and `account`. `mail send` and `mail reply` without
+`--draft` need `mail.send`, off until a person turns it on.
 Mail draft, send and reply require `--from <owned-address>`; `mail accounts --json`
 lists all addresses. Use `--body-file <path>` or `--body-file -` for UTF-8 stdin.
 `mail addresses add/remove <account> <address> --wait 600` requires `mail.write`.
@@ -249,7 +253,7 @@ These change data, a setting or the state of the Mac, or send, play or show some
 - `macos mail delete`: Delete messages matching a query. Flags: `--query` `--limit` `--json`.
 - `macos mail draft`: Create a draft email in Mail. Flags: `--to` `--subject` `--body` `--cc` `--open` `--json` `--from` `--body-file` `--wait`.
 - `macos mail mark`: Mark messages as read/unread/flagged. Flags: `--query` `--read` `--unread` `--flagged` `--unflagged` `--limit` `--json`.
-- `macos mail reply`: Reply to a message matching a query. Flags: `--query` `--body` `--limit` `--all` `--json` `--from` `--body-file` `--wait`.
+- `macos mail reply`: Reply to a message matching a query. Flags: `--query` `--body` `--limit` `--all` `--draft` `--json` `--from` `--body-file` `--wait`.
 - `macos mail send`: Send an email immediately via Mail. Flags: `--to` `--subject` `--body` `--cc` `--json` `--from` `--body-file` `--wait`.
 - `macos mastertour login`: Save the Master Tour API key and secret (secret on stdin) in the login keychain. Flags: `--key` `--json`.
 - `macos menu click`: Click a menu item by path, e.g. 'View > Show Sidebar'. Flags: `--app`.
@@ -360,7 +364,7 @@ Find a contact, then leave a draft in Mail for the person to read and send:
 
 ```bash
 macos contacts search "Ana" --limit 5 --json
-macos mail draft --to ana@example.com --subject "Thursday" --body "Does 3 pm still work?" --json
+macos mail draft --from me@example.com --to ana@example.com --subject "Thursday" --body "Does 3 pm still work?" --json
 ```
 
 What the tour does on a show day, from Daysheets or Master Tour (read only; a person saves the

@@ -27,10 +27,10 @@ extension MacCLICore {
         switch code {
         case "usage", "invalid_argument", "ambiguous_calendar": return 64
         case _ where code.hasPrefix("invalid_"): return 64
-        case "not_found", "calendar_not_found", "event_not_found": return 3
+        case "not_found", "calendar_not_found", "event_not_found", "sender_not_found": return 3
         case "capability_denied", "access_denied", "person_required",
              "credentials_missing", "credentials_refused": return 4
-        case "timeout", "fetch_timeout": return 5
+        case "timeout", "fetch_timeout", "mail_busy", "still_in_outbox": return 5
         default: return 6
         }
     }

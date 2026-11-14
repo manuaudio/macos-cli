@@ -1,5 +1,7 @@
 import ArgumentParser
 import Foundation
+import MacCLICore
+import NetFS
 
 struct DiskCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -148,15 +150,31 @@ struct DiskCommand: ParsableCommand {
 
     // MARK: - Mount
     struct Mount: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Mount a disk image or volume")
+        static let configuration = CommandConfiguration(
+            abstract: "Mount a disk image, a volume, or a network share (smb://user@host/share)",
+            discussion: """
+            A network share mounts through NetFS under /Volumes, no root needed. The password \
+            comes from the login keychain item Finder saved for the server, or from the \
+            environment variable --password-env names; never from the command line. A share \
+            already mounted is reported where it is, not mounted twice.
+            """
+        )
 
-        @Argument(help: "Device path (/dev/disk2s1) or .dmg file path")
+        @Argument(help: "Device path (/dev/disk2s1), .dmg file path, or smb://user@host/share")
         var path: String
+
+        @Option(name: .long, help: "Environment variable holding the share's password")
+        var passwordEnv: String?
 
         @Flag(name: .long, help: "Output JSON")
         var json = false
 
         func run() throws {
+            if path.contains("://") {
+                try Auth.check("disk.mount")
+                try mountShare()
+                return
+            }
             try Auth.check("disk.write")
             let expanded = (path as NSString).expandingTildeInPath
             let isDmg = expanded.hasSuffix(".dmg") || expanded.hasSuffix(".iso")
@@ -173,6 +191,74 @@ struct DiskCommand: ParsableCommand {
                 print("Mounted: \(path)")
             } else {
                 throw CLIFailure.appError("Mount failed for: \(path)")
+            }
+        }
+
+        private func mountShare() throws {
+            guard let share = NetworkShare.parse(url: path), let url = URL(string: path) else {
+                throw ValidationError(URLComponents(string: path)?.password != nil
+                    ? "A share URL never carries the password: use the keychain item or --password-env."
+                    : "Not a share URL (smb://user@host/share): \(path)")
+            }
+            if let mountPoint = Self.mountPoint(of: share) {
+                report(mountPoint: mountPoint, already: true)
+                return
+            }
+            var password: String?
+            if let name = passwordEnv {
+                guard let value = ProcessInfo.processInfo.environment[name], !value.isEmpty else {
+                    throw ValidationError("--password-env \(name): the variable is not set")
+                }
+                password = value
+            }
+            // No dialog ever: without --password-env NetFS takes the keychain item for the server.
+            let openOptions = NSMutableDictionary(dictionary: ["UIOption": "NoUI"])
+            var mountPoints: Unmanaged<CFArray>?
+            let status = NetFSMountURLSync(url as CFURL, nil, share.user as CFString?, password as CFString?,
+                                           openOptions, nil, &mountPoints)
+            let points = (mountPoints?.takeRetainedValue() as? [String]) ?? []
+            guard status == 0, let mountPoint = points.first ?? Self.mountPoint(of: share) else {
+                throw CLIFailure.appError("Could not mount \(path): \(Self.describe(status))")
+            }
+            report(mountPoint: mountPoint, already: false)
+        }
+
+        private func report(mountPoint: String, already: Bool) {
+            if json {
+                printJSON(["mounted": true, "already": already, "mount_point": mountPoint, "url": path])
+            } else {
+                print(already ? "Already mounted: \(path) at \(mountPoint)" : "Mounted: \(path) at \(mountPoint)")
+            }
+        }
+
+        /// Where the share is mounted now, from the kernel's mount table.
+        static func mountPoint(of share: NetworkShare) -> String? {
+            var buf: UnsafeMutablePointer<statfs>?
+            let count = getmntinfo(&buf, MNT_NOWAIT)
+            guard count > 0, let mounts = buf else { return nil }
+            for i in 0..<Int(count) {
+                var entry = mounts[i]
+                let from = withUnsafePointer(to: &entry.f_mntfromname) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+                }
+                let on = withUnsafePointer(to: &entry.f_mntonname) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+                }
+                if let mounted = NetworkShare.parse(mountedFrom: from.removingPercentEncoding ?? from),
+                   share.isSameShare(as: mounted) {
+                    return on
+                }
+            }
+            return nil
+        }
+
+        static func describe(_ status: Int32) -> String {
+            switch status {
+            case EAUTH, EACCES, EPERM: return "the server refused the user or password (\(status))"
+            case ENOENT: return "no such share on the server (\(status))"
+            case EHOSTUNREACH, ETIMEDOUT, ECONNREFUSED: return "the server is unreachable (\(status))"
+            case -128: return "authentication needed: no keychain item for the server and no --password-env"
+            default: return String(cString: strerror(status)) + " (\(status))"
             }
         }
     }

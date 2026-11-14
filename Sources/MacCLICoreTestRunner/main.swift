@@ -575,6 +575,35 @@ do {
     eq(first.dropFirst().first?["notes"] as? String ?? "", "Dock on the east side of the building.", "unfolded")
 }
 
+// MARK: - JXA envelope (mirrors JXAEnvelopeTests)
+
+eq(parseJXAEnvelope("{\"ok\":true,\"result\":\"launched\"}\n"),
+   JXAEnvelope(ok: true, resultJSON: "\"launched\"", error: ""), "bare string result")
+eq(parseJXAEnvelope("{\"ok\":true,\"result\":3}")?.resultJSON, "3", "number result")
+eq(parseJXAEnvelope("{\"ok\":true,\"result\":null}")?.resultJSON, "", "null result")
+eq(parseJXAEnvelope("{\"ok\":false,\"error\":\"no such app\"}")?.error, "no such app", "failure")
+check(parseJXAEnvelope("launched") == nil, "non-envelope is nil")
+
+// MARK: - Network share (mirrors NetworkShareTests)
+
+eq(NetworkShare.parse(url: "smb://manu@ManuStorage.local/Arimaka"),
+   NetworkShare(user: "manu", host: "ManuStorage.local", share: "Arimaka"), "share URL")
+check(NetworkShare.parse(url: "smb://manu:secret@ManuStorage.local/Arimaka") == nil, "password in URL refused")
+check(NetworkShare.parse(url: "smb://manu@ManuStorage.local/Arimaka")!
+        .isSameShare(as: NetworkShare.parse(mountedFrom: "//manu@ManuStorage._smb._tcp.local/Arimaka")!),
+      "Bonjour mount is the same share")
+
+// MARK: - Messages store (mirrors MessagesStoreTests)
+
+do {
+    let text = "On my way"
+    let blob: [UInt8] = Array("streamtyped".utf8) + Array("NSString".utf8) + [0x01, 0x94, 0x84, 0x01, 0x2B,
+                         UInt8(text.utf8.count)] + Array(text.utf8) + [0x86]
+    eq(MacCLICore.attributedBodyText(blob), text, "attributedBody text")
+    check(MacCLICore.attributedBodyText([]) == nil, "empty attributedBody")
+    eq(MacCLICore.messagesDate(784_000_000_000_000_000).timeIntervalSinceReferenceDate, 784_000_000, "ns date")
+}
+
 // MARK: - Summary
 if failures == 0 {
     print("ok — \(checks) checks passed")

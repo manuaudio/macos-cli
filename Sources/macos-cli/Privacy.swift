@@ -117,6 +117,25 @@ enum DiskAccess {
         return errno == ENOENT || errno == ENOTDIR ? "missing" : "denied"
     }
 
+    static var messagesStore: URL { userHome().appendingPathComponent("Library/Messages/chat.db") }
+
+    /// The Messages database path, or the reason it cannot be read.
+    static func readableMessagesStore() throws -> String {
+        let url = messagesStore
+        switch probe(url) {
+        case "granted":
+            return url.path
+        case "missing":
+            throw CLIFailure.notFound("No Messages database at \(url.path).",
+                                      hint: "Sign in to Messages once on this Mac so it creates its store.")
+        default:
+            throw CLIFailure(code: "access_denied",
+                             message: "Reading Messages needs Full Disk Access, and this binary does not have it.",
+                             hint: "Add the macos binary in System Settings › Privacy & Security › Full Disk Access.",
+                             extra: ["area": "full_disk_access", "state": "denied"])
+        }
+    }
+
     /// The Notes database path, or the reason it cannot be read. Notes used to answer
     /// `count: 0` here, as if there were no notes.
     static func readableNotesStore() throws -> String {

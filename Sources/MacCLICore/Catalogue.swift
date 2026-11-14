@@ -230,6 +230,8 @@ extension MacCLICore {
 
         "messages conversations": false,
         "messages delete": true,
+        "messages export": false,
+        "messages latest": false,
         "messages read": false,
         "messages send": true,
 
@@ -299,8 +301,8 @@ extension MacCLICore {
 
         "safari bookmarks": false,
         "safari close": true,
-        "safari execute": true,
         "safari history": false,
+        "safari js": true,
         "safari new-tab": true,
         "safari open": true,
         "safari read": false,

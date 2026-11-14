@@ -30,12 +30,21 @@ struct ContactsCommand: ParsableCommand {
         @Option(name: .long, help: "Only contacts added, changed or deleted since this history_token (from an earlier export)")
         var since: String?
 
+        @Flag(name: .long, help: "One card per account (iCloud, Google, On My Mac…), not the linked person, each with its source")
+        var perSource = false
+
         @Flag(name: .long, help: "Accepted for consistency; export always prints JSON")
         var json = false
+
+        func validate() throws {
+            if perSource && since != nil { throw ValidationError("--per-source exports every card; it does not take --since.") }
+        }
 
         func run() throws {
             try Auth.check("contacts.read")
             let store = try PrivacyAccess.contactsStore()
+            // The Me card: `is_me` on the card (or, per source, the cards) that is the owner.
+            let meID = (try? store.unifiedMeContactWithKeys(toFetch: [CNContactIdentifierKey as CNKeyDescriptor]))?.identifier
 
             let keys: [CNKeyDescriptor] = [
                 CNContactIdentifierKey as CNKeyDescriptor,
@@ -75,7 +84,7 @@ struct ContactsCommand: ParsableCommand {
                 let truncated = limit.map { changed.count > $0 } ?? false
                 if let lim = limit { changed = Array(changed.prefix(lim)) }
                 printJSON([
-                    "contacts": changed.map(contactExportDict),
+                    "contacts": changed.map { contactExportDict($0, meID: meID) },
                     "count": changed.count,
                     "deleted_ids": changes.deletedIdentifiers,
                     "truncated": truncated,
@@ -88,17 +97,33 @@ struct ContactsCommand: ParsableCommand {
             // Unsorted is the store's own order: sorting 2 000 contacts by the user's
             // name order cost most of the export's time.
             let token = store.currentHistoryToken
-            let req = CNContactFetchRequest(keysToFetch: keys)
-            req.sortOrder = .none
             var out: [[String: Any]] = []
             var reachedLimit = false
-            try store.enumerateContacts(with: req) { c, stop in
-                if let lim = limit, out.count >= lim {
-                    reachedLimit = true
-                    stop.pointee = true
-                    return
+            // Per source: each account's own cards, unlinked, tagged with the account.
+            let sources: [(container: CNContainer?, predicate: NSPredicate?)] = perSource
+                ? try store.containers(matching: nil).map {
+                    ($0, CNContact.predicateForContactsInContainer(withIdentifier: $0.identifier))
+                  }
+                : [(nil, nil)]
+            for source in sources where !reachedLimit {
+                let req = CNContactFetchRequest(keysToFetch: keys)
+                req.sortOrder = .none
+                req.predicate = source.predicate
+                req.unifyResults = !perSource
+                try store.enumerateContacts(with: req) { c, stop in
+                    if let lim = limit, out.count >= lim {
+                        reachedLimit = true
+                        stop.pointee = true
+                        return
+                    }
+                    var card = contactExportDict(c, meID: meID)
+                    if let container = source.container {
+                        card["source"] = container.name
+                        card["source_id"] = container.identifier
+                        card["source_type"] = containerTypeName(container.type)
+                    }
+                    out.append(card)
                 }
-                out.append(contactExportDict(c))
             }
 
             printJSON([
@@ -497,6 +522,22 @@ private func ymd(_ comps: DateComponents?) -> Any {
 }
 
 /// Build the rich export dictionary for one contact, preserving multi-value fields.
+func containerTypeName(_ type: CNContainerType) -> String {
+    switch type {
+    case .local: return "local"
+    case .exchange: return "exchange"
+    case .cardDAV: return "carddav"
+    default: return "unassigned"
+    }
+}
+
+/// The export row with `is_me`: true on the card whose identifier is the store's Me contact.
+func contactExportDict(_ c: CNContact, meID: String?) -> [String: Any] {
+    var d = contactExportDict(c)
+    d["is_me"] = meID.map { $0 == c.identifier } ?? false
+    return d
+}
+
 func contactExportDict(_ c: CNContact) -> [String: Any] {
     let phones = c.phoneNumbers.map { ["label": friendlyLabel($0.label), "value": $0.value.stringValue] }
     let emails = c.emailAddresses.map { ["label": friendlyLabel($0.label), "value": $0.value as String] }

@@ -684,3 +684,117 @@ final class CLITests: XCTestCase {
         XCTAssertTrue(result.stderr.hasPrefix("Error: 'safari.js' is denied"), result.stderr)
     }
 }
+
+extension CLITests {
+    /// These reads use the real store only when the non-prompting doctor says it is available.
+    private var messagingHome: [String:String] {
+        ["HOME":FileManager.default.homeDirectoryForCurrentUser.path]
+    }
+
+    struct Precondition: Error, CustomStringConvertible { let description: String }
+
+    /// The factory Mac grants Mail Automation; a Mac that does not fails here, by name, instead of passing quietly.
+    private func requireMailPermission() throws {
+        let doctor=try run(["doctor","--json"],environment:messagingHome)
+        let areas=doctor.json?["areas"] as? [[String:Any]] ?? []
+        guard areas.contains(where: { $0["area"] as? String == "automation.mail" && $0["granted"] as? Bool == true }) else {
+            throw Precondition(description: "doctor reports missing Mail Automation permission")
+        }
+    }
+
+    func testMailAccountsIncludeAllAddresses() throws {
+        try requireMailPermission()
+        let result=try run(["mail","accounts","--json","--wait","20"],environment:messagingHome)
+        XCTAssertEqual(result.status,0)
+        let rows=try JSONSerialization.jsonObject(with:Data(result.stdout.utf8)) as? [[String:Any]]
+        XCTAssertNotNil(rows)
+        XCTAssertTrue(rows?.allSatisfy { $0["id"] is String && $0["name"] is String && $0["addresses"] is [String] } == true)
+    }
+
+    func testUnknownMailSenderCannotSend() throws {
+        try requireMailPermission()
+        try writePolicy(["mail.send": false])
+        let result=try run(["mail","send","--from","nobody@example.com","--to","reader@example.com","--subject","Sender rejection test","--wait","20","--json"])
+        XCTAssertEqual(result.status,3)
+        XCTAssertEqual(result.json?["error"] as? String,"sender_not_found")
+        XCTAssertTrue(result.stderr.isEmpty)
+    }
+
+    /// An address one of this Mac's Mail accounts owns: MACOS_CLI_TEST_MAIL_FROM, else the first address
+    /// `mail accounts` lists. The test draft it writes is deleted at once; nothing is ever sent.
+    private func ownedTestSender() throws -> String {
+        if let from = ProcessInfo.processInfo.environment["MACOS_CLI_TEST_MAIL_FROM"], !from.isEmpty { return from }
+        let result = try run(["mail","accounts","--json","--wait","20"],environment:messagingHome)
+        let rows = try JSONSerialization.jsonObject(with:Data(result.stdout.utf8)) as? [[String:Any]] ?? []
+        guard let from = rows.lazy.compactMap({ ($0["addresses"] as? [String])?.first }).first else {
+            throw Precondition(description: "no Mail account on this Mac owns an address")
+        }
+        return from
+    }
+
+    /// The senders of drafts with this subject, in every account's Drafts, deleting them when asked.
+    private func draftSenders(subject: String, delete: Bool = false) throws -> [String] {
+        let script = """
+        const M=Application('Mail');const out=[];
+        for(const a of M.accounts()) for(const b of a.mailboxes().filter(b=>/draft/i.test(b.name())))
+          for(const m of b.messages.whose({subject:'\(subject)'})()){out.push(m.sender());\(delete ? "M.delete(m);" : "")}
+        for(const o of M.outgoingMessages()) if(o.subject()==='\(subject)') out.push('outgoing:'+o.sender());
+        JSON.stringify(out)
+        """
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-l", "JavaScript", "-e", script]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return try JSONSerialization.jsonObject(with: data) as? [String] ?? []
+    }
+
+    /// Drafts are not sends: with mail.send denied, a draft from an owned address is saved
+    /// unsent in that account's Drafts, with that sender.
+    func testMailDraftWorksWhileSendIsDenied() throws {
+        try requireMailPermission()
+        let from = try ownedTestSender()
+        try writePolicy(["mail.send": false])
+        let subject = "macos-cli draft test \(UUID().uuidString)"
+        defer { _ = try? draftSenders(subject: subject, delete: true) }
+        let result = try run(["mail", "draft", "--from", from, "--to", "reader@example.com", "--subject", subject,
+                              "--body", "A test draft, deleted at once.", "--wait", "60", "--json"])
+        XCTAssertEqual(result.status, 0, result.stdout + result.stderr)
+        XCTAssertEqual(result.json?["draft_created"] as? Bool, true)
+        XCTAssertNotNil(result.json?["id"])
+        XCTAssertNotNil(result.json?["account"] as? String)
+        let senders = try draftSenders(subject: subject).filter { !$0.hasPrefix("outgoing:") }
+        XCTAssertEqual(senders.count, 1, "one saved draft")
+        XCTAssertTrue(senders.first?.lowercased().contains(from.lowercased()) == true, "\(senders)")
+    }
+
+    /// With mail.send denied, `mail send` from an owned address stops before Mail creates anything.
+    func testMailSendDeniedCreatesNothing() throws {
+        try requireMailPermission()
+        let from = try ownedTestSender()
+        try writePolicy(["mail.send": false])
+        let subject = "macos-cli send denied test \(UUID().uuidString)"
+        let result = try run(["mail", "send", "--from", from, "--to", "reader@example.com", "--subject", subject,
+                              "--body", "Must not be sent.", "--wait", "60", "--json"])
+        assertEnvelope(result, code: "capability_denied", status: 4)
+        XCTAssertEqual(try draftSenders(subject: subject), [], "no draft and no outgoing message")
+    }
+
+    func testWhatsAppChatsReadLive() throws {
+        let doctor=try run(["whatsapp","doctor","--json"],environment:messagingHome)
+        guard doctor.json?["reader_ready"] as? Bool == true else { throw Precondition(description: "WhatsApp doctor reports missing reader access or store") }
+        let result=try run(["whatsapp","chats","--json","--limit","3"],environment:messagingHome)
+        XCTAssertEqual(result.status,0)
+        let rows=try JSONSerialization.jsonObject(with:Data(result.stdout.utf8)) as? [[String:Any]]
+        XCTAssertNotNil(rows)
+        XCTAssertLessThanOrEqual(rows?.count ?? 4,3)
+    }
+
+    func testWhatsAppSendDefaultsToDenied() throws {
+        let result=try run(["whatsapp","send","+15555550100","--text","Do not send","--json"])
+        assertEnvelope(result,code:"capability_denied",status:4)
+    }
+}

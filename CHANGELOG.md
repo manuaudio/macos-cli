@@ -5,6 +5,11 @@
 - `contacts export --per-source` (one card per account, with its source) and `is_me` on every exported card.
 - `messages export --since-rowid N` and `messages latest`: chat.db rows read-only, the text decoded from `attributedBody`.
 - `safari execute` is now `safari js` (the old name still works); it takes `--tab` or `--url`, and needs the new `safari.js` capability: page JavaScript is no longer under `safari.execute`.
+- Mail accounts include ids and every sending address; addresses add/remove is idempotent and waits for busy Mail.
+- Mail draft, send and reply require an owned `--from` address and accept UTF-8 `--body-file` or stdin. Sends wait for a new Sent record; an unknown sender never falls back to another account.
+- Drafts are not sends: `mail draft` and the new `mail reply --draft` need only the new `mail.draft` capability, on by default, and save the message unsent in the owning account's Drafts, answering with its `id` and `account`. `mail send` and `mail reply` stay behind `mail.send`, off by default.
+- Mail metadata search/read use the read-only Envelope Index where available.
+- WhatsApp chats, read, search and doctor; individual-chat send through the app, disabled by policy until a person enables it.
 
 ## 0.10.0 — 2026-11-13
 

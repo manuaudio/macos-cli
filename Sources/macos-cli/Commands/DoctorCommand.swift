@@ -39,13 +39,13 @@ private func privacyAreas() -> [MacCLICore.PrivacyArea] {
     let fullDisk = [notes, safari].contains("granted") ? "granted"
         : [notes, safari].contains("denied") ? "denied" : "unknown"
     areas.append(.init(id: "full_disk_access", state: fullDisk,
-                       neededBy: ["notes list", "notes search", "notes read", "notes export", "safari history"],
+                       neededBy: ["notes list", "notes search", "notes read", "notes export", "safari history", "mail search", "mail read", "whatsapp chats", "whatsapp read", "whatsapp search"],
                        hint: "Add the macos binary in System Settings › Privacy & Security › Full Disk Access; macOS has no prompt for it.",
                        authorize: "macos authorize full-disk-access",
                        detail: fullDisk == "unknown" ? "neither the Notes nor the Safari database exists to test" : nil))
 
     areas.append(.init(id: "accessibility", state: AXIsProcessTrusted() ? "granted" : "denied",
-                       neededBy: ["mouse", "keyboard", "ax", "menu", "window"],
+                       neededBy: ["mouse", "keyboard", "ax", "menu", "window", "whatsapp send"],
                        hint: "A person runs `macos authorize accessibility` and turns the binary on in the pane it opens.",
                        authorize: "macos authorize accessibility"))
     areas.append(.init(id: "screen_recording", state: CGPreflightScreenCaptureAccess() ? "granted" : "denied",

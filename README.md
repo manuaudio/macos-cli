@@ -64,8 +64,9 @@ The exit code says what kind of failure it was: 64 a bad command line, 3 not fou
 | **Calendar** | list, rich JSON export, create (custom alarms), update, delete (by id or title) across all linked calendars |
 | **Reminders** | create, complete, list by list, due dates |
 | **Contacts** | search, read, create, update, by name, email or phone; export every card per account |
-| **Messages** | send iMessage/SMS, read threads, export rows from chat.db for ingestion |
-| **Mail** | search, read, draft, send, reply, manage mailboxes |
+| **Messages** | send iMessage/SMS, read threads, search, export rows from chat.db for ingestion |
+| **Mail** | indexed search and read, sending addresses, drafts, send and reply with an explicit sender and delivery confirmation |
+| **WhatsApp** | chats, read, search, doctor; policy-gated send to individual chats or phone numbers |
 | **Notes** | read, create, search Apple Notes |
 | **Music** | now playing, play/pause, skip, library queries |
 | **Safari** | read the current tab, list tabs, open URLs, run a page's JavaScript |
@@ -251,6 +252,12 @@ confirmation, read from `/dev/tty`, so piped input cannot answer it. Without a t
 with `person_required` (exit 4) and the policy is unchanged: the agent the policy restricts cannot
 lift it. `auth deny` needs no confirmation.
 
+From a person's accounts, agents draft; a person sends. `mail.draft` is on by default:
+`mail draft` and `mail reply --draft` save the message unsent in the owning account's Drafts
+and answer with its `id` and `account`, for the person to read and send. `mail.send` (and
+`whatsapp.send`) start off; with them off, `mail send` and `mail reply` stop with
+`capability_denied` (exit 4) before Mail creates anything.
+
 ### Agent-safe surfaces (0.8.0)
 
 These commands are built for unattended, read-mostly automation — stable JSON, fail-closed filters, and a machine-readable error contract:
@@ -400,6 +407,36 @@ macos safari js --url venmo.com "document.title"
 ### Mail by Message-ID
 
 `mail search QUERY --json` returns each message's `message_id` (the Message-ID header), `account` and `mailbox`; `mail read --id MESSAGE_ID` reads that one message. Both take `--mailbox NAME` and `--account NAME`, which skip every other mailbox; an unknown one is `not_found`, not zero results.
+
+### Mail senders and WhatsApp
+
+`macos mail accounts --json` lists account ids and all sending addresses. Draft, send
+and reply require `--from alex@example.com`; `mail draft` and `mail reply --draft` save unsent
+in that account's Drafts (`mail.draft`), sends need `mail.send`. An unowned address returns
+`sender_not_found` (exit 3), without creating or sending a message. Duplicate ownership
+is rejected. Use `macos mail addresses add Work alias@example.com --wait 600` (or
+`remove`) to change an account's addresses; this requires the `mail.write` policy.
+Mail must already be configured to send from that address at its provider.
+
+Long bodies use `--body-file message.txt` or `--body-file -` for UTF-8 stdin.
+After a send, macos waits up to `--wait` seconds for a new matching Sent-folder record
+in Mail's read-only Envelope Index. A timeout returns `still_in_outbox` (exit 5);
+check Mail before retrying to avoid duplicates. This confirms Mail filed the message,
+not delivery to the recipient. Busy Apple events return `mail_busy` (exit 5).
+Search matches indexed sender, recipients and subject; reading retrieves the body
+through Mail. Older or inaccessible indexes fall back to Mail's search.
+
+`macos whatsapp chats --limit 3 --json`, `whatsapp read Alex --since
+2026-01-01T00:00:00Z --json` and `whatsapp search hello --json` read a read-only
+ChatStorage database; a locked database uses a temporary SQLite backup.
+`macos whatsapp doctor --json` checks the reader, app, Accessibility and send policy.
+`macos whatsapp send +15555550100 --text-file message.txt --json` opens the app's
+send URL and presses its Accessibility Send button only after matching the recipient
+and composer text. It reports `send_requested`, not recipient delivery. Individual
+chat ids, exact unique names and JIDs also work; group sending is unavailable.
+Sending starts disabled; a person enables `whatsapp.send` through `macos auth grant`.
+Readers need Full Disk Access; sending also needs Accessibility. No pointer or
+keyboard events are synthesized.
 
 ### Tours: Master Tour and Daysheets
 

@@ -55,6 +55,20 @@ The list below has every command with its flags, one line of help and whether it
 `macos commands --json` prints it. Run `macos help <area> <action>` for a
 command's arguments.
 
+From a person's accounts, agents draft; a person sends. `mail draft` and `mail reply --draft`
+need only `mail.draft` (on by default): the message is saved unsent in the owning account's
+Drafts and the answer carries its `id` and `account`. `mail send` and `mail reply` without
+`--draft` need `mail.send`, off until a person turns it on.
+Mail draft, send and reply require `--from <owned-address>`; `mail accounts --json`
+lists all addresses. Use `--body-file <path>` or `--body-file -` for UTF-8 stdin.
+`mail addresses add/remove <account> <address> --wait 600` requires `mail.write`.
+Unknown senders fail without fallback. `still_in_outbox` means check Mail before retrying.
+
+WhatsApp reads use its local database (Full Disk Access). `whatsapp doctor --json`
+checks readiness. Individual-chat sends require a person to enable `whatsapp.send`,
+plus Accessibility. Use `--text` or `--text-file` (including `-` for stdin).
+Group sending is unavailable. `send_requested` confirms the app's button action only.
+
 <!-- commands -->
 
 ## Answers and errors
@@ -101,7 +115,7 @@ Find a contact, then leave a draft in Mail for the person to read and send:
 
 ```bash
 macos contacts search "Ana" --limit 5 --json
-macos mail draft --to ana@example.com --subject "Thursday" --body "Does 3 pm still work?" --json
+macos mail draft --from me@example.com --to ana@example.com --subject "Thursday" --body "Does 3 pm still work?" --json
 ```
 
 What the tour does on a show day, from Daysheets or Master Tour (read only; a person saves the

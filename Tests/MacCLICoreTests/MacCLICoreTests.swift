@@ -851,3 +851,78 @@ final class TourConnectorTests: XCTestCase {
         XCTAssertFalse(MacCLICore.isDay("12/04/2026"))
     }
 }
+
+final class JXAEnvelopeTests: XCTestCase {
+    // `apps launch Safari` (the name form) prints this envelope; a bare string result
+    // used to raise NSInvalidArgumentException "Invalid top-level type in JSON write".
+    func testBareStringResultFromAppsLaunchByName() {
+        let env = parseJXAEnvelope("{\"ok\":true,\"result\":\"launched\"}\n")
+        XCTAssertEqual(env, JXAEnvelope(ok: true, resultJSON: "\"launched\"", error: ""))
+    }
+
+    func testScalarAndObjectResults() {
+        XCTAssertEqual(parseJXAEnvelope("{\"ok\":true,\"result\":3}")?.resultJSON, "3")
+        XCTAssertEqual(parseJXAEnvelope("{\"ok\":true,\"result\":null}")?.resultJSON, "")
+        XCTAssertEqual(parseJXAEnvelope("{\"ok\":true,\"result\":{\"a\":1}}")?.resultJSON, "{\"a\":1}")
+    }
+
+    func testFailureAndNonEnvelope() {
+        XCTAssertEqual(parseJXAEnvelope("{\"ok\":false,\"error\":\"no such app\"}"),
+                       JXAEnvelope(ok: false, resultJSON: "", error: "no such app"))
+        XCTAssertEqual(parseJXAEnvelope("execution error: boom")?.ok, false)
+        XCTAssertNil(parseJXAEnvelope(""))
+        XCTAssertNil(parseJXAEnvelope("launched"))
+    }
+}
+
+final class NetworkShareTests: XCTestCase {
+    func testParsesTheNASURL() {
+        XCTAssertEqual(NetworkShare.parse(url: "smb://manu@ManuStorage.local/Arimaka"),
+                       NetworkShare(user: "manu", host: "ManuStorage.local", share: "Arimaka"))
+        XCTAssertEqual(NetworkShare.parse(url: "smb://100.88.105.22/Arimaka/sub")?.share, "Arimaka")
+    }
+
+    func testRefusesAPasswordInTheURLAndHalfURLs() {
+        XCTAssertNil(NetworkShare.parse(url: "smb://manu:secret@ManuStorage.local/Arimaka"))
+        XCTAssertNil(NetworkShare.parse(url: "smb://ManuStorage.local/"))
+        XCTAssertNil(NetworkShare.parse(url: "/dev/disk2s1"))
+        XCTAssertNil(NetworkShare.parse(url: "https://host/share"))
+    }
+
+    func testFinderBonjourMountIsTheSameShare() {
+        let asked = NetworkShare.parse(url: "smb://manu@ManuStorage.local/Arimaka")!
+        let mounted = NetworkShare.parse(mountedFrom: "//manu@ManuStorage._smb._tcp.local/Arimaka")!
+        XCTAssertTrue(asked.isSameShare(as: mounted))
+        XCTAssertFalse(asked.isSameShare(as: NetworkShare.parse(mountedFrom: "//manu@ManuStorage.local/Other")!))
+        XCTAssertFalse(asked.isSameShare(as: NetworkShare.parse(mountedFrom: "//guest@ManuStorage.local/Arimaka")!))
+        XCTAssertFalse(asked.isSameShare(as: NetworkShare.parse(mountedFrom: "//manu@100.88.105.22/Arimaka")!))
+    }
+}
+
+final class MessagesStoreTests: XCTestCase {
+    func blob(_ text: String, lengthBytes: [UInt8]) -> [UInt8] {
+        [0x04, 0x0B] + Array("streamtyped".utf8) + [0x81, 0xE8, 0x03, 0x84, 0x01, 0x40, 0x84, 0x84, 0x84]
+            + Array("NSString".utf8) + [0x01, 0x94, 0x84, 0x01, 0x2B] + lengthBytes + Array(text.utf8) + [0x86, 0x84]
+    }
+
+    func testShortBodyDecodes() {
+        let text = "On my way 🚗"
+        XCTAssertEqual(MacCLICore.attributedBodyText(blob(text, lengthBytes: [UInt8(text.utf8.count)])), text)
+    }
+
+    func testTwoByteLengthDecodes() {
+        let text = String(repeating: "a", count: 300)
+        XCTAssertEqual(MacCLICore.attributedBodyText(blob(text, lengthBytes: [0x81, 0x2C, 0x01])), text)
+    }
+
+    func testNoStringOrCutShortIsNil() {
+        XCTAssertNil(MacCLICore.attributedBodyText([]))
+        XCTAssertNil(MacCLICore.attributedBodyText(Array("streamtyped NSDictionary".utf8)))
+        XCTAssertNil(MacCLICore.attributedBodyText(Array("NSString".utf8) + [0x01, 0x94, 0x84, 0x01, 0x2B, 0x81]))
+    }
+
+    func testDatesInNanosecondsAndSeconds() {
+        XCTAssertEqual(MacCLICore.messagesDate(784_000_000_000_000_000).timeIntervalSinceReferenceDate, 784_000_000)
+        XCTAssertEqual(MacCLICore.messagesDate(500_000_000).timeIntervalSinceReferenceDate, 500_000_000)
+    }
+}

@@ -1,6 +1,7 @@
 // Sources/macos-cli/Commands/MenuCommand.swift
 import ArgumentParser
 import Foundation
+import MacCLICore
 
 struct MenuCommand: ParsableCommand {
     static let configuration = CommandConfiguration(

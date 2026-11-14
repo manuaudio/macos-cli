@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MacCLICore
 
 // Messages control via JXA. Requires Automation permission for Messages in System Settings.
 
@@ -7,7 +8,7 @@ struct MessagesCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "messages",
         abstract: "Apple Messages — send iMessages and list conversations",
-        subcommands: [Send.self, Conversations.self, Read.self, Delete.self]
+        subcommands: [Send.self, Conversations.self, Read.self, Export.self, Latest.self, Delete.self]
     )
 
     // MARK: - Send

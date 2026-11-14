@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MacCLICore
 
 // Safari control via JXA. Requires Automation permission for Safari in System Settings → Privacy.
 
@@ -137,33 +138,60 @@ struct SafariCommand: ParsableCommand {
     // MARK: - Execute
 
     struct Execute: ParsableCommand {
-        static let configuration = CommandConfiguration(abstract: "Execute JavaScript in the current Safari tab")
+        static let configuration = CommandConfiguration(
+            commandName: "js",
+            abstract: "Run JavaScript in a Safari tab's page and print what it returns",
+            discussion: """
+            The tab is the front window's current tab, the tab --tab names in --window, or the \
+            first tab whose URL contains --url. Needs the safari.js capability: page JavaScript \
+            acts with the signed-in session of that page. Safari's Develop menu must allow \
+            JavaScript from Apple Events.
+            """,
+            aliases: ["execute"]
+        )
 
         @Argument(help: "JavaScript to execute")
         var js: String
 
         @Option(name: .long, help: "Window index (default: 0)") var window: Int = 0
+        @Option(name: .long, help: "Tab index in the window (default: its current tab)") var tab: Int?
+        @Option(name: .long, help: "The first tab, in any window, whose URL contains this") var url: String?
+
+        func validate() throws {
+            if tab != nil && url != nil { throw ValidationError("Use --tab or --url, not both.") }
+        }
 
         func run() throws {
-            try Auth.check("safari.execute")
+            try Auth.check("safari.js")
             let escaped = jxaEscape(js)
+            let pick: String
+            if let url {
+                pick = """
+                let t = null;
+                for (const w of Safari.windows()) { for (const c of w.tabs()) { if (!t && String(c.url()).includes('\(jxaEscape(url))')) t = c; } }
+                if (!t) throw new Error('no Safari tab has a URL containing \(jxaEscape(url))');
+                """
+            } else if let tab {
+                pick = "const t = Safari.windows()[\(window)].tabs()[\(tab)];"
+            } else {
+                pick = "const t = Safari.windows()[\(window)].currentTab();"
+            }
             let script = """
             try {
             const Safari = Application('Safari');
-            const w = Safari.windows()[\(window)];
-            const t = w.currentTab();
-            const jsResult = String(Safari.doJavaScript('\(escaped)', {in: t}));
-            JSON.stringify({ok:true, result:jsResult});
+            \(pick)
+            const jsResult = Safari.doJavaScript('\(escaped)', {in: t});
+            JSON.stringify({ok:true, result: jsResult === undefined || jsResult === null ? '' : String(jsResult)});
             } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
             """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
+            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
             guard let env = parseJXAEnvelope(raw), env.ok else {
                 let errMsg = parseJXAEnvelope(raw)?.error ?? raw
                 throw CLIFailure.appError("JS execution failed\n\(errMsg.prefix(200))")
             }
             // env.resultJSON is a JSON-encoded string; decode it to get the actual JS result
             if let data = env.resultJSON.data(using: .utf8),
-               let jsResult = try? JSONSerialization.jsonObject(with: data) as? String {
+               let jsResult = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) as? String {
                 print(jsResult)
             } else {
                 print(env.resultJSON)

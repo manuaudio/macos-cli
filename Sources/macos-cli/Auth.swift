@@ -148,7 +148,8 @@ struct Auth {
         ("login-items.write",  false, "Add or remove login items"),
         // Safari
         ("safari.read",        true,  "List tabs, history, bookmarks"),
-        ("safari.execute",     false, "Open URLs, execute JS, close/reload tabs"),
+        ("safari.execute",     false, "Open URLs, close/reload tabs"),
+        ("safari.js",          false, "Run JavaScript in a page, with its signed-in session"),
         // Photos
         ("photos.read",        true,  "List/search/export photos"),
         ("photos.write",       false, "Add photos to albums or modify library"),
@@ -161,7 +162,8 @@ struct Auth {
         ("bluetooth.write",    false, "Connect or disconnect Bluetooth devices"),
         // Disk
         ("disk.read",          true,  "List disks and read disk info"),
-        ("disk.write",         false, "Eject / unmount / mount volumes"),
+        ("disk.write",         false, "Eject / unmount / mount disks and images"),
+        ("disk.mount",         true,  "Mount network shares (smb, afp, nfs) under /Volumes"),
         // OCR
         ("ocr.capture",        true,  "OCR screen regions or image files"),
         // Process

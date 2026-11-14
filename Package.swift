@@ -51,6 +51,7 @@ let package = Package(
                     "-framework", "PDFKit",
                     "-framework", "CoreLocation",
                     "-framework", "IOBluetooth",
+                    "-framework", "NetFS",
                 ])
             ],
             linkerSettings: [

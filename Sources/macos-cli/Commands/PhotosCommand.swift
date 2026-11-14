@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MacCLICore
 
 // Photos control via JXA. May require Automation permission for Photos.
 

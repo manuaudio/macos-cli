@@ -72,7 +72,7 @@ These change nothing on the Mac. Saving a screenshot or an export to a path you 
 - `macos calendar export`: Export events as a rich JSON envelope (events/count/calendars/filter) for ingestion. Flags: `--from` `--to` `--calendar` `--calendar-id` `--since` `--timezone` `--json`.
 - `macos calendar reload`: Force Calendar to refresh from iCloud / CalDAV sources. Flags: `--json`.
 - `macos commands`: List every command with its flags, one line of help, and whether it writes. Flags: `--json`.
-- `macos contacts export`: Export all contacts as rich JSON for ingestion (read-only). Flags: `--limit` `--since` `--json`.
+- `macos contacts export`: Export all contacts as rich JSON for ingestion (read-only). Flags: `--limit` `--since` `--per-source` `--json`.
 - `macos contacts get`: Get a contact by ID. Flags: `--json`.
 - `macos contacts get-note`: Read the note field of a contact (works around macOS 13+ entitlement). Flags: `--json`.
 - `macos contacts search`: Search contacts by name, phone, or email. Flags: `--json` `--limit`.
@@ -113,6 +113,8 @@ These change nothing on the Mac. Saving a screenshot or an export to a path you 
 - `macos mastertour tours`: The tours this key can read. Flags: `--json`.
 - `macos menu list`: List top-level menu items for an app (or the focused app). Flags: `--app` `--json`.
 - `macos messages conversations`: List recent conversations. Flags: `--limit` `--json`.
+- `macos messages export`: Export messages newer than a rowid as JSON for ingestion (read-only). Flags: `--since-rowid` `--limit` `--json`.
+- `macos messages latest`: The newest message's time and rowid per service (iMessage, SMS, RCS…), read-only. Flags: `--json`.
 - `macos messages read`: Read messages from a conversation. Flags: `--with` `--limit` `--json`.
 - `macos mouse position`: Get current cursor position. Flags: `--json`.
 - `macos music playlists`: List playlists. Flags: `--json`.
@@ -203,7 +205,7 @@ These change data, a setting or the state of the Mac, or send, play or show some
 - `macos defaults delete`: Delete a defaults key. Flags: `--domain` `--key` `--json`.
 - `macos defaults write`: Write a value to a defaults key. Flags: `--domain` `--key` `--value` `--type` `--json`.
 - `macos disk eject`: Eject a disk or volume. Flags: `--json`.
-- `macos disk mount`: Mount a disk image or volume. Flags: `--json`.
+- `macos disk mount`: Mount a disk image, a volume, or a network share (smb://user@host/share). Flags: `--password-env` `--json`.
 - `macos disk unmount`: Unmount a volume (without ejecting the disk). Flags: `--force` `--json`.
 - `macos dock add`: Pin an app to the Dock. Flags: `--json`.
 - `macos dock remove`: Remove an app from the Dock by name. Flags: `--json`.
@@ -262,7 +264,7 @@ These change data, a setting or the state of the Mac, or send, play or show some
 - `macos reminders uncomplete`: Mark a reminder as not complete. Flags: `--json`.
 - `macos reminders update`: Update a reminder by ID. Flags: `--title` `--due` `--notes` `--list` `--json`.
 - `macos safari close`: Close a Safari tab. Flags: `--url` `--index` `--current` `--json`.
-- `macos safari execute`: Execute JavaScript in the current Safari tab. Flags: `--window`.
+- `macos safari js`: Run JavaScript in a Safari tab's page and print what it returns. Flags: `--window` `--tab` `--url`.
 - `macos safari new-tab`: Open a new Safari tab at a URL. Flags: `--url` `--json`.
 - `macos safari open`: Open a URL in Safari.
 - `macos safari reload`: Reload a Safari tab. Flags: `--url` `--json`.

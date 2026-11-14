@@ -240,7 +240,8 @@ final class CLITests: XCTestCase {
         try writePolicy(["calendar.read": false, "contacts.read": false,
                          "notes.read": false, "reminders.read": false])
         for (area, capability) in [("calendar", "calendar.read"), ("contacts", "contacts.read"),
-                                   ("notes", "notes.read"), ("reminders", "reminders.read")] {
+                                   ("notes", "notes.read"), ("reminders", "reminders.read"),
+                                   ("messages", "messages.read")] {
             let result = try run([area, "export", "--json"])
             assertEnvelope(result, code: "capability_denied", status: 4)
             XCTAssertEqual(result.json?["capability"] as? String, capability, area)
@@ -587,5 +588,99 @@ final class CLITests: XCTestCase {
         let feed = Self.repoRoot.appendingPathComponent("Tests/Fixtures/tour.ics")
         assertEnvelope(try run(["daysheets", "days"], environment: ["DAYSHEETS_FEED_URL": feed.absoluteString]),
                        code: "capability_denied", status: 4)
+    }
+
+    // MARK: - Messages, from a chat.db of the test's own
+
+    /// A chat.db with chat.db's column names, in this test's HOME: three messages in one
+    /// chat, the second with its body only in attributedBody, the third with an attachment.
+    func writeChatDB() throws {
+        let dir = home.appendingPathComponent("Library/Messages")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let body = Array("streamtyped".utf8) + Array("NSString".utf8) + [0x01, 0x94, 0x84, 0x01, 0x2B, 0x0A]
+            + Array("Soundcheck".utf8) + [0x86]
+        let hex = body.map { String(format: "%02X", $0) }.joined()
+        let sql = """
+            CREATE TABLE message (ROWID INTEGER PRIMARY KEY, guid TEXT, text TEXT, attributedBody BLOB,
+              handle_id INTEGER, service TEXT, date INTEGER, is_from_me INTEGER,
+              associated_message_type INTEGER DEFAULT 0, item_type INTEGER DEFAULT 0);
+            CREATE TABLE handle (ROWID INTEGER PRIMARY KEY, id TEXT);
+            CREATE TABLE chat (ROWID INTEGER PRIMARY KEY, guid TEXT);
+            CREATE TABLE chat_message_join (chat_id INTEGER, message_id INTEGER);
+            CREATE TABLE chat_handle_join (chat_id INTEGER, handle_id INTEGER);
+            CREATE TABLE attachment (ROWID INTEGER PRIMARY KEY, filename TEXT, mime_type TEXT, transfer_name TEXT);
+            CREATE TABLE message_attachment_join (message_id INTEGER, attachment_id INTEGER);
+            INSERT INTO handle VALUES (1, '+15555550100');
+            INSERT INTO chat VALUES (1, 'iMessage;-;+15555550100');
+            INSERT INTO chat_handle_join VALUES (1, 1);
+            INSERT INTO message VALUES (1, 'g1', 'Doors at 7', NULL, 1, 'iMessage', 784000000000000000, 0, 0, 0);
+            INSERT INTO message VALUES (2, 'g2', NULL, X'\(hex)', 0, 'iMessage', 784000060000000000, 1, 0, 0);
+            INSERT INTO message VALUES (3, 'g3', '', NULL, 1, 'SMS', 784000120000000000, 0, 0, 0);
+            INSERT INTO chat_message_join VALUES (1, 1), (1, 2), (1, 3);
+            INSERT INTO attachment VALUES (1, '~/Library/Messages/Attachments/a/plot.pdf', 'application/pdf', 'plot.pdf');
+            INSERT INTO message_attachment_join VALUES (3, 1);
+            """
+        let sqlite = Process()
+        sqlite.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        sqlite.arguments = [dir.appendingPathComponent("chat.db").path, sql]
+        try sqlite.run()
+        sqlite.waitUntilExit()
+        XCTAssertEqual(sqlite.terminationStatus, 0, "fixture chat.db")
+    }
+
+    func testMessagesExportReadsRowsAfterTheRowid() throws {
+        try writePolicy(["messages.read": true])
+        try writeChatDB()
+        let result = try run(["messages", "export", "--since-rowid", "1", "--json"])
+        XCTAssertEqual(result.status, 0, result.stdout + result.stderr)
+        let messages = result.json?["messages"] as? [[String: Any]] ?? []
+        XCTAssertEqual(messages.map { $0["rowid"] as? Int }, [2, 3])
+        XCTAssertEqual(result.json?["last_rowid"] as? Int, 3)
+        XCTAssertEqual(messages.first?["text"] as? String, "Soundcheck", "the body from attributedBody")
+        XCTAssertEqual(messages.first?["is_from_me"] as? Bool, true)
+        XCTAssertEqual(messages.first?["chat_handles"] as? [String], ["+15555550100"])
+        XCTAssertEqual(messages.last?["service"] as? String, "SMS")
+        XCTAssertEqual(messages.last?["handle"] as? String, "+15555550100")
+        let attachment = (messages.last?["attachments"] as? [[String: Any]])?.first
+        XCTAssertEqual(attachment?["path"] as? String, home.path + "/Library/Messages/Attachments/a/plot.pdf")
+        XCTAssertEqual(messages.first?["date"] as? String, "2025-11-05T01:47:40.000Z")
+    }
+
+    func testMessagesLatestNamesEachService() throws {
+        try writePolicy(["messages.read": true])
+        try writeChatDB()
+        let result = try run(["messages", "latest", "--json"])
+        XCTAssertEqual(result.status, 0, result.stdout + result.stderr)
+        let rows = (try? JSONSerialization.jsonObject(with: Data(result.stdout.utf8))) as? [[String: Any]] ?? []
+        XCTAssertEqual(rows.map { $0["service"] as? String }, ["SMS", "iMessage"])
+        XCTAssertEqual(rows.first?["rowid"] as? Int, 3)
+    }
+
+    func testMessagesWithoutAStoreIsNotFound() throws {
+        try writePolicy(["messages.read": true])
+        assertEnvelope(try run(["messages", "latest", "--json"]), code: "not_found", status: 3)
+    }
+
+    // MARK: - Network share mount: refused before anything touches the network
+
+    func testShareURLWithAPasswordIsRefused() throws {
+        let result = try run(["disk", "mount", "smb://manu:secret@nas.invalid/share", "--json"])
+        assertEnvelope(result, code: "usage", status: 64)
+        XCTAssertFalse(result.stdout.contains("secret"), "the password is never echoed")
+    }
+
+    func testPasswordEnvThatIsNotSetIsRefused() throws {
+        let result = try run(["disk", "mount", "smb://manu@nas.invalid/share", "--password-env", "MACOS_CLI_TEST_UNSET", "--json"],
+                             environment: ["MACOS_CLI_TEST_UNSET": ""])
+        assertEnvelope(result, code: "usage", status: 64)
+    }
+
+    // MARK: - Safari page JavaScript has its own capability
+
+    func testSafariJSIsDeniedByDefaultEvenWithSafariExecute() throws {
+        try writePolicy(["safari.execute": true])
+        let result = try run(["safari", "js", "--url", "example.com", "document.title"])
+        XCTAssertEqual(result.status, 4)
+        XCTAssertTrue(result.stderr.hasPrefix("Error: 'safari.js' is denied"), result.stderr)
     }
 }

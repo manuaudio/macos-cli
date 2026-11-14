@@ -1,5 +1,11 @@
 ## Unreleased
 
+- `apps launch <name>` no longer crashes: a script result that is a bare string ("launched") is parsed (it raised "Invalid top-level type in JSON write"). `safari execute` had the same crash on every result.
+- `disk mount smb://user@host/share`: a network share through NetFS, the password from the keychain or `--password-env`, never argv; an already mounted share is reported, not mounted twice. New capability `disk.mount`, on by default.
+- `contacts export --per-source` (one card per account, with its source) and `is_me` on every exported card.
+- `messages export --since-rowid N` and `messages latest`: chat.db rows read-only, the text decoded from `attributedBody`.
+- `safari execute` is now `safari js` (the old name still works); it takes `--tab` or `--url`, and needs the new `safari.js` capability: page JavaScript is no longer under `safari.execute`.
+
 ## 0.10.0 — 2026-11-13
 
 An agent can read the tour: Master Tour and Daysheets.

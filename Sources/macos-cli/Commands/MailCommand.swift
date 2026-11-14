@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MacCLICore
 
 // Mail control via JXA. Requires Automation permission for Mail in System Settings → Privacy.
 

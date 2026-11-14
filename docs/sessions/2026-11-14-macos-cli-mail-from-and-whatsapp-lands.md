@@ -19,3 +19,7 @@ accounts, agents draft; a person sends. The earlier lane stopped because its liv
 `testMailSendDeniedCreatesNothing` (exit 4 `capability_denied`, no draft, no outgoing message),
 `testUnknownMailSenderCannotSend` (exit 3 `sender_not_found`). Live from the built binary:
 `macos mail accounts --json`, `macos whatsapp chats --json --limit 3`.
+
+## Red on the record (15:23), fixed
+
+The record check counted three new `XCTSkip`s in CLITests. The Mail and WhatsApp live tests now fail by name when this Mac lacks Mail Automation or the WhatsApp reader, and the owned sender comes from `mail accounts` when `MACOS_CLI_TEST_MAIL_FROM` is unset, so the draft tests always run here. `bin/tests-kept . origin/main HEAD`: 53 cases kept.

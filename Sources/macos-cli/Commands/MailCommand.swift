@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MacCLICore
 
 // Mail control via JXA. Requires Automation permission for Mail in System Settings → Privacy.
 
@@ -7,7 +8,7 @@ struct MailCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "mail",
         abstract: "Apple Mail — create drafts, search messages",
-        subcommands: [Draft.self, Search.self, Accounts.self, Refresh.self, Send.self, Read.self, Delete.self, Mark.self, Mailboxes.self, Reply.self]
+        subcommands: [Draft.self, Search.self, Accounts.self, Refresh.self, Send.self, Read.self, Delete.self, Mark.self, Mailboxes.self, Reply.self, Addresses.self]
     )
 
     // MARK: - Refresh (force Mail.app to check for new mail)
@@ -62,42 +63,16 @@ struct MailCommand: ParsableCommand {
         @Flag(name: .long, help: "Open the draft in Mail after creating") var open = false
         @Flag(name: .long, help: "Output JSON") var json = false
 
-        func run() throws {
-            try Auth.check("mail.send")
-            let escapedTo      = jxaEscape(to)
-            let escapedSubject = jxaEscape(subject)
-            let escapedBody    = jxaEscape(body)
-            let ccLine = cc.map { addr -> String in
-                let ea = jxaEscape(addr)
-                return "const ccR = Mail.CcRecipient({address: '\(ea)'}); msg.ccRecipients.push(ccR);"
-            } ?? ""
+        @Option(name: .long, help: "Sending address (must belong to exactly one account)") var from: String
+        @Option(name: .long, help: "UTF-8 body file, or - for stdin") var bodyFile: String?
+        @Option(name: .long, help: "Seconds to wait for Mail") var wait: Double = 600
 
-            let script = """
-            try {
-            const Mail = Application('Mail');
-            const msg = Mail.OutgoingMessage({
-                subject: '\(escapedSubject)',
-                content: '\(escapedBody)',
-                visible: \(open)
-            });
-            Mail.outgoingMessages.push(msg);
-            const rec = Mail.Recipient({address: '\(escapedTo)'});
-            msg.toRecipients.push(rec);
-            \(ccLine)
-            \(open ? "Mail.activate();" : "")
-            JSON.stringify({ok:true, result:{to: '\(escapedTo)', subject: '\(escapedSubject)'}});
-            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
-            """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-            guard let env = parseJXAEnvelope(raw), env.ok else {
-                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw CLIFailure.appError("Could not create draft — check Automation permission for Mail in System Settings\n\(errMsg.prefix(200))")
-            }
-            if json {
-                printJSON(["draft_created": true, "to": to, "subject": subject])
-            } else {
-                print("Draft created: to=\(to) subject='\(subject)'")
-            }
+        func run() throws {
+            let sender = try mailSender(from, wait: wait)
+            try Auth.check("mail.send")
+            let result = try createMail(to: to, subject: subject, body: messageBody(body, file: bodyFile), cc: cc,
+                                        from: from, sender: sender, send: false, open: open, wait: wait)
+            if json { printJSON(result) } else { print("Draft created from \(from): \(subject)") }
         }
     }
 
@@ -145,46 +120,16 @@ struct MailCommand: ParsableCommand {
 
         @Flag(name: .long, help: "Output JSON") var json = false
 
+        @Option(name: .long, help: "Sending address (must belong to exactly one account)") var from: String
+        @Option(name: .long, help: "UTF-8 body file, or - for stdin") var bodyFile: String?
+        @Option(name: .long, help: "Seconds to wait for Mail and delivery") var wait: Double = 600
+
         func run() throws {
+            let sender = try mailSender(from, wait: wait)
             try Auth.check("mail.send")
-            let escapedTo      = jxaEscape(to)
-            let escapedSubject = jxaEscape(subject)
-            let escapedBody    = jxaEscape(body)
-            let ccLine = cc.map { addr -> String in
-                let ea = jxaEscape(addr)
-                return "const ccR = Mail.CcRecipient({address: '\(ea)'}); msg.ccRecipients.push(ccR);"
-            } ?? ""
-            let script = """
-            try {
-            const Mail = Application('Mail');
-            const msg = Mail.OutgoingMessage({
-                subject: '\(escapedSubject)',
-                content: '\(escapedBody)',
-                visible: false
-            });
-            Mail.outgoingMessages.push(msg);
-            const rec = Mail.Recipient({address: '\(escapedTo)'});
-            msg.toRecipients.push(rec);
-            \(ccLine)
-            msg.send();
-            JSON.stringify({ok:true, result:{sent: true, to: '\(escapedTo)', subject: '\(escapedSubject)'}});
-            } catch(e) { JSON.stringify({ok:false, error: String(e&&e.message?e.message:e)}); }
-            """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 30, fallback: "")
-            guard let env = parseJXAEnvelope(raw), env.ok else {
-                let errMsg = parseJXAEnvelope(raw)?.error ?? raw
-                throw CLIFailure.appError("Could not send email — check Automation permission for Mail in System Settings\n\(errMsg.prefix(200))")
-            }
-            if json {
-                if let data = env.resultJSON.data(using: .utf8),
-                   let result = try? JSONSerialization.jsonObject(with: data) {
-                    printJSON(result)
-                } else {
-                    printJSON(["sent": true, "to": to, "subject": subject])
-                }
-            } else {
-                print("Sent to \(to): \(subject)")
-            }
+            let result = try createMail(to: to, subject: subject, body: messageBody(body, file: bodyFile), cc: cc,
+                                        from: from, sender: sender, send: true, open: false, wait: wait)
+            if json { printJSON(result) } else { print("Sent from \(from): \(subject)") }
         }
     }
 
@@ -421,68 +366,43 @@ struct MailCommand: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "reply", abstract: "Reply to a message matching a query")
 
         @Option(name: .long, help: "Search query to find the original message") var query: String
-        @Option(name: .long, help: "Reply body text") var body: String
+        @Option(name: .long, help: "Reply body text") var body: String = ""
 
         @Option(name: .long, help: "Max messages to scan when searching (default: 500)") var limit: Int = 500
         @Flag(name: .long, help: "Reply-all") var all = false
         @Flag(name: .long, help: "Output JSON") var json = false
 
+        @Option(name: .long, help: "Sending address (must belong to exactly one account)") var from: String
+        @Option(name: .long, help: "UTF-8 body file, or - for stdin") var bodyFile: String?
+        @Option(name: .long, help: "Seconds to wait for Mail and delivery") var wait: Double = 600
+
         func run() throws {
+            let sender = try mailSender(from, wait: wait)
             try Auth.check("mail.send")
-            let escaped     = jxaEscape(query)
-            let escapedBody = jxaEscape(body)
-            let replyAll = all ? "true" : "false"
-            let script = """
-            const Mail = Application('Mail');
-            const q = '\(escaped)'.toLowerCase();
-            let found = null;
-            outer: for (const acct of Mail.accounts()) {
-                try {
-                    for (const mb of acct.mailboxes()) {
-                        try {
-                            for (const m of mb.messages().slice(0, \(limit))) {
-                                try {
-                                    const subj = (m.subject() || '').toLowerCase();
-                                    const from = (m.sender() || '').toLowerCase();
-                                    if (subj.includes(q) || from.includes(q)) {
-                                        found = m;
-                                        break outer;
-                                    }
-                                } catch(e) {}
-                            }
-                        } catch(e) {}
-                    }
-                } catch(e) {}
+            let text = try messageBody(body, file: bodyFile)
+            let started = Date()
+            let baseline = Set(try messagingRows(envelopeIndex(),MessagingStore.mailQuery(query:nil,limit:1000,after:started.timeIntervalSince1970 - 2,accountIDs:[sender.id])).compactMap { $0["id"] as? Int })
+            let raw = try mailScript("""
+            const Mail=Application('Mail');
+            const q='\(jxaEscape(query))'.toLowerCase();
+            for (const a of Mail.accounts()) for (const b of a.mailboxes()) {
+                const ms=b.messages.whose({_or:[{subject:{_contains:q}},{sender:{_contains:q}}]})();
+                if(!ms.length) continue;
+                const out=ms[0].reply({replyToAll:\(all)});
+                out.sender='\(jxaEscape(from))';
+                if (out.sender().replace(/^.*<([^<>]+)>$/, '$1').trim().toLowerCase()!=='\(jxaEscape(from.lowercased()))') throw Error('Mail refused the requested sender');
+                out.content='\(jxaEscape(text))\\n\\n'+out.content();
+                const subject=out.subject();
+                const id=out.id();
+                if(!out.send()) throw Error('Mail refused to send');
+                return {subject:subject,id:id};
             }
-            if (!found) {
-                JSON.stringify({replied: false, error: 'No matching message found'});
-            } else {
-                const subj = found.subject();
-                const beforeCount = Mail.outgoingMessages().length;
-                found.reply({replyToAll: \(replyAll)});
-                const msgs = Mail.outgoingMessages();
-                if (msgs.length > beforeCount) {
-                    const outMsg = msgs[beforeCount];
-                    outMsg.content = '\(escapedBody)\\n\\n' + (outMsg.content() || '');
-                    outMsg.send();
-                }
-                JSON.stringify({replied: true, subject: subj});
-            }
-            """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 60, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
-                  let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw CLIFailure.appError("Could not reply — check Automation permission for Mail in System Settings\n\(raw.prefix(200))")
-            }
-            if result["replied"] as? Bool != true {
-                throw CLIFailure.appError("Reply failed: \(result["error"] as? String ?? raw)")
-            }
-            if json {
-                printJSON(result)
-            } else {
-                print("Replied to: \(result["subject"] as? String ?? query)")
-            }
+            return {not_found:true};
+            """, wait: wait)
+            let result = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String:Any] ?? [:]
+            guard let subject = result["subject"] as? String else { throw CLIFailure.notFound("No matching message found.") }
+            let confirmed = try confirmMailSent(from: from, account: sender, subject: subject, started: started, wait: wait, excluding: baseline)
+            if json { printJSON(confirmed.merging(["replied":true]) { $1 }) } else { print("Replied from \(from): \(subject)") }
         }
     }
 
@@ -490,24 +410,14 @@ struct MailCommand: ParsableCommand {
 
     struct Accounts: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "List Mail accounts")
+        @Option(name:.long, help:"Seconds to wait for Mail") var wait: Double = 600
         @Flag(name: .long, help: "Output JSON") var json = false
 
         func run() throws {
             try Auth.check("mail.read")
-            let script = """
-            const Mail = Application('Mail');
-            const out = Mail.accounts().map(a => {
-                try { return {name: a.name(), email: a.emailAddresses()[0] || ''}; }
-                catch(e) { return null; }
-            }).filter(Boolean);
-            JSON.stringify(out);
-            """
-            let raw = Process.capture(args: ["/usr/bin/osascript", "-l", "JavaScript", "-e", script], timeout: 10, fallback: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty, let data = raw.data(using: .utf8),
-                  let accounts = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw CLIFailure.appError("Could not list Mail accounts — check Automation permission\n\(raw.prefix(200))")
-            }
+            let values = try mailAccounts(wait:wait)
+            let accounts: [[String:Any]] = values.map { ["id":$0.id,"name":$0.name,"addresses":$0.addresses,"email":$0.addresses.first ?? ""] }
+
             if json {
                 printJSON(accounts)
             } else {
@@ -531,6 +441,9 @@ enum MailMatch {
 /// skip the rest. An unknown mailbox or account is `not_found`, never zero results.
 func findMail(_ match: MailMatch, mailbox: String?, account: String?, limit: Int,
               withContent: Bool, timeout: Double) throws -> [[String: Any]] {
+    do { return try indexedMail(match, mailbox: mailbox, account: account, limit: limit, withContent: withContent, timeout: timeout) }
+    catch let failure as CLIFailure where failure.code == "not_found" { throw failure }
+    catch { /* Older or inaccessible index: use Mail's own query. */ }
     let filter: String
     switch match {
     case .query(let q):

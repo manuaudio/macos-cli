@@ -1,5 +1,12 @@
 ## Unreleased
 
+## Unreleased
+
+- Mail accounts include ids and every sending address; addresses add/remove is idempotent and waits for busy Mail.
+- Mail draft, send and reply require an owned `--from` address and accept UTF-8 `--body-file` or stdin. Sends wait for a new Sent record; an unknown sender never falls back to another account.
+- Mail metadata search/read use the read-only Envelope Index where available.
+- WhatsApp chats, read, search and doctor; individual-chat send through the app, disabled by policy until a person enables it.
+
 ## 0.10.0 — 2026-11-13
 
 An agent can read the tour: Master Tour and Daysheets.

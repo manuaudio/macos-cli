@@ -589,3 +589,50 @@ final class CLITests: XCTestCase {
                        code: "capability_denied", status: 4)
     }
 }
+
+extension CLITests {
+    /// These reads use the real store only when the non-prompting doctor says it is available.
+    private var messagingHome: [String:String] {
+        ["HOME":FileManager.default.homeDirectoryForCurrentUser.path]
+    }
+
+    private func requireMailPermission() throws {
+        let doctor=try run(["doctor","--json"],environment:messagingHome)
+        let areas=doctor.json?["areas"] as? [[String:Any]] ?? []
+        guard areas.contains(where: { $0["area"] as? String == "automation.mail" && $0["granted"] as? Bool == true }) else {
+            throw XCTSkip("doctor reports missing Mail Automation permission")
+        }
+    }
+
+    func testMailAccountsIncludeAllAddresses() throws {
+        try requireMailPermission()
+        let result=try run(["mail","accounts","--json","--wait","20"],environment:messagingHome)
+        XCTAssertEqual(result.status,0)
+        let rows=try JSONSerialization.jsonObject(with:Data(result.stdout.utf8)) as? [[String:Any]]
+        XCTAssertNotNil(rows)
+        XCTAssertTrue(rows?.allSatisfy { $0["id"] is String && $0["name"] is String && $0["addresses"] is [String] } == true)
+    }
+
+    func testUnknownMailSenderCannotSend() throws {
+        try requireMailPermission()
+        let result=try run(["mail","send","--from","nobody@example.com","--to","reader@example.com","--subject","Sender rejection test","--wait","20","--json"],environment:messagingHome)
+        XCTAssertEqual(result.status,3)
+        XCTAssertEqual(result.json?["error"] as? String,"sender_not_found")
+        XCTAssertTrue(result.stderr.isEmpty)
+    }
+
+    func testWhatsAppChatsWhenReaderReady() throws {
+        let doctor=try run(["whatsapp","doctor","--json"],environment:messagingHome)
+        guard doctor.json?["reader_ready"] as? Bool == true else { throw XCTSkip("WhatsApp doctor reports missing reader access or store") }
+        let result=try run(["whatsapp","chats","--json","--limit","3"],environment:messagingHome)
+        XCTAssertEqual(result.status,0)
+        let rows=try JSONSerialization.jsonObject(with:Data(result.stdout.utf8)) as? [[String:Any]]
+        XCTAssertNotNil(rows)
+        XCTAssertLessThanOrEqual(rows?.count ?? 4,3)
+    }
+
+    func testWhatsAppSendDefaultsToDenied() throws {
+        let result=try run(["whatsapp","send","+15555550100","--text","Do not send","--json"])
+        assertEnvelope(result,code:"capability_denied",status:4)
+    }
+}

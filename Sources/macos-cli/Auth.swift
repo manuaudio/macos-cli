@@ -79,6 +79,8 @@ struct Auth {
         ("calendar.read",      true,  "Read calendar events"),
         ("calendar.write",     true,  "Create and modify calendar events"),
         ("calendar.delete",    false, "Delete calendar events"),
+        ("whatsapp.read", true, "Read WhatsApp chats"),
+        ("whatsapp.send", false, "Send WhatsApp messages"),
         // Mail
         ("mail.read",          true,  "Read emails"),
         ("mail.send",          false, "Send emails"),

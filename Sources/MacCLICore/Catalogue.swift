@@ -205,6 +205,13 @@ extension MacCLICore {
         "login-items remove": true,
 
         "mail accounts": false,
+        "mail addresses add": true,
+        "mail addresses remove": true,
+        "whatsapp chats": false,
+        "whatsapp read": false,
+        "whatsapp search": false,
+        "whatsapp doctor": false,
+        "whatsapp send": true,
         "mail delete": true,
         "mail draft": true,
         "mail mailboxes": false,

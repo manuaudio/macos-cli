@@ -38,6 +38,7 @@ struct MacOSCLI: ParsableCommand {
             SafariCommand.self,
             MailCommand.self,
             MessagesCommand.self,
+            WhatsAppCommand.self,
             PhotosCommand.self,
             MusicCommand.self,
             FinderCommand.self,

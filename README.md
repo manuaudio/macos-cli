@@ -65,7 +65,8 @@ The exit code says what kind of failure it was: 64 a bad command line, 3 not fou
 | **Reminders** | create, complete, list by list, due dates |
 | **Contacts** | search, read, create, update, by name, email or phone |
 | **Messages** | send iMessage/SMS, read threads, search |
-| **Mail** | search, read, draft, send, reply, manage mailboxes |
+| **Mail** | indexed search and read, sending addresses, drafts, send and reply with an explicit sender and delivery confirmation |
+| **WhatsApp** | chats, read, search, doctor; policy-gated send to individual chats or phone numbers |
 | **Notes** | read, create, search Apple Notes |
 | **Music** | now playing, play/pause, skip, library queries |
 | **Safari** | read the current tab, list tabs, open URLs |
@@ -419,3 +420,32 @@ Issues and PRs welcome. The codebase is plain Swift + [swift-argument-parser](ht
 ## License
 
 MIT © [manuaudio](https://github.com/manuaudio) — see [LICENSE](LICENSE).
+
+### Mail senders and WhatsApp
+
+`macos mail accounts --json` lists account ids and all sending addresses. Draft, send
+and reply require `--from alex@example.com`. An unowned address returns
+`sender_not_found` (exit 3), without creating or sending a message. Duplicate ownership
+is rejected. Use `macos mail addresses add Work alias@example.com --wait 600` (or
+`remove`) to change an account's addresses; this requires the `mail.write` policy.
+Mail must already be configured to send from that address at its provider.
+
+Long bodies use `--body-file message.txt` or `--body-file -` for UTF-8 stdin.
+After a send, macos waits up to `--wait` seconds for a new matching Sent-folder record
+in Mail's read-only Envelope Index. A timeout returns `still_in_outbox` (exit 5);
+check Mail before retrying to avoid duplicates. This confirms Mail filed the message,
+not delivery to the recipient. Busy Apple events return `mail_busy` (exit 5).
+Search matches indexed sender, recipients and subject; reading retrieves the body
+through Mail. Older or inaccessible indexes fall back to Mail's search.
+
+`macos whatsapp chats --limit 3 --json`, `whatsapp read Alex --since
+2026-01-01T00:00:00Z --json` and `whatsapp search hello --json` read a read-only
+ChatStorage database; a locked database uses a temporary SQLite backup.
+`macos whatsapp doctor --json` checks the reader, app, Accessibility and send policy.
+`macos whatsapp send +15555550100 --text-file message.txt --json` opens the app's
+send URL and presses its Accessibility Send button only after matching the recipient
+and composer text. It reports `send_requested`, not recipient delivery. Individual
+chat ids, exact unique names and JIDs also work; group sending is unavailable.
+Sending starts disabled; a person enables `whatsapp.send` through `macos auth grant`.
+Readers need Full Disk Access; sending also needs Accessibility. No pointer or
+keyboard events are synthesized.

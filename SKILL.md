@@ -55,6 +55,16 @@ The list below has every command with its flags, one line of help and whether it
 `macos commands --json` prints it. Run `macos help <area> <action>` for a
 command's arguments.
 
+Mail draft, send and reply require `--from <owned-address>`; `mail accounts --json`
+lists all addresses. Use `--body-file <path>` or `--body-file -` for UTF-8 stdin.
+`mail addresses add/remove <account> <address> --wait 600` requires `mail.write`.
+Unknown senders fail without fallback. `still_in_outbox` means check Mail before retrying.
+
+WhatsApp reads use its local database (Full Disk Access). `whatsapp doctor --json`
+checks readiness. Individual-chat sends require a person to enable `whatsapp.send`,
+plus Accessibility. Use `--text` or `--text-file` (including `-` for stdin).
+Group sending is unavailable. `send_requested` confirms the app's button action only.
+
 ## Commands that only read
 
 These change nothing on the Mac. Saving a screenshot or an export to a path you name counts as reading.
@@ -98,7 +108,7 @@ These change nothing on the Mac. Saving a screenshot or an export to a path you 
 - `macos keychain list`: List Keychain service/account metadata (no passwords). Flags: `--query` `--json`.
 - `macos location get`: Get current location (requires Location Services permission). Flags: `--json` `--timeout`.
 - `macos login-items list`: List current login items. Flags: `--json`.
-- `macos mail accounts`: List Mail accounts. Flags: `--json`.
+- `macos mail accounts`: List Mail accounts. Flags: `--wait` `--json`.
 - `macos mail mailboxes`: List all mailboxes across Mail accounts. Flags: `--account` `--json`.
 - `macos mail read`: Read full message content, by Message-ID or by query. Flags: `--id` `--query` `--mailbox` `--account` `--limit` `--timeout` `--json`.
 - `macos mail refresh`: Force Mail to check all accounts for new messages now. Flags: `--json`.
@@ -173,6 +183,10 @@ These change nothing on the Mac. Saving a screenshot or an export to a path you 
 - `macos trash list`: List Trash contents. Flags: `--json`.
 - `macos voice-memos export`: Copy a voice memo to a destination path. Flags: `--out`.
 - `macos voice-memos list`: List all voice memos. Flags: `--limit` `--json`.
+- `macos whatsapp chats`: List recent WhatsApp chats. Flags: `--limit` `--json`.
+- `macos whatsapp doctor`: Check WhatsApp read and send permissions. Flags: `--json`.
+- `macos whatsapp read`: Read one WhatsApp chat by id, name or JID. Flags: `--limit` `--since` `--json`.
+- `macos whatsapp search`: Search WhatsApp message text. Flags: `--limit` `--json`.
 - `macos window list`: List all visible windows with their positions and sizes. Flags: `--app` `--json`.
 
 ## Commands that write
@@ -228,11 +242,13 @@ These change data, a setting or the state of the Mac, or send, play or show some
 - `macos keychain set`: Save or update a Keychain password. Flags: `--service` `--account` `--password` `--update` `--json`.
 - `macos login-items add`: Add an app to login items. Flags: `--hidden` `--json`.
 - `macos login-items remove`: Remove a login item by name. Flags: `--json`.
+- `macos mail addresses add`: Add an account sending address, idempotently. Flags: `--wait` `--json`.
+- `macos mail addresses remove`: Remove an account sending address, idempotently. Flags: `--wait` `--json`.
 - `macos mail delete`: Delete messages matching a query. Flags: `--query` `--limit` `--json`.
-- `macos mail draft`: Create a draft email in Mail. Flags: `--to` `--subject` `--body` `--cc` `--open` `--json`.
+- `macos mail draft`: Create a draft email in Mail. Flags: `--to` `--subject` `--body` `--cc` `--open` `--json` `--from` `--body-file` `--wait`.
 - `macos mail mark`: Mark messages as read/unread/flagged. Flags: `--query` `--read` `--unread` `--flagged` `--unflagged` `--limit` `--json`.
-- `macos mail reply`: Reply to a message matching a query. Flags: `--query` `--body` `--limit` `--all` `--json`.
-- `macos mail send`: Send an email immediately via Mail. Flags: `--to` `--subject` `--body` `--cc` `--json`.
+- `macos mail reply`: Reply to a message matching a query. Flags: `--query` `--body` `--limit` `--all` `--json` `--from` `--body-file` `--wait`.
+- `macos mail send`: Send an email immediately via Mail. Flags: `--to` `--subject` `--body` `--cc` `--json` `--from` `--body-file` `--wait`.
 - `macos mastertour login`: Save the Master Tour API key and secret (secret on stdin) in the login keychain. Flags: `--key` `--json`.
 - `macos menu click`: Click a menu item by path, e.g. 'View > Show Sidebar'. Flags: `--app`.
 - `macos messages delete`: Delete a conversation. Flags: `--with` `--json`.
@@ -289,6 +305,7 @@ These change data, a setting or the state of the Mac, or send, play or show some
 - `macos trash add`: Move a file or folder to the Trash. Flags: `--json`.
 - `macos trash empty`: Empty the Trash. Flags: `--json`.
 - `macos update`: Replace this binary with the newest signed Release, in place. Flags: `--check` `--json`.
+- `macos whatsapp send`: Send to an individual WhatsApp chat or phone number. Flags: `--text` `--text-file` `--json`.
 - `macos window focus`: Bring a window to the front. Flags: `--title`.
 - `macos window fullscreen`: Toggle fullscreen for an app window. Flags: `--title`.
 - `macos window maximize`: Expand a window to fill the visible screen area. Flags: `--title`.

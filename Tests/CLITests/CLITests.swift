@@ -691,11 +691,14 @@ extension CLITests {
         ["HOME":FileManager.default.homeDirectoryForCurrentUser.path]
     }
 
+    struct Precondition: Error, CustomStringConvertible { let description: String }
+
+    /// The factory Mac grants Mail Automation; a Mac that does not fails here, by name, instead of passing quietly.
     private func requireMailPermission() throws {
         let doctor=try run(["doctor","--json"],environment:messagingHome)
         let areas=doctor.json?["areas"] as? [[String:Any]] ?? []
         guard areas.contains(where: { $0["area"] as? String == "automation.mail" && $0["granted"] as? Bool == true }) else {
-            throw XCTSkip("doctor reports missing Mail Automation permission")
+            throw Precondition(description: "doctor reports missing Mail Automation permission")
         }
     }
 
@@ -717,11 +720,14 @@ extension CLITests {
         XCTAssertTrue(result.stderr.isEmpty)
     }
 
-    /// An address one of this Mac's Mail accounts owns, named by MACOS_CLI_TEST_MAIL_FROM.
-    /// The test draft it writes is deleted at once; nothing is ever sent.
+    /// An address one of this Mac's Mail accounts owns: MACOS_CLI_TEST_MAIL_FROM, else the first address
+    /// `mail accounts` lists. The test draft it writes is deleted at once; nothing is ever sent.
     private func ownedTestSender() throws -> String {
-        guard let from = ProcessInfo.processInfo.environment["MACOS_CLI_TEST_MAIL_FROM"], !from.isEmpty else {
-            throw XCTSkip("set MACOS_CLI_TEST_MAIL_FROM to an address a Mail account owns")
+        if let from = ProcessInfo.processInfo.environment["MACOS_CLI_TEST_MAIL_FROM"], !from.isEmpty { return from }
+        let result = try run(["mail","accounts","--json","--wait","20"],environment:messagingHome)
+        let rows = try JSONSerialization.jsonObject(with:Data(result.stdout.utf8)) as? [[String:Any]] ?? []
+        guard let from = rows.lazy.compactMap({ ($0["addresses"] as? [String])?.first }).first else {
+            throw Precondition(description: "no Mail account on this Mac owns an address")
         }
         return from
     }
@@ -777,9 +783,9 @@ extension CLITests {
         XCTAssertEqual(try draftSenders(subject: subject), [], "no draft and no outgoing message")
     }
 
-    func testWhatsAppChatsWhenReaderReady() throws {
+    func testWhatsAppChatsReadLive() throws {
         let doctor=try run(["whatsapp","doctor","--json"],environment:messagingHome)
-        guard doctor.json?["reader_ready"] as? Bool == true else { throw XCTSkip("WhatsApp doctor reports missing reader access or store") }
+        guard doctor.json?["reader_ready"] as? Bool == true else { throw Precondition(description: "WhatsApp doctor reports missing reader access or store") }
         let result=try run(["whatsapp","chats","--json","--limit","3"],environment:messagingHome)
         XCTAssertEqual(result.status,0)
         let rows=try JSONSerialization.jsonObject(with:Data(result.stdout.utf8)) as? [[String:Any]]

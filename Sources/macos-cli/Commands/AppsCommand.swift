@@ -1,6 +1,7 @@
 import ArgumentParser
 import AppKit
 import Foundation
+import MacCLICore
 
 struct AppsCommand: ParsableCommand {
     static let configuration = CommandConfiguration(

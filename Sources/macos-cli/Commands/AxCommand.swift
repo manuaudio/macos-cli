@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MacCLICore
 import ApplicationServices
 import AppKit
 

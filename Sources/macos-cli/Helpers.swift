@@ -1,6 +1,7 @@
 // Sources/macos-cli/Helpers.swift
 import Foundation
 import ArgumentParser
+import MacCLICore
 
 // MARK: - Process helpers (moved out of SystemCommand.swift)
 
@@ -221,35 +222,6 @@ func padRight(_ s: String, _ width: Int) -> String {
 func padLeft(_ s: String, _ width: Int) -> String {
     if s.count >= width { return String(s.suffix(width)) }
     return String(repeating: " ", count: width - s.count) + s
-}
-
-/// Result returned by a JXA script that uses the structured envelope pattern.
-struct JXAEnvelope {
-    let ok: Bool
-    let resultJSON: String
-    let error: String
-}
-
-/// Parse a JXA script's stdout into a JXAEnvelope.
-func parseJXAEnvelope(_ raw: String) -> JXAEnvelope? {
-    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return nil }
-    guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-        if trimmed.lowercased().hasPrefix("execution error:") || trimmed.lowercased().hasPrefix("error:") {
-            return JXAEnvelope(ok: false, resultJSON: "", error: trimmed)
-        }
-        return nil
-    }
-    let ok = obj["ok"] as? Bool ?? false
-    let errMsg = obj["error"] as? String ?? ""
-    var resultJSON = ""
-    if let result = obj["result"] {
-        if let d = try? JSONSerialization.data(withJSONObject: result, options: []),
-           let s = String(data: d, encoding: .utf8) {
-            resultJSON = s
-        }
-    }
-    return JXAEnvelope(ok: ok, resultJSON: resultJSON, error: errMsg)
 }
 
 /// Run a JXA script that uses the structured envelope pattern, throw on failure.

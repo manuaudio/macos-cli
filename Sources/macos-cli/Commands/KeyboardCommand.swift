@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MacCLICore
 
 // Keyboard input via System Events osascript — handles Unicode and modifier keys correctly.
 // Requires Accessibility permission for System Events.

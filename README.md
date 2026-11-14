@@ -63,18 +63,18 @@ The exit code says what kind of failure it was: 64 a bad command line, 3 not fou
 |---|---|
 | **Calendar** | list, rich JSON export, create (custom alarms), update, delete (by id or title) across all linked calendars |
 | **Reminders** | create, complete, list by list, due dates |
-| **Contacts** | search, read, create, update, by name, email or phone |
-| **Messages** | send iMessage/SMS, read threads, search |
+| **Contacts** | search, read, create, update, by name, email or phone; export every card per account |
+| **Messages** | send iMessage/SMS, read threads, export rows from chat.db for ingestion |
 | **Mail** | search, read, draft, send, reply, manage mailboxes |
 | **Notes** | read, create, search Apple Notes |
 | **Music** | now playing, play/pause, skip, library queries |
-| **Safari** | read the current tab, list tabs, open URLs |
+| **Safari** | read the current tab, list tabs, open URLs, run a page's JavaScript |
 | **Screen** | full/window/region screenshots, screen recording check |
 | **OCR** | extract text from the screen, a region, or any image |
 | **Windows** | list, move, resize, focus app windows |
 | **Input** | type text, send shortcuts, move and click the mouse |
 | **Accessibility** | find and click UI elements by name, dump the UI tree |
-| **System** | battery, focus modes, processes, disks, defaults, network |
+| **System** | battery, focus modes, processes, disks, network shares, defaults, network |
 | **Keychain** | read/write passwords and secrets (with your approval) |
 | **Files and PDF** | search files, read metadata, extract PDF text |
 | **Tours** | Master Tour tours, days, hotels, crew and guest lists; a Daysheets tour's days from its calendar feed |
@@ -368,6 +368,34 @@ macos contacts get "$ID" --json | jq -r .job_title            # → "Tour Manage
 The written value appears verbatim in the very next `get`/`export`, so the write can be confirmed rather than assumed.
 
 `contacts export` carries a `history_token`. Pass it back as `--since TOKEN` and the export holds only the contacts added or changed since, plus `deleted_ids`, and a new `history_token`.
+
+`contacts export --per-source` lists each account's own cards (iCloud, Google, On My Mac) instead of the linked person, each with `source`, `source_id` and `source_type`. Every exported card has `is_me`, true on the owner's card (false everywhere when Contacts has no My Card set).
+
+### Messages for ingestion
+
+`messages export --since-rowid N` reads chat.db, read-only, and prints every message after rowid N, oldest first: `rowid`, `guid`, `date` (ISO 8601, UTC), `handle`, `service`, `text` (taken from `attributedBody` when the text column is empty), `is_from_me`, `chat_guid`, `chat_handles`, `attachments` and the `associated_message_type` and `item_type` that mark tapbacks and system rows. `last_rowid` is the next run's `--since-rowid`. `messages latest --json` gives the newest message time and rowid per service. Both need `messages.read` and Full Disk Access for the `macos` binary.
+
+```bash
+macos messages export --since-rowid 412000 --limit 500 | jq '.messages[] | select(.associated_message_type == 0) | .text'
+macos messages latest --json
+```
+
+### Network shares
+
+`disk mount smb://user@host/share` mounts the share under /Volumes through NetFS, no root needed, and never shows a dialog. The password is the keychain item Finder saved for the server, or the value of the environment variable `--password-env` names; a URL with a password in it is refused. A share already mounted (by its `.local` name or the Bonjour name Finder uses) is reported where it is, not mounted twice. It needs `disk.mount`, which is on by default; `disk.write` (ejecting and unmounting) stays separate.
+
+```bash
+macos disk mount smb://manu@ManuStorage.local/Arimaka --json      # {"mounted": true, "already": true, "mount_point": "/Volumes/Arimaka", …}
+NAS_PASSWORD=… macos disk mount smb://backup@nas.local/TimeMachine --password-env NAS_PASSWORD
+```
+
+### Page JavaScript in Safari
+
+`safari js SCRIPT` (formerly `safari execute`, still accepted) runs JavaScript in a page and prints what it returns: the front window's current tab, `--tab N` in `--window N`, or the first tab whose URL contains `--url TEXT`. The script acts with that page's signed-in session, so it has its own capability, `safari.js`, off by default and separate from `safari.execute`. Safari needs Develop › Allow JavaScript from Apple Events.
+
+```bash
+macos safari js --url venmo.com "document.title"
+```
 
 ### Mail by Message-ID
 

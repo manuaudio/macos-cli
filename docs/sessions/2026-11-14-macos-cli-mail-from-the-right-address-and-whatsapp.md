@@ -31,3 +31,13 @@ account list. Existing mail.send policy denied it (exit 4), before draft creatio
 The policy was left unchanged. This acceptance check remains open; no draft sender
 or live delivery behavior is claimed as verified. WhatsApp Accessibility is also
 unavailable on this test binary; the send action was not exercised.
+
+## Resumed check
+
+Continued from the pushed commit in the newly assigned worktree. The live policy
+still explicitly denies mail.send. The installed signed macos doctor's report
+confirms Mail Automation and Full Disk Access are granted, but Accessibility is
+denied. These checks do not authorize widening either permission. The real draft
+acceptance remains unperformed, and group sending remains unimplemented. No live
+message was sent, no permission was changed, and no previously passing tests were
+rerun for this documentation-only update.

@@ -297,6 +297,29 @@ final class CLITests: XCTestCase {
         XCTAssertFalse(result.stderr.contains("USAGE:"), "a denial is not a usage mistake")
     }
 
+    /// `apps quit --pid` of a process the caller did not start (launchd, pid 1) needs apps.quit.
+    func testQuitByPidOfAnotherProcessNeedsTheGrant() throws {
+        try writePolicy(["apps.quit": false])
+        let result = try run(["apps", "quit", "--pid", "1"])
+        XCTAssertEqual(result.status, 4, result.stderr)
+        XCTAssertTrue(result.stderr.hasPrefix("Error: 'apps.quit' is denied"), result.stderr)
+    }
+
+    /// A process the caller started itself (here a `sleep` beside the CLI, both the test's children) is the
+    /// caller's to quit without the grant (the launch check quits the app it opened, 2026-11-17); not an app,
+    /// it is not found rather than denied.
+    func testQuitByPidOfTheCallersOwnProcessNeedsNoGrant() throws {
+        try writePolicy(["apps.quit": false])
+        let sleeper = Process()
+        sleeper.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        sleeper.arguments = ["30"]
+        try sleeper.run()
+        defer { sleeper.terminate() }
+        let result = try run(["apps", "quit", "--pid", String(sleeper.processIdentifier)])
+        XCTAssertEqual(result.status, 3, result.stderr)
+        XCTAssertTrue(result.stderr.contains("No app runs as pid \(sleeper.processIdentifier)"), result.stderr)
+    }
+
     // MARK: - Not found
 
     /// An unknown calendar used to print the root usage text and exit 64. When this

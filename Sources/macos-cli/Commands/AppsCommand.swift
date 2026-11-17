@@ -85,26 +85,46 @@ struct AppsCommand: ParsableCommand {
 
     struct QuitCmd: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "quit", abstract: "Quit an application")
-        @Argument(help: "App name or bundle ID") var app: String
+        @Argument(help: "App name or bundle ID") var app: String?
+        @Option(name: .long, help: "Quit this one process, not the first app of that name") var pid: Int32?
         @Flag(name: .long, help: "Force quit (SIGKILL)") var force = false
 
+        func validate() throws {
+            guard (app == nil) != (pid == nil) else {
+                throw ValidationError("Name the app, or give --pid; not both")
+            }
+        }
+
         func run() throws {
-            try Auth.check("apps.quit")
-            let ws = NSWorkspace.shared
-            let running = ws.runningApplications
-            let match = running.first {
-                $0.localizedName?.lowercased() == app.lowercased() ||
-                $0.bundleIdentifier?.lowercased() == app.lowercased()
+            let match: NSRunningApplication?
+            if let pid {
+                // A process the caller started itself (its sibling: both have the caller as parent) is the
+                // caller's to end, as a signal would; quitting it needs no grant. Any other needs apps.quit.
+                if parent(of: pid) != getppid() { try Auth.check("apps.quit") }
+                match = NSRunningApplication(processIdentifier: pid)
+            } else {
+                try Auth.check("apps.quit")
+                match = NSWorkspace.shared.runningApplications.first {
+                    $0.localizedName?.lowercased() == app?.lowercased() ||
+                    $0.bundleIdentifier?.lowercased() == app?.lowercased()
+                }
             }
             guard let target = match else {
-                throw CLIFailure.notFound("App '\(app)' is not running")
+                throw CLIFailure.notFound(pid.map { "No app runs as pid \($0)" } ?? "App '\(app ?? "")' is not running")
             }
             if force {
                 target.forceTerminate()
             } else {
                 target.terminate()
             }
-            print("Quit: \(target.localizedName ?? app)")
+            print("Quit: \(target.localizedName ?? app ?? "pid \(target.processIdentifier)")")
+        }
+
+        private func parent(of pid: Int32) -> Int32? {
+            var info = proc_bsdinfo()
+            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+            guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+            return Int32(info.pbi_ppid)
         }
     }
 

@@ -27,10 +27,26 @@ struct RemindersCommand: ParsableCommand {
         @Option(name: .long, help: "Notes / body text")
         var notes: String?
 
+        @Option(name: .customLong("when-arriving"), help: "Remind on arriving at a place: home, work (the Me card's addresses) or an address")
+        var whenArriving: String?
+
+        @Option(name: .customLong("when-leaving"), help: "Remind on leaving a place: home, work or an address")
+        var whenLeaving: String?
+
+        @Option(name: .long, help: "Radius of the place in metres (default: 150)")
+        var radius: Double?
+
         @Flag(name: .long, help: "Output JSON")
         var json = false
 
+        func validate() throws {
+            _ = try ReminderLocation.change(whenArriving: whenArriving, whenLeaving: whenLeaving,
+                                            radius: radius, clearLocation: false)
+        }
+
         func run() throws {
+            let locationChange = try ReminderLocation.change(whenArriving: whenArriving, whenLeaving: whenLeaving,
+                                                             radius: radius, clearLocation: false)
             try Auth.check("reminders.write")
             let store = try EventKitStore.authorized(for: .reminder)
             let reminder = EKReminder(eventStore: store)
@@ -71,6 +87,10 @@ struct RemindersCommand: ParsableCommand {
                 reminder.calendar = def
             }
 
+            if case .set(let trigger) = locationChange {
+                ReminderLocation.apply(locationChange, alarm: try ReminderLocation.alarm(for: trigger), to: reminder)
+            }
+
             do {
                 try store.save(reminder, commit: true)
             } catch {
@@ -84,6 +104,7 @@ struct RemindersCommand: ParsableCommand {
                     "list": reminder.calendar?.title ?? "",
                     "due": due ?? NSNull(),
                     "notes": reminder.notes ?? NSNull(),
+                    "location": ReminderLocation.json(reminder) ?? NSNull(),
                 ]
                 printJSON(out)
             } else {
@@ -140,6 +161,7 @@ struct RemindersCommand: ParsableCommand {
                         "completed": r.isCompleted,
                     ]
                     if let notes = r.notes { d["notes"] = notes }
+                    if let location = ReminderLocation.json(r) { d["location"] = location }
                     if let due = r.dueDateComponents {
                         d["due"] = "\(due.year ?? 0)-\(String(format: "%02d", due.month ?? 0))-\(String(format: "%02d", due.day ?? 0))"
                     }
@@ -153,7 +175,11 @@ struct RemindersCommand: ParsableCommand {
                         guard let y = c.year, let m = c.month, let d = c.day else { return nil }
                         return "\(y)-\(String(format: "%02d", m))-\(String(format: "%02d", d))"
                     } ?? ""
-                    print("\(status) [\(r.calendar?.title ?? "?")] \(r.title ?? "") \(dueStr)")
+                    let whereStr = ReminderLocation.json(r).map { loc in
+                        "(\(loc["proximity"] as? String == "leaving" ? "leaving" : "arriving at") \(loc["title"] as? String ?? ""))"
+                    } ?? ""
+                    print("\(status) [\(r.calendar?.title ?? "?")] \(r.title ?? "") \(dueStr) \(whereStr)"
+                        .trimmingCharacters(in: .whitespaces))
                 }
                 print("\(filtered.count) reminders")
             }
@@ -234,8 +260,11 @@ struct RemindersCommand: ParsableCommand {
     struct Update: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Update a reminder by ID")
 
-        @Argument(help: "Reminder calendarItemIdentifier")
-        var id: String
+        @Argument(help: ArgumentHelp("Reminder calendarItemIdentifier (or pass --id)", valueName: "id"))
+        var positionalID: String?
+
+        @Option(name: .customLong("id"), help: "Reminder calendarItemIdentifier")
+        var optionID: String?
 
         @Option(name: .long, help: "New title")
         var title: String?
@@ -249,16 +278,48 @@ struct RemindersCommand: ParsableCommand {
         @Option(name: .long, help: "Move to a different list by name")
         var list: String?
 
+        @Option(name: .customLong("when-arriving"), help: "Remind on arriving (replaces any place set before) at a place: home, work (the Me card's addresses) or an address")
+        var whenArriving: String?
+
+        @Option(name: .customLong("when-leaving"), help: "Remind on leaving a place: home, work or an address")
+        var whenLeaving: String?
+
+        @Option(name: .long, help: "Radius of the place in metres (default: 150)")
+        var radius: Double?
+
+        @Flag(name: .customLong("clear-location"), help: "Remove the reminder's arriving/leaving trigger")
+        var clearLocation = false
+
         @Flag(name: .long, help: "Output JSON")
         var json = false
 
+        var id: String { optionID ?? positionalID ?? "" }
+
+        func validate() throws {
+            switch (positionalID, optionID) {
+            case (nil, nil): throw ValidationError("Name the reminder: its id, or --id <id>.")
+            case (.some(let a), .some(let b)) where a != b: throw ValidationError("Two different ids given.")
+            default: break
+            }
+            _ = try ReminderLocation.change(whenArriving: whenArriving, whenLeaving: whenLeaving,
+                                            radius: radius, clearLocation: clearLocation)
+        }
+
         func run() throws {
+            let locationChange = try ReminderLocation.change(whenArriving: whenArriving, whenLeaving: whenLeaving,
+                                                             radius: radius, clearLocation: clearLocation)
             try Auth.check("reminders.write")
-            guard title != nil || due != nil || notes != nil || list != nil else {
-                throw ValidationError("Specify at least one field to update: --title, --due, --notes, --list")
+            guard title != nil || due != nil || notes != nil || list != nil || locationChange != .none else {
+                throw ValidationError("Specify at least one field to update: --title, --due, --notes, --list, "
+                    + "--when-arriving, --when-leaving, --clear-location")
             }
             let store = try EventKitStore.authorized(for: .reminder)
             let reminder = try EventKitStore.reminder(store, id: id)
+            // Find the place before changing anything: a missing Me card or address writes nothing.
+            var locationAlarm: EKAlarm?
+            if case .set(let trigger) = locationChange {
+                locationAlarm = try ReminderLocation.alarm(for: trigger)
+            }
 
             if let t = title { reminder.title = t }
             if let n = notes { reminder.notes = n }
@@ -286,6 +347,7 @@ struct RemindersCommand: ParsableCommand {
                 }
                 reminder.calendar = target
             }
+            ReminderLocation.apply(locationChange, alarm: locationAlarm, to: reminder)
 
             do {
                 try store.save(reminder, commit: true)
@@ -301,6 +363,7 @@ struct RemindersCommand: ParsableCommand {
                     "completed": reminder.isCompleted,
                 ]
                 if let n = reminder.notes { d["notes"] = n }
+                d["location"] = ReminderLocation.json(reminder) ?? NSNull()
                 if let dc = reminder.dueDateComponents,
                    let y = dc.year, let m = dc.month, let day = dc.day {
                     d["due"] = "\(y)-\(String(format: "%02d", m))-\(String(format: "%02d", day))"
@@ -619,6 +682,7 @@ func reminderExportDict(_ r: EKReminder) -> [String: Any] {
         "priority": r.priority,
         "priority_band": MacCLICore.priorityBand(r.priority),
         "alarms": alarms,
+        "location": ReminderLocation.json(r) ?? NSNull(),
         "recurrence": rules,
         "creation_date": isoOrNull(r.creationDate),
         "last_modified": isoOrNull(r.lastModifiedDate),

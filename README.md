@@ -62,7 +62,7 @@ The exit code says what kind of failure it was: 64 a bad command line, 3 not fou
 | Area | Examples |
 |---|---|
 | **Calendar** | list, rich JSON export, create (custom alarms), update, delete (by id or title) across all linked calendars |
-| **Reminders** | create, complete, list by list, due dates |
+| **Reminders** | create, complete, list by list, due dates, when arriving at or leaving home, work or an address |
 | **Contacts** | search, read, create, update, by name, email or phone; export every card per account |
 | **Messages** | send iMessage/SMS, read threads, search, export rows from chat.db for ingestion |
 | **Mail** | indexed search and read, sending addresses, drafts, send and reply with an explicit sender and delivery confirmation |

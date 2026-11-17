@@ -926,3 +926,113 @@ final class MessagesStoreTests: XCTestCase {
         XCTAssertEqual(MacCLICore.messagesDate(500_000_000).timeIntervalSinceReferenceDate, 500_000_000)
     }
 }
+
+final class LocationTriggerTests: XCTestCase {
+    private func change(arriving: String? = nil, leaving: String? = nil, radius: Double? = nil,
+                        clear: Bool = false) throws -> LocationTrigger.Change {
+        try LocationTrigger.change(whenArriving: arriving, whenLeaving: leaving, radius: radius, clearLocation: clear)
+    }
+
+    private func usageMessage(_ body: () throws -> Any) -> String? {
+        do { _ = try body(); return nil } catch let e as LocationTrigger.UsageError { return e.message } catch { return "\(error)" }
+    }
+
+    // MARK: Flag parsing
+
+    func testArrivingHomeWithTheDefaultRadius() throws {
+        XCTAssertEqual(try change(arriving: "home"), .set(.init(place: .home, proximity: .arriving, radius: 150)))
+        XCTAssertEqual(try change(arriving: "Home"), .set(.init(place: .home, proximity: .arriving, radius: 150)))
+    }
+
+    func testLeavingWorkWithARadius() throws {
+        XCTAssertEqual(try change(leaving: "work", radius: 300), .set(.init(place: .work, proximity: .leaving, radius: 300)))
+    }
+
+    func testAnythingElseIsAnAddress() throws {
+        XCTAssertEqual(try change(arriving: " 1 Example Street, Springfield "),
+                       .set(.init(place: .address("1 Example Street, Springfield"), proximity: .arriving)))
+    }
+
+    func testNoFlagsIsNoChangeAndClearIsClear() throws {
+        XCTAssertEqual(try change(), LocationTrigger.Change.none)
+        XCTAssertEqual(try change(clear: true), .clear)
+    }
+
+    func testRefusedCombinations() {
+        XCTAssertEqual(usageMessage { try self.change(arriving: "home", leaving: "work") },
+                       "Use one of --when-arriving and --when-leaving, not both.")
+        XCTAssertNotNil(usageMessage { try self.change(arriving: "home", clear: true) })
+        XCTAssertNotNil(usageMessage { try self.change(radius: 100) })
+        XCTAssertNotNil(usageMessage { try self.change(radius: 100, clear: true) })
+        XCTAssertNotNil(usageMessage { try self.change(arriving: "home", radius: 0) })
+        XCTAssertNotNil(usageMessage { try self.change(arriving: "home", radius: -5) })
+        XCTAssertNotNil(usageMessage { try self.change(arriving: "  ") })
+    }
+
+    // MARK: Home and work from the Me card
+
+    func testHomeAndWorkPickTheirLabelledAddress() throws {
+        let labels: [String?] = [nil, LocationTrigger.contactsWorkLabel, LocationTrigger.contactsHomeLabel]
+        XCTAssertEqual(try LocationTrigger.meCardAddressIndex(for: .home, meCardAddressLabels: labels), 2)
+        XCTAssertEqual(try LocationTrigger.meCardAddressIndex(for: .work, meCardAddressLabels: labels), 1)
+    }
+
+    func testNoMeCardNamesWhatIsMissing() {
+        XCTAssertThrowsError(try LocationTrigger.meCardAddressIndex(for: .home, meCardAddressLabels: nil)) { error in
+            XCTAssertEqual(error as? LocationTrigger.LookupError, .noMeCard)
+            XCTAssertTrue("\(error)".contains("no Me card"), "\(error)")
+        }
+    }
+
+    func testMeCardWithoutAHomeAddressNamesTheLabel() {
+        XCTAssertThrowsError(try LocationTrigger.meCardAddressIndex(
+            for: .home, meCardAddressLabels: [LocationTrigger.contactsWorkLabel])) { error in
+            XCTAssertEqual(error as? LocationTrigger.LookupError, .noLabelledAddress("home"))
+            XCTAssertEqual("\(error)", "The Me card in Contacts has no address labelled home.")
+        }
+        XCTAssertThrowsError(try LocationTrigger.meCardAddressIndex(for: .work, meCardAddressLabels: []))
+    }
+
+    func testLocationTitles() {
+        XCTAssertEqual(LocationTrigger(place: .home, proximity: .arriving).locationTitle, "Home")
+        XCTAssertEqual(LocationTrigger(place: .work, proximity: .leaving).locationTitle, "Work")
+        XCTAssertEqual(LocationTrigger(place: .address("Main St"), proximity: .arriving).locationTitle, "Main St")
+    }
+
+    // MARK: Replace, never stack
+
+    private struct Alarm: Equatable { let name: String; let isLocation: Bool }
+
+    func testANewTriggerReplacesTheOldOneAndKeepsTimeAlarms() {
+        let existing = [Alarm(name: "9am", isLocation: false), Alarm(name: "old home", isLocation: true)]
+        let next = LocationTrigger.alarms(existing, isLocation: { $0.isLocation },
+                                          adding: Alarm(name: "new home", isLocation: true))
+        XCTAssertEqual(next, [Alarm(name: "9am", isLocation: false), Alarm(name: "new home", isLocation: true)])
+        XCTAssertEqual(next.filter(\.isLocation).count, 1)
+    }
+
+    func testSettingTwiceStillLeavesOne() {
+        var alarms: [Alarm] = []
+        for _ in 0..<3 {
+            alarms = LocationTrigger.alarms(alarms, isLocation: { $0.isLocation }, adding: Alarm(name: "home", isLocation: true))
+        }
+        XCTAssertEqual(alarms.count, 1)
+    }
+
+    func testClearRemovesOnlyTheLocation() {
+        let existing = [Alarm(name: "home", isLocation: true), Alarm(name: "9am", isLocation: false)]
+        XCTAssertEqual(LocationTrigger.alarms(existing, isLocation: { $0.isLocation }, adding: nil),
+                       [Alarm(name: "9am", isLocation: false)])
+    }
+
+    // MARK: Output
+
+    func testLocationJSONHasNoCoordinates() throws {
+        let json = try XCTUnwrap(LocationTrigger.locationJSON(title: "Home", proximityRaw: 1, radius: 150))
+        XCTAssertEqual(Set(json.keys), ["title", "proximity", "radius"])
+        XCTAssertEqual(json["proximity"] as? String, "arriving")
+        XCTAssertEqual(LocationTrigger.locationJSON(title: "Work", proximityRaw: 2, radius: 80)?["proximity"] as? String,
+                       "leaving")
+        XCTAssertNil(LocationTrigger.locationJSON(title: "Home", proximityRaw: 0, radius: 150))
+    }
+}

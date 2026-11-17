@@ -279,10 +279,10 @@ These change data, a setting or the state of the Mac, or send, play or show some
 - `macos photos delete`: Delete photo(s) from the library. Flags: `--name` `--limit` `--json`.
 - `macos process kill`: Kill a process by PID or name. Flags: `--pid` `--name` `--signal` `--all` `--json`.
 - `macos reminders complete`: Complete a reminder: dry-run unless --approve matches APPLE_EVENTKIT_APPROVE_TOKEN. Flags: `--id` `--approve` `--json`.
-- `macos reminders create`: Create a new reminder. Flags: `--title` `--due` `--list` `--notes` `--json`.
+- `macos reminders create`: Create a new reminder. Flags: `--title` `--due` `--list` `--notes` `--when-arriving` `--when-leaving` `--radius` `--json`.
 - `macos reminders delete`: Delete a reminder by ID. Flags: `--json`.
 - `macos reminders uncomplete`: Mark a reminder as not complete. Flags: `--json`.
-- `macos reminders update`: Update a reminder by ID. Flags: `--title` `--due` `--notes` `--list` `--json`.
+- `macos reminders update`: Update a reminder by ID. Flags: `--id` `--title` `--due` `--notes` `--list` `--when-arriving` `--when-leaving` `--radius` `--clear-location` `--json`.
 - `macos safari close`: Close a Safari tab. Flags: `--url` `--index` `--current` `--json`.
 - `macos safari js`: Run JavaScript in a Safari tab's page and print what it returns. Flags: `--window` `--tab` `--url`.
 - `macos safari new-tab`: Open a new Safari tab at a URL. Flags: `--url` `--json`.
@@ -380,4 +380,5 @@ Add a reminder to a named list:
 ```bash
 macos reminders lists --json
 macos reminders create --title "Call the venue" --list Work --due "2026-11-12 10:00" --json
+macos reminders update --id ID --when-arriving home --json   # or --when-leaving work, an address, --radius 300, --clear-location
 ```

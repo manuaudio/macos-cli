@@ -604,6 +604,39 @@ do {
     eq(MacCLICore.messagesDate(784_000_000_000_000_000).timeIntervalSinceReferenceDate, 784_000_000, "ns date")
 }
 
+// MARK: - Reminder location trigger (mirrors LocationTriggerTests)
+
+do {
+    func change(_ a: String?, _ l: String?, _ r: Double?, _ c: Bool) -> LocationTrigger.Change? {
+        try? LocationTrigger.change(whenArriving: a, whenLeaving: l, radius: r, clearLocation: c)
+    }
+    eq(change("Home", nil, nil, false), .set(.init(place: .home, proximity: .arriving, radius: 150)), "arriving home, 150 m")
+    eq(change(nil, "work", 300, false), .set(.init(place: .work, proximity: .leaving, radius: 300)), "leaving work, 300 m")
+    eq(change("1 Example Street", nil, nil, false),
+       .set(.init(place: .address("1 Example Street"), proximity: .arriving)), "an address")
+    eq(change(nil, nil, nil, false), LocationTrigger.Change.none, "no flags, no change")
+    eq(change(nil, nil, nil, true), .clear, "clear")
+    check(change("home", "work", nil, false) == nil, "both directions refused")
+    check(change("home", nil, nil, true) == nil, "place and clear refused")
+    check(change(nil, nil, 100, false) == nil, "radius alone refused")
+    check(change("home", nil, 0, false) == nil, "zero radius refused")
+    let labels: [String?] = [nil, LocationTrigger.contactsWorkLabel, LocationTrigger.contactsHomeLabel]
+    eq(try? LocationTrigger.meCardAddressIndex(for: .home, meCardAddressLabels: labels), 2, "home address")
+    eq(try? LocationTrigger.meCardAddressIndex(for: .work, meCardAddressLabels: labels), 1, "work address")
+    do { _ = try LocationTrigger.meCardAddressIndex(for: .home, meCardAddressLabels: nil); check(false, "no Me card") }
+    catch { eq(error as? LocationTrigger.LookupError, .noMeCard, "no Me card") }
+    do { _ = try LocationTrigger.meCardAddressIndex(for: .home, meCardAddressLabels: [LocationTrigger.contactsWorkLabel])
+         check(false, "no home address") }
+    catch { eq(error as? LocationTrigger.LookupError, .noLabelledAddress("home"), "no home address") }
+    let next = LocationTrigger.alarms([("9am", false), ("old", true)], isLocation: { $0.1 }, adding: ("new", true))
+    eq(next.map { $0.0 }, ["9am", "new"], "replace, never stack")
+    eq(LocationTrigger.alarms([("home", true), ("9am", false)], isLocation: { $0.1 }, adding: nil).map { $0.0 },
+       ["9am"], "clear keeps time alarms")
+    eq(LocationTrigger.locationJSON(title: "Home", proximityRaw: 1, radius: 150).map { Set($0.keys) },
+       ["title", "proximity", "radius"], "location JSON, no coordinates")
+    check(LocationTrigger.locationJSON(title: "Home", proximityRaw: 0, radius: 150) == nil, "no proximity, no location")
+}
+
 // MARK: - Summary
 if failures == 0 {
     print("ok — \(checks) checks passed")

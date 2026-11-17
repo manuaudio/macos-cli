@@ -131,4 +131,5 @@ Add a reminder to a named list:
 ```bash
 macos reminders lists --json
 macos reminders create --title "Call the venue" --list Work --due "2026-11-12 10:00" --json
+macos reminders update --id ID --when-arriving home --json   # or --when-leaving work, an address, --radius 300, --clear-location
 ```

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `apps quit --pid N`: quits that one process (an Apple event, as Quit does), not the first app of the name. A process the caller started itself is the caller's to quit without `apps.quit`; any other still needs the grant.
 - `reminders create|update --when-arriving <home|work|address>` (or `--when-leaving`, `--radius` in metres, default 150): the Reminders app's location trigger. `home` and `work` are the Me card's labelled addresses; a second trigger replaces the first, `update --clear-location` removes it, and `list`/`export` show it as `location` (title, arriving or leaving, radius; never coordinates). `update` also takes `--id`.
 - `apps launch <name>` no longer crashes: a script result that is a bare string ("launched") is parsed (it raised "Invalid top-level type in JSON write"). `safari execute` had the same crash on every result.
 - `disk mount smb://user@host/share`: a network share through NetFS, the password from the keychain or `--password-env`, never argv; an already mounted share is reported, not mounted twice. New capability `disk.mount`, on by default.

@@ -200,7 +200,7 @@ These change nothing on the Mac. Saving a screenshot or an export to a path you 
 These change data, a setting or the state of the Mac, or send, play or show something. Run one only when the person asked for that change.
 
 - `macos apps launch`: Launch an application.
-- `macos apps quit`: Quit an application. Flags: `--force`.
+- `macos apps quit`: Quit an application. Flags: `--pid` `--force`.
 - `macos audio set-input`: Set the default audio input device.
 - `macos audio set-output`: Set the default audio output device.
 - `macos auth deny`: Deny a capability.
